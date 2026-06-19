@@ -1,44 +1,73 @@
 # MeteoHub S3
 
-> **Version minimale valide : 1.1.3**
+> **Minimum supported version: 1.1.3**
 
-## Documentation complète
-- [Index de la documentation](docs/index.md)
+## Full Documentation
 
-## Documentation Débutant
-- [Guide Débutant](docs/beginner/index.md)
+* [Documentation Index](docs/index.md)
 
-## Présentation
-MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bord OLED (SH1106/SSD1306 via U8g2). Il affiche les données capteurs locales, les prévisions météo, les logs et l'état système.
+## Getting Started
 
-## Matériel nécessaire
-- Écran OLED (SH1106 ou SSD1306, I2C)
-- Module encodeur HW-040 (encodeur + bouton central)
-- Boutons Back et Confirm
-- Capteurs AHT20 et BMP280
-- Carte SD optionnelle pour l'archivage long terme (Recommandé: Format FAT32, 4-32 Go)
+* [Beginner Guide](docs/beginner/index.md)
 
-## Compilation
-- Installer PlatformIO dans VS Code
-- Sélectionner l'environnement : `esp32-s3-oled`
-- Build : `platformio run`
-- Upload : `platformio run --target upload`
+## Overview
 
-## Fonctionnalités principales (Nouveautés v1.1.x)
-- **Stabilité SD renforcée (v1.1.2)** : Écritures sécurisées avec `flush()` explicite et protection par Mutex contre la corruption de fichiers.
-- **Moteur C++ Standard (v1.1.0)** : Refonte du cœur web pour utiliser `std::string`, garantissant une meilleure stabilité mémoire.
-- **Gestion de fichiers avancée** : Upload, téléchargement et suppression de fichiers via l'interface web.
-- **Mises à jour OTA robustes** : Système de mise à jour sans fil sécurisé.
-- **Graphiques avancés** : Trois modes d'échelle (Fixe, Dynamique, Mixte) pour température, humidité et pression.
+MeteoHub S3 is a PlatformIO project for ESP32-S3 centered around an OLED dashboard (SH1106/SSD1306 using U8g2). It displays local sensor data, weather forecasts, system logs, and device status through both the OLED interface and the integrated web dashboard.
 
-## Utilisation
-Voir [Guide utilisateur](docs/user_guide.md) pour le détail des modes d'échelle et la gestion des fichiers.
+## Hardware Requirements
 
-### Note sur la carte SD
-Pour éviter toute corruption, assurez-vous que :
-1. La carte est formatée en **FAT32** (taille d'allocation 32 ko).
-2. Le système est correctement éteint avant de retirer la carte (bien que le `flush()` protège les données à chaque écriture).
+* OLED display (SH1106 or SSD1306, I2C)
+* HW-040 rotary encoder module (encoder with push button)
+* Back and Confirm buttons
+* AHT20 and BMP280 sensors
+* Optional SD card for long-term data storage (recommended: FAT32, 4-32 GB)
+
+## Building the Project
+
+* Install PlatformIO in Visual Studio Code
+* Select the `esp32-s3-oled` environment
+* Build:
+
+```bash
+platformio run
+```
+
+* Upload:
+
+```bash
+platformio run --target upload
+```
+
+## Key Features (v1.1.x Highlights)
+
+* **Improved SD Card Reliability (v1.1.2)**
+  Safe write operations with explicit `flush()` calls and Mutex protection to reduce the risk of file corruption.
+
+* **Standard C++ Engine (v1.1.0)**
+  Core web engine refactored to use `std::string`, providing improved memory stability and maintainability.
+
+* **Advanced File Management**
+  Upload, download, and delete files directly from the web interface.
+
+* **Robust OTA Updates**
+  Secure wireless firmware update system.
+
+* **Advanced Charts**
+  Three scaling modes (Fixed, Dynamic, and Mixed) for temperature, humidity, and pressure visualization.
+
+## Usage
+
+See the [User Guide](docs/user_guide.md) for detailed information about chart scaling modes, file management, and system operation.
+
+## SD Card Notes
+
+To minimize the risk of data corruption:
+
+1. Format the SD card using **FAT32** (32 KB allocation size recommended).
+2. Properly shut down the device before removing the card, even though data is protected by `flush()` operations after each write.
 
 ---
 
-Pour toute modification de config.h, les valeurs sont injectées dans l'UI web lors du build.
+### Configuration Notes
+
+Any changes made to `config.h` are automatically injected into the web interface during the build process.
