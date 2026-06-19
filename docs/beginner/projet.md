@@ -1,12 +1,12 @@
-# MeteoHub Project Structure
+# Structure du projet MeteoHub
 
-## Main Files
-- `main.cpp`: program entry point, main loop.
-- `config.h`: user configuration (modifiable parameters).
-- `board_config.h`: hardware configuration (GPIO, etc).
-- `secrets.h`: sensitive information (WiFi, API).
+## Fichiers principaux
+- `main.cpp` : point d'entrée du programme, boucle principale.
+- `config.h` : configuration utilisateur (paramètres modifiables).
+- `board_config.h` : configuration matérielle (GPIO, etc).
+- `secrets.h` : informations sensibles (WiFi, API).
 
-## Detailed Example: main.cpp
+## Exemple détaillé : main.cpp
 ```cpp
 #include <Arduino.h>
 #include "config.h"
@@ -20,15 +20,15 @@ void setup() {
 
 void loop() {
     float temp = sensors.getTemperature();
-    Serial.print("Temperature: ");
+    Serial.print("Température : ");
     Serial.println(temp);
     delay(1000);
 }
 ```
 
-## Folder Organization
-- `src/`: main source code
-- `include/`: shared header files
-- `lib/`: third-party libraries
-- `data/`: embedded web files
-- `docs/`: documentation
+## Organisation des dossiers
+- `src/` : code source principal
+- `include/` : fichiers d'en-tête partagés
+- `lib/` : bibliothèques tierces
+- `data/` : fichiers web embarqués
+- `docs/` : documentation

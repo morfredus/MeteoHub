@@ -1,101 +1,101 @@
 # [1.1.3] – 2026-03-15
 ### Fixed
-- **Menu display corruption on item selection**: Added `d->clear()` at the start of the menu rendering block in `UiManager::drawPage()`. When navigating menu items, the screen was not cleared before redrawing because `screen_context_changed` was `false` (menu mode had not changed). Old items were drawn on top of new ones, causing a corrupted display.
+- **Affichage corrompu du menu lors de la sélection des items** : Ajout d'un `d->clear()` au début du bloc de rendu du menu dans `UiManager::drawPage()`. Lors de la navigation dans le menu, l'écran n'était pas effacé avant le redessin car `screen_context_changed` était `false` (le mode menu n'avait pas changé). Les anciens items se superposaient aux nouveaux, provoquant un affichage corrompu.
 
 # [1.1.2] – 2026-03-08
 ### Fixed
-Critical file system corruption fix and related compilation errors.
+Correction critique de la corruption du système de fichiers et erreurs de compilation associées.
 
-1. **Explicit `flush()` calls before file close**
-   - **Issue**: Data remained in RAM cache and was not physically written to SD/LittleFS before closing, causing FAT table corruption during rapid writes or power loss.
-   - **Fix**: Systematic addition of `file.flush()` before every `file.close()` in `history_manager.cpp` (`saveRecent`, `saveToSd`) and `sd_manager.cpp` (`verifyWriteAccess`).
-   - **Impact**: Ensures integrity of CSV and binary files after every write operation.
+1. **Ajout explicite de `flush()` avant fermeture de fichier**
+   - **Problème** : Les données restaient dans le cache RAM et n'étaient pas écrites physiquement sur la carte SD/LittleFS avant la fermeture, causant une corruption de la table FAT en cas d'écriture rapide ou de coupure.
+   - **Solution** : Ajout systématique de `file.flush()` avant chaque `file.close()` dans `history_manager.cpp` (fonctions `saveRecent`, `saveToSd`) et `sd_manager.cpp` (fonction `verifyWriteAccess`).
+   - **Impact** : Garantit l'intégrité des fichiers CSV et binaires après chaque écriture.
 
-2. **Fixed `flush()` return type handling**
-   - **Issue**: Compilation error "expression must have bool type" because `file.flush()` returns `void` on some ESP32 core versions, but code attempted to evaluate it in an `if`.
-   - **Fix**: Removed conditional checks `if (!file.flush())`. Function is now called imperatively.
-   - **Files**: `src/managers/sd_manager.cpp`, `src/managers/history_manager.cpp`.
+2. **Correction du type de retour de `flush()`**
+   - **Problème** : Erreur de compilation "l'expression doit avoir le type booléen" car `file.flush()` retourne `void` sur certaines versions du core ESP32, mais le code tentait de l'évaluer dans un `if`.
+   - **Solution** : Suppression des tests conditionnels `if (!file.flush())`. La fonction est maintenant appelée de manière impérative.
+   - **Fichiers** : `src/managers/sd_manager.cpp`, `src/managers/history_manager.cpp`.
 
-3. **Added missing `cooperative_yield.h` include**
-   - **Issue**: Compilation error "identifier undefined" for macro `COOPERATIVE_YIELD_EVERY` in `history_manager.cpp`.
-   - **Fix**: Added `#include "../utils/cooperative_yield.h"` at the top of the file.
+3. **Ajout de l'inclusion manquante `cooperative_yield.h`**
+   - **Problème** : Erreur de compilation "identificateur non défini" pour la macro `COOPERATIVE_YIELD_EVERY` dans `history_manager.cpp`.
+   - **Solution** : Ajout de `#include "../utils/cooperative_yield.h"` en tête de fichier.
 
-4. **Implemented Mutex for write protection**
-   - **Issue**: Risk of corruption if two tasks (e.g., history save and web test) write to SD simultaneously.
-   - **Fix**: Added `std::mutex` in `SdManager` and used `std::lock_guard` in critical methods (`verifyWriteAccess`, `ensureHistoryDirectory`, `openFileSafe`).
+4. **Implémentation de Mutex pour la protection des écritures**
+   - **Problème** : Risque de corruption si deux tâches (ex: sauvegarde historique et test web) écrivent simultanément sur la SD.
+   - **Solution** : Ajout d'un `std::mutex` dans `SdManager` et utilisation de `std::lock_guard` dans les méthodes critiques (`verifyWriteAccess`, `ensureHistoryDirectory`, `openFileSafe`).
 
-5. **Simplified SD mount logic**
-   - **Issue**: Mount failures at 10MHz and 4MHz on sensitive cards.
-   - **Fix**: Single frequency fixed at 1 MHz (1000000 Hz) for maximum stability, removing unnecessary multi-frequency retries.
+5. **Simplification de la logique de montage SD**
+   - **Problème** : Échecs de montage à 10MHz et 4MHz sur cartes sensibles.
+   - **Solution** : Fréquence unique fixée à 1 MHz (1000000 Hz) pour une stabilité maximale, supprimant les tentatives multi-fréquences inutiles.
 
 # [1.1.1] – 2026-03-08
-- Fixed compilation error in `SdManager::resetSpiBus()`: `SPIClass::begin()` returns `void` on ESP32, removed boolean capture.
-- Simplified SD mount logic: single attempt at 1 MHz to maximize stability.
-- Increased SPI initialization delays to ensure electrical stability during mount.
+- Correction erreur de compilation dans `SdManager::resetSpiBus()` : la méthode `SPIClass::begin()` retournant `void` sur ESP32, la capture du retour booléen a été supprimée.
+- Simplification de la logique de montage SD : tentative unique à 1 MHz pour maximiser la stabilité.
+- Augmentation des délais d'initialisation SPI pour garantir la stabilité électrique lors du montage.
 
 # [1.1.0] – 2026-03-08
-- Complete `WebManager` refactor to exclusively use `std::string` (C++ Standard).
-- Explicit conversion at boundaries between Arduino types (`String`) and C++ (`std::string`).
-- Full support for file management (upload, download, delete) and OTA.
+- Refonte complète du `WebManager` pour utiliser exclusivement `std::string` (C++ Standard).
+- Conversion explicite aux frontières entre les types Arduino (`String`) et C++ (`std::string`).
+- Support complet de la gestion de fichiers (upload, download, suppression) et OTA.
 
 # [1.0.181] – 2026-03-07
-- Hardened SD read-only handling: `SdManager::begin()` and `ensureMounted()` no longer report SD as available if `/history` creation or write test fails.
-- `ensureHistoryDirectory()` now returns a boolean and attempts a fallback `/sd/history` for atypical mountpoints.
-- On write failure after format/remount, SD is unmounted and marked unavailable to avoid repeated errors during history save.
+- Durcissement anti read-only: `SdManager::begin()` et `ensureMounted()` n'annoncent plus la SD disponible si création `/history` ou test d'écriture échoue.
+- `ensureHistoryDirectory()` retourne désormais un booléen et tente un fallback `/sd/history` pour les cas de mountpoint atypiques.
+- En cas d'échec d'écriture après format/remount, la SD est démontée et marquée indisponible pour éviter les erreurs répétées côté sauvegarde historique.
 
 # [1.0.180] – 2026-03-07
-- Added local fallback `SD_DET_ACTIVE_LEVEL` in `sd_manager.cpp` to avoid undefined symbol errors depending on include/toolchain order.
-- Maintained `isCardDetected()` declared+defined in `SdManager` with non-blocking check at boot.
+- Ajout d'un fallback local `SD_DET_ACTIVE_LEVEL` dans `sd_manager.cpp` pour éviter toute erreur de symbole non défini selon l'ordre d'includes/toolchain.
+- Maintien de `isCardDetected()` déclaré+défini dans `SdManager` avec check non bloquant au boot.
 
 # [1.0.179] – 2026-03-07
-- Explicit reintroduction of `isCardDetected()` in `SdManager` to fix "undefined identifier" compilation/IDE error.
-- DET check remains non-blocking at SD startup (diagnostic log, does not prevent mount attempts).
+- Réintroduction explicite de `isCardDetected()` dans `SdManager` pour lever l'erreur "identificateur non défini" signalée à la compilation/IDE.
+- Vérification DET conservée non bloquante au démarrage SD (log diagnostic sans empêcher les tentatives de montage).
 
 # [1.0.178] – 2026-03-07
-- Further fix to `SdManager::verifyWriteAccess()` to permanently remove C++ parsing errors (single block, explicit returns, centralized test file removal).
-- Reordered includes in `sd_manager.cpp` (`Arduino.h` before logs) to avoid macro side effects depending on toolchain.
+- Correction supplémentaire de `SdManager::verifyWriteAccess()` pour supprimer définitivement les erreurs de parsing C++ (bloc unique, retours explicites, suppression fichier test centralisée).
+- Réordonnancement des includes dans `sd_manager.cpp` (`Arduino.h` avant les logs) pour éviter les effets de bord de macro selon toolchain.
 
 # [1.0.177] – 2026-03-07
-- Build fix in `SdManager::verifyWriteAccess()` with more explicit open/write/close test sequence.
-- Added `#include <Arduino.h>` in `sd_manager.cpp` for reliable cross-compilation of Arduino types (`size_t`, runtime API) per toolchain.
+- Correction de compilation dans `SdManager::verifyWriteAccess()` avec réécriture plus explicite de la séquence d'ouverture/écriture/fermeture du fichier test SD.
+- Ajout de `#include <Arduino.h>` dans `sd_manager.cpp` pour fiabiliser la compilation croisée des types Arduino (`size_t`, API runtime) selon toolchain.
 
 # [1.0.176] – 2026-03-07
-- Complete rewrite of `SdManager` using the validated "stable 10MHz mode": dedicated FSPI instance recreated before each mount and `SD.begin(..., format_if_fail=...)`.
-- Removed blocking dependency on DET pin in mount logic to avoid false negatives.
-- Robust formatting aligned with reference code: remount at 10MHz with `format_if_fail=true` then critical write test.
-- All SD-related project features preserved (history `/history`, save, read, upload/delete via existing APIs).
+- Réécriture complète du `SdManager` sur la méthode validée "mode stable 10MHz" : instance `FSPI` dédiée recréée avant chaque montage et `SD.begin(..., format_if_fail=...)`.
+- Suppression de la dépendance bloquante à la broche DET dans la logique de montage pour éviter les faux négatifs de détection.
+- Formatage robuste aligné sur le code de référence: remount à 10MHz avec `format_if_fail=true` puis test d'écriture critique.
+- Conservation des fonctionnalités projet liées à la SD (historique `/history`, sauvegarde, lecture, upload/suppression via APIs existantes).
 
 # [1.0.175] – 2026-03-07
-- Strengthened SD mount on ESP32-S3: added 1MHz and 400kHz retries in addition to fast frequencies.
-- Explicit SPI bus preparation before `SD.begin` (CS HIGH, MISO pull-up, clock priming) for better compatibility with sensitive cards/modules.
-- Adjusted `max_files` during SD mount to 10 to limit failures due to simultaneous file opens.
+- Renforcement du montage SD sur ESP32-S3: ajout d'essais à 1MHz et 400kHz en plus des fréquences rapides.
+- Préparation explicite du bus SPI avant `SD.begin` (CS HIGH, MISO pull-up, clocks d'amorçage) pour améliorer la compatibilité des cartes/modules sensibles.
+- Ajustement `max_files` lors du montage SD à 10 pour limiter les échecs liés aux ouvertures de fichiers simultanées.
 
 # [1.0.174] – 2026-03-07
-- SD_DET fix: card detection is no longer blocking for mount (some modules have inverted polarity or noisy signal).
-- Added multi-read sampling of DET pin with detailed logs (LOW/HIGH) to diagnose actual wiring.
-- Added `SD_DET_ACTIVE_LEVEL` parameter (LOW/HIGH) in `board_config.h` to adapt to inverted-polarity readers.
-- If card is already mounted, inconsistent DET state no longer forces unmount; only `SD.cardType()` decides availability.
+- Correction SD_DET: la détection de carte n'est plus bloquante pour le montage (certains modules ont une polarité inversée ou un signal bruité).
+- Ajout d'un échantillonnage multi-lectures de la broche DET avec logs détaillés (LOW/HIGH) pour diagnostiquer le câblage réel.
+- Ajout du paramètre `SD_DET_ACTIVE_LEVEL` (LOW/HIGH) dans `board_config.h` pour s'adapter aux lecteurs à polarité inversée.
+- Si la carte est déjà montée, un état DET incohérent n'entraîne plus de démontage forcé; seule la vérification `SD.cardType()` décide de la disponibilité.
 
 # [1.0.173] – 2026-03-07
-- SD manager overhaul to align with validated method (dedicated FSPI SPI + `SD.begin(..., format_if_fail=true)`).
-- Strict respect of mapping defined in `board_config.h` (CLK=9, D0/MISO=10, CMD/MOSI=11, D3/CS=12, DET=14).
-- Added card presence detection via `SD_DET_PIN` (LOW=present) before mount/retries.
-- All existing SD features preserved: read/write, daily CSV history increment, web upload/delete/formatting.
+- Refonte du gestionnaire SD pour s'aligner sur la méthode validée (SPI FSPI dédié + `SD.begin(..., format_if_fail=true)`).
+- Respect strict du mapping défini dans `board_config.h` (CLK=9, D0/MISO=10, CMD/MOSI=11, D3/CS=12, DET=14).
+- Ajout d'une détection de présence carte via `SD_DET_PIN` (LOW=présente) avant montage/réessais.
+- Conservation des fonctionnalités SD existantes: lecture/écriture, incrémentation quotidienne des fichiers CSV d'historique, suppression/upload web et formatage.
 
 # [1.0.172] – 2026-02-25
-- Added and cross-linked beginner documentation (EN/FR) in all user-facing docs.
-- All guides, FAQ, configuration, and index now reference beginner onboarding.
-- Minimum valid version: 1.0.172
+- Ajout et liens croisés de la documentation débutant (EN/FR) dans tous les documents utilisateur.
+- Tous les guides, FAQ, configuration et index référencent désormais l'onboarding débutant.
+- Version minimale valide : 1.0.172
 
 # [1.0.171] – 2026-02-25
-- Added advanced scale management for temperature, humidity and pressure graphs.
-- Three modes: fixed, dynamic, mixed (with configurable expansion).
-- Interactive controls on web UI to select mode and percentage.
-- Contextual help below the graph.
-- Automatic synchronization between config.h and web UI.
+- Ajout de la gestion avancée des échelles pour les graphiques température, humidité et pression.
+- Trois modes disponibles : fixe, dynamique, mixte (avec élargissement configurable).
+- Contrôles interactifs sur l'UI web pour choisir le mode et le pourcentage.
+- Aide contextuelle sous le graphique.
+- Synchronisation automatique entre config.h et l'UI web.
 
 # [1.0.170] - 2026-02-24
-### Fixed
-- Applied the graph safe-zone layout scheme to other OLED pages.
-- Kept page titles in the top band and moved forecast/logs content start below SSD1306 reserved top area.
-- Aligned log line spacing to avoid top-content overlap in yellow-band SSD1306 variants.
+### Corrigé
+- Application du même schéma de zone sûre que les graphes aux autres pages OLED.
+- Conservation des titres dans la bande haute et déplacement du début de contenu prévisions/logs sous la zone haute réservée SSD1306.
+- Ajustement de l'espacement des lignes de logs pour éviter le chevauchement haut sur les SSD1306 à bande jaune.

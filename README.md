@@ -1,45 +1,44 @@
 # MeteoHub S3
 
-> **Minimum valid version: 1.1.3**
+> **Version minimale valide : 1.1.3**
 
-## Full Documentation
-- [Documentation Index](docs/index.md)
+## Documentation complète
+- [Index de la documentation](docs/index.md)
 
-## Beginner Documentation
-- [Beginner's Guide (English)](docs/beginner/index.md)
-- [Guide Débutant (Français)](docs/beginner/index_fr.md)
+## Documentation Débutant
+- [Guide Débutant](docs/beginner/index.md)
 
-## Overview
-MeteoHub S3 is an ESP32-S3 PlatformIO project focused on an OLED dashboard (SH1106/SSD1306 via U8g2). It displays local sensor values, weather forecast data, logs, and system status.
+## Présentation
+MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bord OLED (SH1106/SSD1306 via U8g2). Il affiche les données capteurs locales, les prévisions météo, les logs et l'état système.
 
-## Required Hardware
-- OLED display (SH1106 or SSD1306, I2C)
-- HW-040 rotary encoder module (encoder + center button)
-- Back and Confirm buttons
-- AHT20 and BMP280 sensors
-- Optional SD card for long-term history (Recommended: FAT32 format, 4-32 GB)
+## Matériel nécessaire
+- Écran OLED (SH1106 ou SSD1306, I2C)
+- Module encodeur HW-040 (encodeur + bouton central)
+- Boutons Back et Confirm
+- Capteurs AHT20 et BMP280
+- Carte SD optionnelle pour l'archivage long terme (Recommandé: Format FAT32, 4-32 Go)
 
-## Build
-- Install PlatformIO in VS Code
-- Select environment: `esp32-s3-oled`
-- Build: `platformio run`
-- Upload: `platformio run --target upload`
+## Compilation
+- Installer PlatformIO dans VS Code
+- Sélectionner l'environnement : `esp32-s3-oled`
+- Build : `platformio run`
+- Upload : `platformio run --target upload`
 
-## Main features (New in v1.1.x)
-- **Enhanced SD Stability (v1.1.2)**: Secure writes with explicit `flush()` and Mutex protection against file corruption.
-- **C++ Standard Engine (v1.1.0)**: Complete web core refactor to use `std::string`, ensuring better memory stability.
-- **Advanced File Management**: Upload, download, and delete files via web interface.
-- **Robust OTA Updates**: Secure Over-The-Air update system.
-- **Advanced Graphing**: Three scale modes (Fixed, Dynamic, Mixed) for temperature, humidity, and pressure.
+## Fonctionnalités principales (Nouveautés v1.1.x)
+- **Stabilité SD renforcée (v1.1.2)** : Écritures sécurisées avec `flush()` explicite et protection par Mutex contre la corruption de fichiers.
+- **Moteur C++ Standard (v1.1.0)** : Refonte du cœur web pour utiliser `std::string`, garantissant une meilleure stabilité mémoire.
+- **Gestion de fichiers avancée** : Upload, téléchargement et suppression de fichiers via l'interface web.
+- **Mises à jour OTA robustes** : Système de mise à jour sans fil sécurisé.
+- **Graphiques avancés** : Trois modes d'échelle (Fixe, Dynamique, Mixte) pour température, humidité et pression.
 
-## Usage
-See docs/user_guide.md for details on scale modes and file management.
+## Utilisation
+Voir docs/user_guide.md pour le détail des modes d'échelle et la gestion des fichiers.
 
-### SD Card Note
-To prevent corruption, ensure that:
-1. The card is formatted to **FAT32** (allocation unit size 32 KB).
-2. The system is properly shut down before removing the card (although `flush()` protects data on every write).
+### Note sur la carte SD
+Pour éviter toute corruption, assurez-vous que :
+1. La carte est formatée en **FAT32** (taille d'allocation 32 ko).
+2. Le système est correctement éteint avant de retirer la carte (bien que le `flush()` protège les données à chaque écriture).
 
 ---
 
-Any change in config.h is injected into the web UI at build time.
+Pour toute modification de config.h, les valeurs sont injectées dans l'UI web lors du build.

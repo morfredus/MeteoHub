@@ -1,6 +1,6 @@
-# MeteoHub Project Modules
+# Modules du Projet MeteoHub
 
-## Detailed Example: Sensor Module
+## Exemple détaillé : Module capteur
 
 ```cpp
 // src/modules/sensors.h
@@ -14,19 +14,19 @@ public:
 // src/modules/sensors.cpp
 #include "sensors.h"
 Sensors::Sensors() {
-    // Sensor initialization
+    // Initialisation des capteurs
 }
 float Sensors::getTemperature() {
-    // Code to read temperature
+    // Code pour lire la température
     return 23.7;
 }
 float Sensors::getHumidity() {
-    // Code to read humidity
+    // Code pour lire l'humidité
     return 55.2;
 }
 ```
 
-## Detailed Example: Usage in main.cpp
+## Exemple détaillé : Utilisation dans main.cpp
 
 ```cpp
 #include "modules/sensors.h"
@@ -37,9 +37,9 @@ void setup() {
 void loop() {
     float t = sensors.getTemperature();
     float h = sensors.getHumidity();
-    Serial.print("Temperature: ");
+    Serial.print("Température : ");
     Serial.println(t);
-    Serial.print("Humidity: ");
+    Serial.print("Humidité : ");
     Serial.println(h);
     delay(2000);
 }

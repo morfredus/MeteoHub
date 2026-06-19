@@ -1,9 +1,9 @@
-# Welcome to the MeteoHub Beginner Documentation
+# Bienvenue dans la documentation débutant MeteoHub
 
-This guide walks you step by step to understand the project, the code, and C++ basics on ESP32.
+Ce guide vous accompagne pas à pas pour comprendre le projet, le code, et les bases du C++ sur ESP32.
 
-- [Project Overview](projet_en.md)
-- [C++ Basics](cpp_en.md)
-- [Project Modules](modules_en.md)
-- [Glossary](glossaire_en.md)
-- [FAQ](faq_en.md)
+- [Présentation du projet](projet.md)
+- [Bases du C++](cpp.md)
+- [Modules du projet](modules.md)
+- [Glossaire](glossaire.md)
+- [FAQ](faq.md)

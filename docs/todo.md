@@ -1,20 +1,23 @@
 # TODO
 
-**Beginner?** See [Beginner's Guide](../beginner/index.md) or [Guide Débutant](../beginner/index_fr.md)
+**Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Minimum valid version: 1.0.155
-Minimum valid version: 1.1.3
-## Code TODO
-- [x] Rename `Sh1106Display` to a neutral name (`OledDisplay`) to better reflect the current U8g2 backend that supports both SH1106 and SSD1306.
-- [x] Centralize OLED geometry constants (`width`, `height`, margins) to remove magic numbers in `pages_oled.cpp`.
-- [ ] Add a small display diagnostics API (current FPS, last render duration, I2C error counter) exposed in `/api/system`.
-- [ ] Add an optional build flag to compile only one OLED controller backend (`SH1106` or `SSD1306`) to reduce binary size.
-- [ ] Add host-side unit tests for pure helper functions in `pages_oled.cpp` (formatting, title generation, alert translation).
+Version minimale valide : 1.1.3
 
-## OLED UTF-8 Rendering
+## TODO code
+- [x] Renommer `Sh1106Display` vers un nom neutre (`OledDisplay`) pour refléter correctement le backend U8g2 actuel qui prend en charge SH1106 et SSD1306.
+- [x] Centraliser les constantes de géométrie OLED (`largeur`, `hauteur`, marges) pour supprimer les valeurs magiques dans `pages_oled.cpp`.
+- [ ] Ajouter une petite API de diagnostic d’affichage (FPS courant, durée du dernier rendu, compteur d’erreurs I2C) exposée dans `/api/system`.
+- [ ] Ajouter un flag de build optionnel pour compiler uniquement un backend contrôleur OLED (`SH1106` ou `SSD1306`) afin de réduire la taille binaire.
+- [ ] Ajouter des tests unitaires côté hôte pour les fonctions utilitaires pures de `pages_oled.cpp` (formatage, génération des titres, traduction des alertes).
 
-From version 1.0.155, the OLED backend (`OledDisplay`) supports UTF-8 rendering for all text, including accented characters and special symbols. The display module is now named `OledDisplay` to reflect its neutrality and compatibility with both SH1106 and SSD1306 controllers.
+## TODO expérience utilisateur
+- [ ] Ajouter une page de réglages OLED rapide (contraste + aperçu adresse I2C) directement sur l’appareil.
+- [ ] Ajouter un assistant de premier démarrage OLED qui valide le câblage (SDA/SCL/adresse) et affiche des étapes claires si aucun écran n’est détecté.
+- [ ] Ajouter un toast/ligne de statut non bloquant lors des tentatives de reconnexion SD pour expliciter les échecs temporaires de sauvegarde.
+- [ ] Ajouter un réglage de vitesse de transition des pages et de densité du graphe pour améliorer la lisibilité selon les usages.
+- [ ] Ajouter une aide contextuelle sur appui long (légende/icônes/indices selon l’écran).
 
-## User experience TODO
-- [ ] Add configurable page transition speed and graph density for better readability on different use cases.
-- [ ] Add context-sensitive help on long press (legend/icons/help hints per screen).
+## Rendu UTF-8 OLED
+
+Depuis la version 1.0.155, le backend OLED (`OledDisplay`) prend en charge le rendu UTF-8 pour tous les textes, y compris les caractères accentués et symboles spéciaux. Le module d'affichage porte désormais le nom neutre `OledDisplay` pour refléter sa compatibilité avec SH1106 et SSD1306.

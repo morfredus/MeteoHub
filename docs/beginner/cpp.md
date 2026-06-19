@@ -2,18 +2,18 @@
 
 ## Variables
 ```cpp
-int temperature = 25; // Declare an integer variable
-float humidity = 60.5; // Floating point variable
+int temperature = 25; // Déclaration d'une variable entière
+float humidity = 60.5; // Variable à virgule flottante
 ```
 
-## Functions
+## Fonctions
 ```cpp
 float calculateAverage(float a, float b) {
     return (a + b) / 2.0;
 }
 
 void displayValue(float value) {
-    Serial.print("Value: ");
+    Serial.print("Valeur : ");
     Serial.println(value);
 }
 ```
@@ -24,7 +24,7 @@ class Sensor {
 public:
     Sensor(int pin) : pin_(pin) {}
     float read() {
-        // Simulate a reading
+        // Simule une lecture
         return 42.0;
     }
 private:
@@ -35,28 +35,28 @@ Sensor tempSensor(4);
 float t = tempSensor.read();
 ```
 
-## Control Structures
+## Structures de contrôle
 ```cpp
 if (temperature > 30) {
-    // Action if temperature is high
+    // Action si la température est élevée
 } else {
-    // Otherwise
+    // Action sinon
 }
 
 for (int i = 0; i < 10; i++) {
-    // Loop 10 times
+    // Boucle 10 fois
 }
 ```
 
-## Arrays
+## Tableaux
 ```cpp
-float measures[5] = {22.1, 23.5, 24.0, 25.2, 26.3};
+float mesures[5] = {22.1, 23.5, 24.0, 25.2, 26.3};
 for (int i = 0; i < 5; i++) {
-    Serial.println(measures[i]);
+    Serial.println(mesures[i]);
 }
 ```
 
-## Using a library
+## Utilisation d'une bibliothèque
 ```cpp
 #include <Wire.h>
 #include "sensors.h"

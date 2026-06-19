@@ -1,10 +1,10 @@
-# Maintenance and Troubleshooting
+# Maintenance et dépannage
 
-**Beginner?** See [Beginner's Guide](../beginner/index.md) or [Guide Débutant](../beginner/index_fr.md)
+**Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Minimum valid version: 1.1.3
+Version minimale valide : 1.1.3
 
-- If Wi-Fi does not connect, verify credentials in `include/secrets.h`.
-- If forecast is empty, verify API key and network access.
-- If no history appears, verify LittleFS mount and optional SD status.
-- Use OTA page for firmware updates.
+- Si le Wi-Fi ne se connecte pas, vérifier `include/secrets.h`.
+- Si les prévisions sont vides, vérifier la clé API et l’accès réseau.
+- Si l’historique est vide, vérifier le montage LittleFS et l’état SD optionnel.
+- Utiliser la page OTA pour les mises à jour firmware.

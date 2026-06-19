@@ -17,4 +17,4 @@ Runtime feedback and stability observations validated U8g2 for this project (few
 ## Follow-up
 Future work is tracked in:
 - `docs/todo.md`
-- `docs/todo_fr.md`
+- `docs/todo.md`

@@ -1,40 +1,40 @@
 # Configuration
 
-**Beginner?** See [Beginner's Guide](../beginner/index.md) or [Guide Débutant](../beginner/index_fr.md)
+**Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Minimum valid version: 1.1.3
+Version minimale valide : 1.1.3
 
 
-## Editable files
-- `include/secrets.h` (credentials, API key, coordinates)
-- `include/config.h` (all user-modifiable parameters, see below)
+## Fichiers modifiables
+- `include/secrets.h` (identifiants, clé API, coordonnées)
+- `include/config.h` (tous les paramètres modifiables par l'utilisateur, voir ci-dessous)
 
-## User parameters in config.h
+## Paramètres utilisateur dans config.h
 
-### Graph parameters
-- `GRAPH_SCALE_MODE` : Scale mode for graphs (0=fixed, 1=dynamic, 2=mixed)
-- `GRAPH_SCALE_MARGIN_PCT` : Expansion percentage for mixed mode
-- `GRAPH_TEMP_MIN` / `GRAPH_TEMP_MAX` : Min/max temperature for graphs
-- `GRAPH_HUM_MIN` / `GRAPH_HUM_MAX` : Min/max humidity for graphs
-- `GRAPH_PRES_MIN` / `GRAPH_PRES_MAX` : Min/max pressure for graphs
+### Paramètres graphiques
+- `GRAPH_SCALE_MODE` : Mode d'échelle pour les graphes (0=fixe, 1=dynamic, 2=mixte)
+- `GRAPH_SCALE_MARGIN_PCT` : Pourcentage d'élargissement pour le mode mixte
+- `GRAPH_TEMP_MIN` / `GRAPH_TEMP_MAX` : Température min/max pour les graphes
+- `GRAPH_HUM_MIN` / `GRAPH_HUM_MAX` : Humidité min/max pour les graphes
+- `GRAPH_PRES_MIN` / `GRAPH_PRES_MAX` : Pression min/max pour les graphes
 
-### OLED parameters
-- `OLED_CONTRAST` : OLED display contrast
-- `OLED_CONTROLLER` : OLED controller type (SH1106/SSD1306)
-- `OLED_I2C_ADDRESS` : OLED I2C address
+### Paramètres OLED
+- `OLED_CONTRAST` : Contraste de l'écran OLED
+- `OLED_CONTROLLER` : Type de contrôleur OLED (SH1106/SSD1306)
+- `OLED_I2C_ADDRESS` : Adresse I2C de l'OLED
 
-### Network parameters
-- `WEB_MDNS_HOSTNAME` : mDNS hostname for local access
-- `WIFI_RETRY_DELAY_MS` : WiFi retry delay (ms)
-- `ENABLE_PING_TEST` : Enable ping test (1=enabled)
+### Paramètres réseau
+- `WEB_MDNS_HOSTNAME` : Nom mDNS pour accès local
+- `WIFI_RETRY_DELAY_MS` : Délai entre tentatives WiFi (ms)
+- `ENABLE_PING_TEST` : Activer le test de ping (1=activé)
 
-### System parameters
-- `DASHBOARD_REFRESH_MS` : Dashboard refresh rate (ms)
-- `BUTTON_GUARD_MS` : Debounce time for buttons (ms)
+### Paramètres système
+- `DASHBOARD_REFRESH_MS` : Fréquence de rafraîchissement du dashboard (ms)
+- `BUTTON_GUARD_MS` : Anti-rebond pour les boutons (ms)
 
 ---
-Reserved file:
-- `include/board_config.h` (hardware pin mapping)
+Fichier réservé :
+- `include/board_config.h` (mapping matériel)
 
-Metadata:
-Project name/version are injected from `platformio.ini` with build flags.
+Métadonnées :
+Le nom/la version du projet sont injectés depuis `platformio.ini` via build flags.

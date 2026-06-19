@@ -1,12 +1,12 @@
-# Getting Started
+# Démarrage rapide
 
-**Beginner?** See [Beginner's Guide](../beginner/index.md) or [Guide Débutant](../beginner/index_fr.md)
+**Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Minimum valid version: 1.1.3
+Version minimale valide : 1.1.3
 
-1. Clone the project.
-2. Create `include/secrets.h` from `include/secrets_example.h`.
-3. Select PlatformIO environment `esp32-s3-oled`.
-4. Build with `platformio run`.
-5. Flash with `platformio run --target upload`.
-6. Open serial monitor (`platformio device monitor`) to verify boot.
+1. Cloner le projet.
+2. Créer `include/secrets.h` à partir de `include/secrets_example.h`.
+3. Sélectionner l’environnement PlatformIO `esp32-s3-oled`.
+4. Compiler avec `platformio run`.
+5. Flasher avec `platformio run --target upload`.
+6. Ouvrir le moniteur série (`platformio device monitor`) pour valider le démarrage.

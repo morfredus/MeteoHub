@@ -1,10 +1,10 @@
-# Project Architecture
+# Architecture du projet
 
-**Beginner?** See [Beginner's Guide](../beginner/index.md) or [Guide Débutant](../beginner/index_fr.md)
+**Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Minimum valid version: 1.1.3
+Version minimale valide : 1.1.3
 
-- `src/modules/`: hardware and OLED display modules
-- `src/managers/`: feature managers and orchestration
-- `src/utils/`: reusable utilities
-- `include/`: protected configuration headers
+- `src/modules/` : modules matériels et affichage OLED
+- `src/managers/` : gestionnaires fonctionnels et orchestration
+- `src/utils/` : utilitaires réutilisables
+- `include/` : en-têtes de configuration protégés

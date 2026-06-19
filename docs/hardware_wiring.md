@@ -1,40 +1,39 @@
-# Hardware Wiring
+# Câblage matériel
+
+Version minimale valide : 1.1.3
+
+Ce projet cible uniquement une configuration OLED.
+
+Références principales :
+- `include/board_config.h` pour le mapping des broches
+- `include/config.h` pour les réglages runtime d’affichage
 
 
-Minimum valid version: 1.1.3
-
-This project targets an OLED setup only.
-
-Main references:
-- `include/board_config.h` for pin mapping
-- `include/config.h` for runtime display settings
-
-
-Connected peripherals:
+Périphériques connectés :
 - OLED (I2C)
-- Rotary encoder + buttons
+- Encodeur rotatif + boutons
 - AHT20 + BMP280 (I2C)
 - NeoPixel
-- Optional SD card (SPI)
+- Carte SD optionnelle (SPI)
 
-## Pin Mapping (from board_config.h)
+## Tableau de correspondance des broches (depuis board_config.h)
 
-| Function                | GPIO | Notes                                 |
-|-------------------------|------|---------------------------------------|
-| I2C SDA                 | 15   | OLED, AHT20, BMP280                   |
-| I2C SCL                 | 16   | OLED, AHT20, BMP280                   |
-| Button BOOT             | 0    |                                       |
-| Button BACK             | 7    |                                       |
-| Button CONFIRM          | 8    |                                       |
-| Neopixel                | 48   | Onboard LED                           |
-| Encoder A               | 4    | EC11/HW-040                           |
-| Encoder B               | 5    | EC11/HW-040                           |
-| Encoder Button          | 6    | EC11/HW-040                           |
-| SD CLK (SCK)            | 9    | SPI SD                                |
-| SD MISO (DAT0/SO)       | 10   | SPI SD                                |
-| SD MOSI (CMD/SI)        | 11   | SPI SD                                |
-| SD CS (DAT3/CS)         | 12   | SPI SD                                |
-| SD DAT2                 | 13   | SPI SD (not always used)              |
-| SD DETECT               | 14   | LOW=present, HIGH=not present (configurable polarity) |
+| Fonction                | GPIO | Remarques                              |
+|-------------------------|------|----------------------------------------|
+| I2C SDA                 | 15   | OLED, AHT20, BMP280                    |
+| I2C SCL                 | 16   | OLED, AHT20, BMP280                    |
+| Bouton BOOT             | 0    |                                        |
+| Bouton BACK             | 7    |                                        |
+| Bouton CONFIRM          | 8    |                                        |
+| Neopixel                | 48   | LED intégrée                           |
+| Encodeur A              | 4    | EC11/HW-040                            |
+| Encodeur B              | 5    | EC11/HW-040                            |
+| Bouton Encodeur         | 6    | EC11/HW-040                            |
+| SD CLK (SCK)            | 9    | SPI SD                                 |
+| SD MISO (DAT0/SO)       | 10   | SPI SD                                 |
+| SD MOSI (CMD/SI)        | 11   | SPI SD                                 |
+| SD CS (DAT3/CS)         | 12   | SPI SD                                 |
+| SD DAT2                 | 13   | SPI SD (pas toujours utilisé)          |
+| SD DÉTECTION            | 14   | LOW=présente, HIGH=absente (polarité configurable) |
 
-> See board_config.h for authoritative mapping and SD_DET_ACTIVE_LEVEL for polarity.
+> Voir board_config.h pour le mapping de référence et SD_DET_ACTIVE_LEVEL pour la polarité.

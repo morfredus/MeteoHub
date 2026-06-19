@@ -1,17 +1,17 @@
 # FAQ
 
-**Beginner?** See [Beginner's Guide](../beginner/index.md) or [Guide Débutant](../beginner/index_fr.md)
+**Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Minimum valid version: 1.1.3
+Version minimale valide : 1.1.3
 
-## Which display is supported?
-Only OLED (SH1106/SSD1306).
+## Quel afficheur est supporté ?
+Uniquement OLED (SH1106/SSD1306).
 
-## Which PlatformIO environment should I use?
+## Quel environnement PlatformIO utiliser ?
 `esp32-s3-oled`.
 
-## Is SD card mandatory?
-No, it is optional for long-term archival.
+## La carte SD est-elle obligatoire ?
+Non, elle est optionnelle pour l’archivage long terme.
 
-## My SSD1306 has a yellow top band. Can UI overlap it?
-The page title stays on the top line (yellow band area), while the page content area is kept below the reserved SSD1306 top zone to avoid overlap.
+## Mon SSD1306 a une bande jaune en haut. L’interface peut-elle chevaucher cette zone ?
+Le titre de page reste sur la ligne haute (zone jaune), tandis que la zone de contenu est maintenue sous la zone haute réservée SSD1306 pour éviter le chevauchement.

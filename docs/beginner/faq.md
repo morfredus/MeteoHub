@@ -1,13 +1,13 @@
-# MeteoHub Beginner FAQ
+# FAQ Débutant MeteoHub
 
-**Q: How to change the configuration?**
-A: Edit the `include/config.h` file and recompile.
+**Q : Comment modifier la configuration ?**
+R : Éditez le fichier `include/config.h` puis recompilez.
 
-**Q: Where to find code examples?**
-A: In this documentation, each section provides detailed snippets.
+**Q : Où trouver les exemples de code ?**
+R : Dans cette documentation, chaque section propose des extraits détaillés.
 
-**Q: How to add a module?**
-A: Use `modules/sensors.h` and `modules/sensors.cpp` as inspiration.
+**Q : Comment ajouter un module ?**
+R : Inspirez-vous de `modules/sensors.h` et `modules/sensors.cpp`.
 
-**Q: How to flash the firmware?**
-A: Use PlatformIO ("Upload" button).
+**Q : Comment flasher le firmware ?**
+R : Utilisez PlatformIO (bouton "Upload").

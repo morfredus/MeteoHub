@@ -1,56 +1,56 @@
-# User Guide
+# Guide utilisateur
 
-**Beginner?** See [Beginner's Guide](../beginner/index.md) or [Guide Débutant](../beginner/index_fr.md)
+**Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Minimum valid version: 1.1.3
+Version minimale valide : 1.1.3
 
-- Rotate encoder to navigate pages.
-- Encoder click opens the menu.
-- Back exits menu/confirmation.
-- Confirm validates contextual actions.
+- Tourner l’encodeur pour naviguer entre les pages.
+- Le clic encodeur ouvre le menu.
+- Back sort du menu/des confirmations.
+- Confirm valide les actions contextuelles.
 
 
-Core pages:
-- Weather
-- Forecast
-- Graphs (temperature, humidity, pressure)
-- Network
-- System
+Pages principales :
+- Météo
+- Prévisions
+- Graphes (température, humidité, pression)
+- Réseau
+- Système
 - Logs
 
 ---
 
-## Advanced features and web API
+## Fonctionnalités avancées et API web
 
-### Web interface
-- Access the web UI via http://<name>.local (mDNS) or local IP.
-- Real-time data, history, graphs, logs, file management, and OTA update.
+### Interface web
+- Accès à l’interface web via l’adresse http://<nom>.local (mDNS) ou IP locale.
+- Visualisation des données en temps réel, historiques, graphiques, logs, fichiers, et OTA.
 
-### File management (LittleFS/SD)
-- Browse, download, delete, upload files via the web UI (Files tab).
-- SD card files accessible if a card is inserted and detected.
-- API: `/api/files/list`, `/api/files/download`, `/api/files/delete`, `/api/files/upload` (parameter `fs=sd` or `fs=littlefs`).
+### Gestion des fichiers (LittleFS/SD)
+- Navigation, téléchargement, suppression, upload de fichiers via l’interface web (onglet Fichiers).
+- Accès aux fichiers SD si une carte est insérée et reconnue.
+- API : `/api/files/list`, `/api/files/download`, `/api/files/delete`, `/api/files/upload` (paramètre `fs=sd` ou `fs=littlefs`).
 
-### History and statistics
-- Graphical view of history (temperature, humidity, pressure).
-- API: `/api/history` (parameters `window`, `interval`, `points` for aggregation).
-- 24h statistics via `/api/stats` (min, max, average, trends).
+### Historique et statistiques
+- Visualisation graphique de l’historique (température, humidité, pression).
+- API : `/api/history` (paramètres `window`, `interval`, `points` pour l’agrégation).
+- Statistiques 24h via `/api/stats` (min, max, moyenne, tendances).
 
-### Logs and diagnostics
-- System logs via the web UI (Logs tab) and API `/api/logs`.
-- System diagnostics via `/api/system` (hardware info, firmware, SD, uptime, etc.).
+### Logs et diagnostic
+- Accès aux logs système via l’interface web (onglet Logs) et API `/api/logs`.
+- Diagnostic système via `/api/system` (informations matérielles, firmware, SD, uptime, etc.).
 
-### OTA (firmware update)
-- Firmware update via the web UI (OTA tab).
-- Upload the binary file, automatic reboot after success.
-- API: `/api/ota/update`.
+### OTA (mise à jour firmware)
+- Mise à jour du firmware via l’interface web (onglet OTA).
+- Upload du fichier binaire, reboot automatique après succès.
+- API : `/api/ota/update`.
 
-### Weather alerts and trends
-- Weather alerts (level, type, description, color) on the web UI and OLED.
-- Automatic alert translation (English → French).
-- Weather trend summary (improving, rain, disturbance, etc.).
+### Alertes météo et tendances
+- Affichage des alertes météo (niveau, type, description, couleur) sur l’interface et l’OLED.
+- Traduction automatique des alertes (anglais → français).
+- Synthèse de tendance météo (amélioration, pluie, perturbation, etc.).
 
-### Advanced maintenance
-- Long press BOOT button at startup: formats internal filesystem (LittleFS) and reboots.
+### Maintenance avancée
+- Appui long sur le bouton BOOT au démarrage : formatage du système de fichiers interne (LittleFS) et redémarrage.
 
-For more details on each API, see the technical documentation or the source code (web_manager.cpp).
+Pour plus de détails sur chaque API, voir la documentation technique ou le code source (web_manager.cpp).
