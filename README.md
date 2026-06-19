@@ -32,7 +32,7 @@ MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bor
 - **Graphiques avancés** : Trois modes d'échelle (Fixe, Dynamique, Mixte) pour température, humidité et pression.
 
 ## Utilisation
-Voir docs/user_guide.md pour le détail des modes d'échelle et la gestion des fichiers.
+Voir [Guide utilisateur](docs/user_guide.md) pour le détail des modes d'échelle et la gestion des fichiers.
 
 ### Note sur la carte SD
 Pour éviter toute corruption, assurez-vous que :
