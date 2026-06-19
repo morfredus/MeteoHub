@@ -1,5 +1,7 @@
 # FAQ Débutant MeteoHub
 
+Pour les questions sur le matériel et les fonctionnalités du projet, voir la [FAQ complète](../faq.md).
+
 **Q : Comment modifier la configuration ?**
 R : Éditez le fichier `include/config.h` puis recompilez.
 
