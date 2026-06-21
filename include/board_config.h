@@ -1,56 +1,64 @@
 #pragma once
- 
-// ------------------------------------
-// I2C (AHT20 + BMP280 / OLED SH1106)
-// ------------------------------------
-#define I2C_SDA_PIN 15
-#define I2C_SCL_PIN 16
 
-// ------------------------------------
+// =====================================================
+// I2C — AHT20 + BMP280 + OLED SH1106
+// (Routage haut → capteur)
+// =====================================================
+#define I2C_SDA_PIN 8
+#define I2C_SCL_PIN 9
+
+
+// =====================================================
 // Boutons
-// ------------------------------------
-#define BUTTON_BOOT_PIN 0
-#define BUTTON_BACK_PIN 7
-#define BUTTON_CONFIRM_PIN 8
+// =====================================================
+// BOOT : entrée uniquement (strapping respecté)
+#define BUTTON_BOOT_PIN     0
 
-// ------------------------------------
-// Neopixel soudée
-// ------------------------------------
+// CONFIRM : routé en haut vers l'écran
+#define BUTTON_CONFIRM_PIN  15
+
+// BACK : routé en bas
+#define BUTTON_BACK_PIN     1
+
+
+// =====================================================
+// Neopixel embarqué (DevKitC-1)
+// =====================================================
 #define NEOPIXEL_PIN 48
 
-// ------------------------------------
-// ENCODEUR — GPIO communs
-// (EC11 et HW-040 utilisent les mêmes pins)
-// ------------------------------------
-#define ENCODER_A_PIN      4
-#define ENCODER_B_PIN      5
-#define ENCODER_BTN_PIN    6
 
-// ------------------------------------
-// Module SD (SPI secondaire SAFE)
-// ------------------------------------
+// =====================================================
+// Encodeur rotatif (EC11 / HW-040)
+// =====================================================
+#define ENCODER_A_PIN      42   // TRA
+#define ENCODER_B_PIN      2    // TRB
+#define ENCODER_BTN_PIN    41   // PSH
 
-#define SD_CLK_PIN   9    // SCK
-#define SD_MISO_PIN  10   // DAT0 / SO
-#define SD_MOSI_PIN  11   // CMD / SI
-#define SD_CS_PIN    12   // DAT3 / CS
-#define SD_DAT2_PIN  13   // DAT2
 
-// Pin de détection (optionnel, mettez -1 si non câblé)
-// Si câblé : LOW = Carte présente, HIGH = Vide
+// =====================================================
+// Module SD — SPI secondaire SAFE (routage bas)
+// =====================================================
+// SPI : aucun conflit PSRAM / USB / strapping
+#define SD_CLK_PIN   21   // SCK
+#define SD_MISO_PIN  47   // DAT0 / SO
+#define SD_MOSI_PIN  38   // CMD / SI
+#define SD_CS_PIN    39   // DAT3 / CS
+
+// D1 et DAT2 : NE PAS câbler (pull-up 10kΩ → 3V3)
+
+// Détection de carte (ligne lente, routage long OK)
 #ifndef SD_DET_PIN
-#define SD_DET_PIN   14
+#define SD_DET_PIN   40
 #endif
 
-// Polarité de détection: LOW ou HIGH selon votre lecteur SD
-// Beaucoup de modules sortent LOW=présente, mais certains font l'inverse.
 #ifndef SD_DET_ACTIVE_LEVEL
 #define SD_DET_ACTIVE_LEVEL LOW
 #endif
 
-// -------------------------------------------------------------------
-// Configuration conditionnelle selon l'environnement PlatformIO
-// -------------------------------------------------------------------
+
+// =====================================================
+// Configuration conditionnelle PlatformIO
+// =====================================================
 #if defined(ESP32_S3_OLED)
     #define ENCODER_MODEL_EC11
 #endif
