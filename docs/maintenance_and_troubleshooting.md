@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.1.3
+Version minimale valide : 1.2.0
 
 - Si le Wi-Fi ne se connecte pas, vérifier `include/secrets.h`.
 - Si les prévisions sont vides, vérifier la clé API et l’accès réseau.
@@ -27,7 +27,7 @@ Si les logs indiquent `SD Mount FAILED` ou `cardType is CARD_NONE` :
 
 3. **Vérifier le câblage**
    - Les fils doivent être les plus courts possible (< 10 cm).
-   - Vérifiez les connexions : CLK (GPIO 9), MISO (GPIO 10), MOSI (GPIO 11), CS (GPIO 12).
+   - Vérifiez les connexions : CLK (GPIO 21), MISO (GPIO 47), MOSI (GPIO 38), CS (GPIO 39).
 
 4. **Tester une autre carte**
    - Certaines cartes anciennes ou de très grande capacité (> 64 Go) peuvent être incompatibles.

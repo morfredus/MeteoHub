@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.1.3
+Version minimale valide : 1.2.0
 
 - `src/modules/` : modules matériels et affichage OLED
 - `src/managers/` : gestionnaires fonctionnels et orchestration

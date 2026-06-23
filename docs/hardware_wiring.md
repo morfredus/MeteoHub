@@ -1,6 +1,6 @@
 # Câblage matériel
 
-Version minimale valide : 1.1.3
+Version minimale valide : 1.2.0
 
 Ce projet cible uniquement une configuration OLED.
 
@@ -16,24 +16,36 @@ Périphériques connectés :
 - NeoPixel
 - Carte SD optionnelle (SPI)
 
+## Contraintes de montage physique
+
+Depuis la v1.2.0, le placement physique des modules sur le boîtier doit respecter deux règles :
+
+- **Lecteur SD éloigné de l'alimentation** : le module SD (routage « bas ») doit être monté à
+  distance du régulateur/convertisseur d'alimentation, pour éviter que le bruit électrique de
+  ce dernier ne perturbe le bus SPI (corruption d'écriture, échecs de montage).
+- **Zone froide autour du capteur** : le capteur AHT20/BMP280 (routage « haut ») doit disposer
+  d'un dégagement (« zone froide ») sans composant chauffant à proximité (régulateur, NeoPixel,
+  ESP32-S3), afin de ne pas mesurer la chaleur résiduelle de ses voisins à la place de la
+  température ambiante réelle.
+
 ## Tableau de correspondance des broches (depuis board_config.h)
 
 | Fonction                | GPIO | Remarques                              |
 |-------------------------|------|----------------------------------------|
-| I2C SDA                 | 15   | OLED, AHT20, BMP280                    |
-| I2C SCL                 | 16   | OLED, AHT20, BMP280                    |
-| Bouton BOOT             | 0    |                                        |
-| Bouton BACK             | 7    |                                        |
-| Bouton CONFIRM          | 8    |                                        |
+| I2C SDA                 | 8    | OLED, AHT20, BMP280 — routage haut (zone froide) |
+| I2C SCL                 | 9    | OLED, AHT20, BMP280 — routage haut (zone froide) |
+| Bouton BOOT             | 0    | Strapping respecté                    |
+| Bouton CONFIRM          | 15   | Routé en haut, vers l'écran            |
+| Bouton BACK             | 1    | Routé en bas                          |
 | Neopixel                | 48   | LED intégrée                           |
-| Encodeur A              | 4    | EC11/HW-040                            |
-| Encodeur B              | 5    | EC11/HW-040                            |
-| Bouton Encodeur         | 6    | EC11/HW-040                            |
-| SD CLK (SCK)            | 9    | SPI SD                                 |
-| SD MISO (DAT0/SO)       | 10   | SPI SD                                 |
-| SD MOSI (CMD/SI)        | 11   | SPI SD                                 |
-| SD CS (DAT3/CS)         | 12   | SPI SD                                 |
-| SD DAT2                 | 13   | SPI SD (pas toujours utilisé)          |
-| SD DÉTECTION            | 14   | LOW=présente, HIGH=absente (polarité configurable) |
+| Encodeur A (TRA)        | 42   | EC11/HW-040                            |
+| Encodeur B (TRB)        | 2    | EC11/HW-040                            |
+| Bouton Encodeur (PSH)   | 41   | EC11/HW-040                            |
+| SD CLK (SCK)            | 21   | SPI SD — routage bas (éloigné alim.)   |
+| SD MISO (DAT0/SO)       | 47   | SPI SD — routage bas (éloigné alim.)   |
+| SD MOSI (CMD/SI)        | 38   | SPI SD — routage bas (éloigné alim.)   |
+| SD CS (DAT3/CS)         | 39   | SPI SD — routage bas (éloigné alim.)   |
+| SD DÉTECTION            | 40   | LOW=présente, HIGH=absente (polarité configurable) |
 
+> D1 et DAT2 du module SD : ne pas câbler (pull-up 10kΩ → 3V3).
 > Voir board_config.h pour le mapping de référence et SD_DET_ACTIVE_LEVEL pour la polarité.
