@@ -1,0 +1,74 @@
+AHT20 et BMP280;Pin;Type Electrique
+1;VDD;Power input
+2;SDA;Bidirectionnel
+3;GND;Power input
+4;SCL;Bidirectionnel
+;;
+;;
+ESP32-S3 DevkitC-1 N16R8;Pin;Type Electrique
+1;GND;Power input
+2;5V;Power input
+3;IO14;Bidirectionnel
+4;IO13;Bidirectionnel
+5;IO12;Bidirectionnel
+6;IO11;Bidirectionnel
+7;IO10;Bidirectionnel
+8;IO9;Bidirectionnel
+9;IO46;Bidirectionnel
+11;IO8;Bidirectionnel
+12;IO18;Bidirectionnel
+13;IO17;Bidirectionnel
+13;IO3;Bidirectionnel
+14;IO16;Bidirectionnel
+15;IO15;Bidirectionnel
+16;IO7;Bidirectionnel
+17;IO6;Bidirectionnel
+18;IO5;Bidirectionnel
+19;IO4;Bidirectionnel
+20;RST;Entrée
+21;3V3;Power input
+22;3V3;Power input
+23;GND;Power input
+24;GND;Power input
+25;IO19;Bidirectionnel
+26;IO20;Bidirectionnel
+27;IO21;Bidirectionnel
+28;IO47;Bidirectionnel
+29;IO48;Bidirectionnel
+30;IO45;Bidirectionnel
+31;IO0;Bidirectionnel
+32;IO35;Bidirectionnel
+33;IO36;Bidirectionnel
+34;IO37;Bidirectionnel
+35;IO38;Bidirectionnel
+36;IO39;Bidirectionnel
+37;IO40;Bidirectionnel
+38;IO41;Bidirectionnel
+39;IO42;Bidirectionnel
+40;IO2;Bidirectionnel
+41;IO1;Bidirectionnel
+42;RX;Entrée
+43;TX;Sortie
+44;GND;Bidirectionnel
+;;
+Adafruit 4682 Micro SD;Nom;Type Electrique
+1;3V;Power input
+2;GND;Power input
+3;CLK;Bidirectionnel
+4;D0/SO;Bidirectionnel
+5;CMD/SI;Bidirectionnel
+6;D3/CS;Bidirectionnel
+7;D1;Bidirectionnel
+8;DAT2;Bidirectionnel
+9;DET;Bidirectionnel
+;;
+Oled PULAR LCD,1.3 SH1106 + EC11 et deux boutons;Nom;Type Electrique
+1;CON;Bidirectionnel
+2;SDA;Bidirectionnel
+3;SCL;Bidirectionnel
+4;PSH;Sortie
+5;TRA;Sortie
+6;TRB;Sortie
+7;BAK;Sortie
+8;GND;Power input
+9;VCC;Power input
