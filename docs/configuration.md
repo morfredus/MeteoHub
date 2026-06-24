@@ -6,8 +6,15 @@ Version minimale valide : 1.2.0
 
 
 ## Fichiers modifiables
-- `include/secrets.h` (identifiants, clé API, coordonnées)
+- `include/secrets.h` (identifiants, clé API, coordonnées, voir ci-dessous)
 - `include/config.h` (tous les paramètres modifiables par l'utilisateur, voir ci-dessous)
+
+## Paramètres utilisateur dans secrets.h
+- `WIFI_CREDENTIALS` : liste de réseaux WiFi connus (SSID/mot de passe), utilisés dans l'ordre jusqu'à connexion réussie.
+- `OWM_API_KEY` : clé API OpenWeatherMap (One Call API 3.0).
+- `OWM_LAT` / `OWM_LON` : coordonnées GPS utilisées pour les prévisions et alertes.
+- `OWM_UNITS` : unités de mesure (`"metric"` pour Celsius, `"imperial"` pour Fahrenheit).
+- `OWM_LANG` : langue des descriptions météo renvoyées par l'API (ex. `"fr"`).
 
 ## Paramètres utilisateur dans config.h
 

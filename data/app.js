@@ -136,6 +136,12 @@ function renderAlertCard(data, isDetailed) {
     }
 }
 
+function escapeHtmlAndBreakLines(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML.replace(/\n/g, '<br>');
+}
+
 function openAlertModal() {
     const modal = document.getElementById('alertModal');
     const body = document.getElementById('alertModalBody');
@@ -148,10 +154,15 @@ function openAlertModal() {
         const levelLabel = current_alert_payload.alert_level_label_fr || 'Alerte';
         const event = current_alert_payload.event_fr || current_alert_payload.alert_event_fr || current_alert_payload.event || current_alert_payload.alert_event || 'Alerte météo';
         const senderValue = current_alert_payload.sender || current_alert_payload.alert_sender || 'Inconnu';
-        const description = current_alert_payload.description_fr || current_alert_payload.alert_description_fr || 'Aucune description détaillée fournie.';
+        const summary = current_alert_payload.description_fr || current_alert_payload.alert_description_fr || '';
+        const rawDescription = current_alert_payload.description_raw || current_alert_payload.alert_description_raw || '';
         const validity = formatAlertValidity(current_alert_payload.start_unix || current_alert_payload.alert_start_unix, current_alert_payload.end_unix || current_alert_payload.alert_end_unix);
 
-        body.innerHTML = `<p><strong>${levelLabel} (${level})</strong> — ${event}</p><p><strong>Source :</strong> ${senderValue}</p><p><strong>${validity}</strong></p><p>${description}</p><p><strong>Consigne :</strong> Surveillez l’évolution locale et limitez les déplacements non essentiels.</p>`;
+        const sourceBlock = rawDescription
+            ? `<p><strong>Bulletin source (${escapeHtmlAndBreakLines(senderValue)}, langue d'origine) :</strong></p><p>${escapeHtmlAndBreakLines(rawDescription)}</p>`
+            : '';
+
+        body.innerHTML = `<p><strong>${escapeHtmlAndBreakLines(levelLabel)} (${level})</strong> — ${escapeHtmlAndBreakLines(event)}</p><p><strong>${escapeHtmlAndBreakLines(validity)}</strong></p><p>${escapeHtmlAndBreakLines(summary)}</p>${sourceBlock}<p><strong>Consigne :</strong> Surveillez l’évolution locale et limitez les déplacements non essentiels.</p>`;
     }
 
     modal.classList.add('open');

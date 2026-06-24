@@ -283,18 +283,21 @@ void WebManager::_setupApi() {
     // API Alert
     _server.on("/api/alert", HTTP_GET, [this](AsyncWebServerRequest *request) {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
-        DynamicJsonDocument doc(1024);
+        DynamicJsonDocument doc(3072);
 
         if (_forecast) {
             doc["active"] = _forecast->alert_active;
             doc["severity"] = _forecast->alert.severity;
             doc["sender"] = _forecast->alert.sender.c_str();
             doc["event"] = _forecast->alert.event.c_str();
-            
+
             // CONVERSION EXPLICITE
             std::string event_cpp(_forecast->alert.event.c_str());
             doc["event_fr"] = translateAlertToFrench(event_cpp).c_str();
             doc["description_fr"] = getAlertDescriptionFr(_forecast).c_str();
+            // Texte officiel brut renvoyé par la source (souvent en anglais via
+            // OpenWeatherMap), affiché tel quel.
+            doc["description_raw"] = _forecast->alert.description.c_str();
             doc["alert_level_label_fr"] = getAlertLevelLabelFr(_forecast->alert.severity);
             doc["start_unix"] = _forecast->alert.start_unix;
             doc["end_unix"] = _forecast->alert.end_unix;

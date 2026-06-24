@@ -1,3 +1,15 @@
+# [1.1.7] – 2026-06-24
+### Removed
+- **Intégration de la vigilance Météo-France** : retirée intégralement (`VigilanceManager`, son branchement dans `WebManager`/`/api/alert`, le bloc d'affichage dédié dans la modal de détail d'alerte). Le portail public utilisé (`vigilance2-api.meteofrance.fr`) ne permet plus l'établissement de connexion (API non officielle, non documentée, dont la disponibilité n'était pas garantie). La fenêtre de détail d'alerte revient à l'affichage du résumé en français et du bulletin source OpenWeatherMap (langue d'origine) déjà en place. `MF_VIGILANCE_ENABLED` et `MF_VIGILANCE_DEPT_CODE` ne sont plus utilisés.
+
+# [1.1.6] – 2026-06-24
+### Added
+- **Bulletin officiel complet dans la fenêtre de détail d'alerte** : le champ `description` brut renvoyé par l'API météo (récupéré côté firmware depuis `forecast_manager.cpp` mais jamais transmis jusqu'ici) est désormais exposé par `/api/alert` sous `description_raw` et affiché dans la modal de détail (`data/app.js`), en plus du résumé déjà visible sur la page d'accueil. Buffer JSON de `/api/alert` agrandi de 1024 à 3072 octets pour accueillir ce texte et le bulletin de vigilance. Échappement HTML systématique du contenu de la modal côté frontend, cette donnée provenant d'une source externe.
+- **Intégration de la vigilance Météo-France** (API publique, gratuite, sans clé ni abonnement) : nouveau `VigilanceManager` (`src/managers/vigilance_manager.h/.cpp`), branché dans `WebManager` et exposé par `/api/alert` (`vigilance_active`, `vigilance_color_level`, `vigilance_color_label_fr`, `vigilance_phenomenons`). La fenêtre de détail d'alerte affiche désormais ce bulletin **nativement en français** en priorité, le texte source OpenWeatherMap (souvent en anglais) restant affiché en complément sans traduction automatique. Activé par défaut (`MF_VIGILANCE_ENABLED=1` dans `include/config.h`) ; nécessite de renseigner `MF_VIGILANCE_DEPT_CODE` dans `include/secrets.h`. Cette API n'étant pas documentée officiellement, un échec de récupération/analyse désactive simplement l'affichage du bulletin sans impacter le reste du dashboard.
+
+### Removed
+- La traduction automatique mot-à-mot du bulletin officiel (introduite puis retirée dans la même version) : peu lisible et remplacée par le bulletin de vigilance Météo-France, nativement en français.
+
 # [1.1.5] – 2026-06-23
 ### Added
 - **Tendance météo sur 1h/12h/24h/48h** (page Statistiques) : `HistoryManager::getTrend()` calcule désormais le delta et la direction (hausse/baisse/stable) de la température, l'humidité et la pression sur quatre fenêtres temporelles au lieu de deux (1h et 24h auparavant). La fenêtre 12h est dérivée de l'historique RAM (24h disponibles à ~1 point/min) ; la fenêtre 48h est récupérée en lisant le fichier CSV journalier de J-2 sur la carte SD (`/history/AAAA-MM-JJ.csv`, nouvelle méthode `HistoryManager::readSdSampleNear()`) et n'est disponible que si une carte SD avec historique est présente (flag `available_48h`, affiché « N/D » sinon).

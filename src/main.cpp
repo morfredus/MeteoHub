@@ -199,7 +199,7 @@ void loop() {
     }
 
     forecast.update();
-    history.update(); 
+    history.update();
     ui.update();
     webManager.handle();
 
