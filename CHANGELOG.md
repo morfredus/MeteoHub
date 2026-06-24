@@ -1,14 +1,20 @@
-# [1.2.0] – 2026-06-21
-### Changed
-- **Nouveau mapping des broches (`board_config.h`)** : réorganisation complète du routage pour refléter les contraintes de montage physique du boîtier.
-  - I²C (capteurs AHT20/BMP280 + OLED) : routage « haut » sur GPIO8 (SDA) / GPIO9 (SCL).
-  - SD (SPI secondaire) : routage « bas » sur GPIO21 (CLK), GPIO47 (MISO), GPIO38 (MOSI), GPIO39 (CS), GPIO40 (détection).
-  - Boutons : BOOT sur GPIO0 (strapping respecté), CONFIRM sur GPIO15 (haut, vers l'écran), BACK sur GPIO1 (bas).
-  - Encodeur rotatif (EC11/HW-040) : GPIO42 (A/TRA), GPIO2 (B/TRB), GPIO41 (bouton/PSH).
-- **Contraintes de montage physique documentées** : le nouveau mapping impose deux règles de placement sur le boîtier, désormais décrites dans `docs/hardware_wiring.md` et `docs/pin_mappnig.md` :
-  1. Le lecteur SD doit être monté physiquement éloigné de l'alimentation (régulateur/convertisseur), pour limiter le bruit électrique sur le bus SPI.
-  2. Le capteur de température/humidité doit disposer d'une zone froide dégagée autour de lui (sans composant chauffant à proximité) afin de ne pas mesurer la chaleur résiduelle de ses voisins.
-- Mise à jour de l'ensemble de la documentation (`README.md`, `README.fr.md`, `docs/*.md`) pour refléter la version minimale 1.2.0 et le nouveau mapping de broches.
+# [1.1.5] – 2026-06-23
+### Added
+- **Tendance météo sur 1h/12h/24h/48h** (page Statistiques) : `HistoryManager::getTrend()` calcule désormais le delta et la direction (hausse/baisse/stable) de la température, l'humidité et la pression sur quatre fenêtres temporelles au lieu de deux (1h et 24h auparavant). La fenêtre 12h est dérivée de l'historique RAM (24h disponibles à ~1 point/min) ; la fenêtre 48h est récupérée en lisant le fichier CSV journalier de J-2 sur la carte SD (`/history/AAAA-MM-JJ.csv`, nouvelle méthode `HistoryManager::readSdSampleNear()`) et n'est disponible que si une carte SD avec historique est présente (flag `available_48h`, affiché « N/D » sinon).
+- **Tendance générale plus fiable** : `computeGlobalTrendLabelFr()` (`src/managers/web_manager.cpp`) croise désormais la direction de la pression sur les fenêtres 1h/12h/24h(/48h) pour distinguer une vraie tendance de fond (« Amélioration durable », « Dégradation durable ») d'une simple fluctuation court terme, en plus des signaux rapides déjà existants (chute brutale de pression + humidité en hausse, etc.).
+- Page Statistiques (`data/stats.html`, `data/app.js`) : le tableau « Tendance météo » affiche désormais 4 colonnes (1h/12h/24h/48h) avec flèches de direction, et la tendance générale est affichée séparément sous le tableau.
+
+# [1.1.4] – 2026-06-23
+### Fixed
+1. **Page Statistiques : tendances toujours à zéro/"stable"**
+   - **Problème** : Le endpoint `/api/stats` (`src/managers/web_manager.cpp`) calculait correctement les tendances (`HistoryManager::getTrend()`) mais ne sérialisait dans la réponse JSON que `trend.global_label_fr`. Les sous-objets `trend.temp`, `trend.hum` et `trend.pres` attendus par le frontend (`data/app.js`, fonction `fetchStats`) n'existaient jamais dans la réponse, donc les deltas 1h/24h affichaient toujours `0.0` et les directions toujours `stable`, empêchant de dégager une tendance.
+   - **Solution** : Ajout de la sérialisation complète de `trend.temp`, `trend.hum` et `trend.pres` (`delta_1h`, `delta_24h`, `direction_1h`, `direction_24h`) dans la réponse de `/api/stats`. Augmentation de la taille du buffer JSON (`DynamicJsonDocument`) de 2048 à 3072 octets pour accueillir les champs supplémentaires.
+   - **Fichier** : `src/managers/web_manager.cpp`.
+
+2. **Page Fichiers : téléchargement impossible dans les sous-dossiers**
+   - **Problème** : Le endpoint `/api/files/list` renvoyait le chemin complet du fichier (`file.path()`, ex. `/sous-dossier/fichier.txt`) dans le champ JSON `"name"`, alors que le frontend (`data/files.js`) traite ce champ comme un simple nom de fichier et reconstruit le chemin complet en le concaténant avec le dossier courant. Résultat : un chemin dupliqué (ex. `/sous-dossier/sous-dossier/fichier.txt`) introuvable côté serveur, d'où l'échec systématique du téléchargement (et de la suppression) pour tout fichier non situé à la racine.
+   - **Solution** : Utilisation de `file.name()` (nom de base uniquement) au lieu de `file.path()` pour le champ `"name"` de la liste de fichiers.
+   - **Fichier** : `src/managers/web_manager.cpp`.
 
 # [1.1.3] – 2026-03-15
 ### Fixed

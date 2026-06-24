@@ -4,10 +4,12 @@
 #include "../utils/cooperative_yield.h" // INCLUSION AJOUTÉE
 #include <time.h>
 #include <inttypes.h>
+#include <climits>
 #include <Arduino.h>
 
 #define HISTORY_FILE "/history/recent.dat"
 #define MAX_RECENT_RECORDS 1440
+#define SD_SAMPLE_TOLERANCE_S 1800 // tolérance de recherche autour de l'horodatage cible (30 min)
 
 void HistoryManager::begin(SdManager* sd) {
     _sd = sd;
@@ -152,6 +154,54 @@ void HistoryManager::saveToSd(const HistoryRecord& record) {
     }
 }
 
+bool HistoryManager::readSdSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out) const {
+    if (!_sd || !_sd->isAvailable()) return false;
+
+    struct tm timeinfo;
+    if (!localtime_r(&target_ts, &timeinfo)) return false;
+
+    char filename[32];
+    strftime(filename, sizeof(filename), "/history/%Y-%m-%d.csv", &timeinfo);
+
+    if (!SD.exists(filename)) return false;
+
+    File f = SD.open(filename, FILE_READ);
+    if (!f) return false;
+
+    bool found = false;
+    long best_diff = LONG_MAX;
+    bool first_line = true;
+    size_t line_count = 0;
+
+    while (f.available()) {
+        String line = f.readStringUntil('\n');
+        COOPERATIVE_YIELD_EVERY(line_count, 256);
+        line_count++;
+
+        if (first_line) {
+            first_line = false;
+            continue; // en-tête CSV "Timestamp,Temperature,Humidity,Pressure"
+        }
+        if (line.length() == 0) continue;
+
+        long ts = 0;
+        float t = 0, h = 0, p = 0;
+        if (sscanf(line.c_str(), "%ld,%f,%f,%f", &ts, &t, &h, &p) == 4) {
+            long diff = labs(static_cast<long>(ts - static_cast<long>(target_ts)));
+            if (diff < best_diff) {
+                best_diff = diff;
+                t_out = t;
+                h_out = h;
+                p_out = p;
+                found = true;
+            }
+        }
+    }
+    f.close();
+
+    return found && best_diff <= SD_SAMPLE_TOLERANCE_S;
+}
+
 void HistoryManager::createSdStructure() {
     if (!SD.exists("/history")) {
         if (SD.mkdir("/history")) {
@@ -193,10 +243,12 @@ MeteoTrend HistoryManager::getTrend() const {
     float p_now = _recentHistory.back().p;
 
     float t_1h = t_now, h_1h = h_now, p_1h = p_now;
+    float t_12h = t_now, h_12h = h_now, p_12h = p_now;
     float t_24h = t_now, h_24h = h_now, p_24h = p_now;
-    bool found_1h = false, found_24h = false;
+    bool found_1h = false, found_12h = false, found_24h = false;
     size_t trend_iteration = 0;
-    
+
+    // L'historique RAM (_recentHistory) couvre au maximum 24h (échantillonnage ~1 min).
     for (auto it = _recentHistory.rbegin(); it != _recentHistory.rend(); ++it) {
         COOPERATIVE_YIELD_EVERY(trend_iteration, 256);
         trend_iteration++;
@@ -208,6 +260,12 @@ MeteoTrend HistoryManager::getTrend() const {
             p_1h = it->p;
             found_1h = true;
         }
+        if (!found_12h && dt >= 43200) {
+            t_12h = it->t;
+            h_12h = it->h;
+            p_12h = it->p;
+            found_12h = true;
+        }
         if (!found_24h && dt >= 86400) {
             t_24h = it->t;
             h_24h = it->h;
@@ -217,12 +275,22 @@ MeteoTrend HistoryManager::getTrend() const {
         }
     }
 
+    // Le point à J-48h n'existe plus en RAM : on va le chercher dans le CSV journalier sur SD, si disponible.
+    float t_48h = t_now, h_48h = h_now, p_48h = p_now;
+    trend.available_48h = readSdSampleNear(now - 172800, t_48h, h_48h, p_48h);
+
     trend.temp.delta_1h = t_now - t_1h;
+    trend.temp.delta_12h = t_now - t_12h;
     trend.temp.delta_24h = t_now - t_24h;
+    trend.temp.delta_48h = trend.available_48h ? (t_now - t_48h) : 0.0f;
     trend.hum.delta_1h = h_now - h_1h;
+    trend.hum.delta_12h = h_now - h_12h;
     trend.hum.delta_24h = h_now - h_24h;
+    trend.hum.delta_48h = trend.available_48h ? (h_now - h_48h) : 0.0f;
     trend.pres.delta_1h = p_now - p_1h;
+    trend.pres.delta_12h = p_now - p_12h;
     trend.pres.delta_24h = p_now - p_24h;
+    trend.pres.delta_48h = trend.available_48h ? (p_now - p_48h) : 0.0f;
 
     auto dir = [](float d) {
         if (d > 0.2) return std::string("hausse");
@@ -230,11 +298,17 @@ MeteoTrend HistoryManager::getTrend() const {
         return std::string("stable");
     };
     trend.temp.direction_1h = dir(trend.temp.delta_1h);
+    trend.temp.direction_12h = dir(trend.temp.delta_12h);
     trend.temp.direction_24h = dir(trend.temp.delta_24h);
+    trend.temp.direction_48h = trend.available_48h ? dir(trend.temp.delta_48h) : "indisponible";
     trend.hum.direction_1h = dir(trend.hum.delta_1h);
+    trend.hum.direction_12h = dir(trend.hum.delta_12h);
     trend.hum.direction_24h = dir(trend.hum.delta_24h);
+    trend.hum.direction_48h = trend.available_48h ? dir(trend.hum.delta_48h) : "indisponible";
     trend.pres.direction_1h = dir(trend.pres.delta_1h);
+    trend.pres.direction_12h = dir(trend.pres.delta_12h);
     trend.pres.direction_24h = dir(trend.pres.delta_24h);
+    trend.pres.direction_48h = trend.available_48h ? dir(trend.pres.delta_48h) : "indisponible";
 
     return trend;
 }

@@ -1,6 +1,6 @@
 # MeteoHub S3
 
-> **Version minimale valide : 1.2.0**
+> **Version minimale valide : 1.1.3**
 
 ## Documentation complète
 - [Index de la documentation](docs/index.md)
@@ -24,8 +24,7 @@ MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bor
 - Build : `platformio run`
 - Upload : `platformio run --target upload`
 
-## Fonctionnalités principales (Nouveautés v1.2.x)
-- **Contraintes de montage physique (v1.2.0)** : nouveau mapping des broches imposant un placement physique précis — lecteur SD éloigné de l'alimentation (bruit électrique sur le bus SPI), et zone froide dégagée autour du capteur pour éviter de mesurer la chaleur résiduelle des composants voisins.
+## Fonctionnalités principales (Nouveautés v1.1.x)
 - **Stabilité SD renforcée (v1.1.2)** : Écritures sécurisées avec `flush()` explicite et protection par Mutex contre la corruption de fichiers.
 - **Moteur C++ Standard (v1.1.0)** : Refonte du cœur web pour utiliser `std::string`, garantissant une meilleure stabilité mémoire.
 - **Gestion de fichiers avancée** : Upload, téléchargement et suppression de fichiers via l'interface web.

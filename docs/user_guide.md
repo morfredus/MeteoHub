@@ -27,14 +27,15 @@ Pages principales :
 - Visualisation des données en temps réel, historiques, graphiques, logs, fichiers, et OTA.
 
 ### Gestion des fichiers (LittleFS/SD)
-- Navigation, téléchargement, suppression, upload de fichiers via l’interface web (onglet Fichiers).
+- Navigation, téléchargement, suppression, upload de fichiers via l’interface web (onglet Fichiers), y compris dans les sous-dossiers.
 - Accès aux fichiers SD si une carte est insérée et reconnue.
 - API : `/api/files/list`, `/api/files/download`, `/api/files/delete`, `/api/files/upload` (paramètre `fs=sd` ou `fs=littlefs`).
 
 ### Historique et statistiques
 - Visualisation graphique de l’historique (température, humidité, pression).
 - API : `/api/history` (paramètres `window`, `interval`, `points` pour l’agrégation).
-- Statistiques 24h via `/api/stats` (min, max, moyenne, tendances).
+- Statistiques 24h via `/api/stats` (min, max, moyenne).
+- Page Statistiques : tendances détaillées sur 1h, 12h, 24h et 48h (température, humidité, pression), ainsi qu’une tendance générale qui croise la direction de la pression sur ces fenêtres pour dégager une véritable évolution (amélioration/dégradation durable, stable, ou variable). La fenêtre 48h nécessite une carte SD avec l’historique journalier (fichier CSV de J-2) ; elle s’affiche « N/D » si indisponible.
 
 ### Logs et diagnostic
 - Accès aux logs système via l’interface web (onglet Logs) et API `/api/logs`.

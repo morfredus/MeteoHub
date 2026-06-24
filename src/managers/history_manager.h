@@ -36,15 +36,20 @@ struct Stats24h {
 // Structures pour la tendance météo
 struct TrendMetric {
     float delta_1h = 0;
+    float delta_12h = 0;
     float delta_24h = 0;
+    float delta_48h = 0;
     std::string direction_1h;
+    std::string direction_12h;
     std::string direction_24h;
+    std::string direction_48h;
 };
 
 struct MeteoTrend {
     TrendMetric temp;
     TrendMetric hum;
     TrendMetric pres;
+    bool available_48h = false; // true si une mesure proche de J-48h a été retrouvée sur la carte SD
 };
 
 class HistoryManager {
@@ -67,8 +72,9 @@ private:
 
     void loadRecent();
     void saveRecent(const HistoryRecord& record);
-    
+
     // Helpers SD
     void saveToSd(const HistoryRecord& record);
     void createSdStructure();
+    bool readSdSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out) const;
 };

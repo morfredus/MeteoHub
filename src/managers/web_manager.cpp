@@ -99,17 +99,37 @@ static std::string getAlertDescriptionFr(const ForecastManager* forecast) {
     return buildAlertDescriptionSummaryFr(forecast);
 }
 
+// Dégage une tendance de fond en croisant la direction de la pression sur 1h, 12h, 24h
+// (et 48h si disponible sur SD) : une direction cohérente sur toutes les fenêtres
+// indique une vraie tendance durable, plutôt qu'une simple variation court terme.
 static std::string computeGlobalTrendLabelFr(const MeteoTrend& trend) {
     const float pressure_1h = trend.pres.delta_1h;
     const float humidity_1h = trend.hum.delta_1h;
     const float temp_1h = trend.temp.delta_1h;
 
+    // Signaux court terme explicites (variation rapide sur 1h)
     if (pressure_1h >= 1.0f && humidity_1h <= -2.0f) return "Vers beau temps";
     if (pressure_1h <= -1.0f && humidity_1h >= 2.0f) return "Vers pluie";
     if (pressure_1h <= -1.0f && temp_1h <= -0.3f) return "Vers refroidissement";
     if (pressure_1h >= 1.0f && temp_1h >= 0.3f) return "Vers amélioration";
 
-    return "Tendance stable";
+    auto vote = [](const std::string& direction) {
+        if (direction == "hausse") return 1;
+        if (direction == "baisse") return -1;
+        return 0;
+    };
+
+    int score = vote(trend.pres.direction_1h) + vote(trend.pres.direction_12h) + vote(trend.pres.direction_24h);
+    int windows = 3;
+    if (trend.available_48h) {
+        score += vote(trend.pres.direction_48h);
+        windows = 4;
+    }
+
+    if (score >= windows - 1) return "Amélioration durable";
+    if (score <= -(windows - 1)) return "Dégradation durable";
+    if (score == 0) return "Tendance stable";
+    return "Tendance variable";
 }
 
 WebManager::WebManager() : _server(80) {
@@ -370,7 +390,7 @@ void WebManager::_setupApi() {
     // API Stats
     _server.on("/api/stats", HTTP_GET, [this](AsyncWebServerRequest *request) {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
-        DynamicJsonDocument doc(2048);
+        DynamicJsonDocument doc(4096);
 
         Stats24h stats = _history->getRecentStats();
         if (stats.count > 0) {
@@ -392,7 +412,32 @@ void WebManager::_setupApi() {
 
         MeteoTrend trend = _history->getTrend();
         doc["trend"]["global_label_fr"] = computeGlobalTrendLabelFr(trend).c_str();
-        
+        doc["trend"]["available_48h"] = trend.available_48h;
+        doc["trend"]["temp"]["delta_1h"] = trend.temp.delta_1h;
+        doc["trend"]["temp"]["delta_12h"] = trend.temp.delta_12h;
+        doc["trend"]["temp"]["delta_24h"] = trend.temp.delta_24h;
+        doc["trend"]["temp"]["delta_48h"] = trend.temp.delta_48h;
+        doc["trend"]["temp"]["direction_1h"] = trend.temp.direction_1h.c_str();
+        doc["trend"]["temp"]["direction_12h"] = trend.temp.direction_12h.c_str();
+        doc["trend"]["temp"]["direction_24h"] = trend.temp.direction_24h.c_str();
+        doc["trend"]["temp"]["direction_48h"] = trend.temp.direction_48h.c_str();
+        doc["trend"]["hum"]["delta_1h"] = trend.hum.delta_1h;
+        doc["trend"]["hum"]["delta_12h"] = trend.hum.delta_12h;
+        doc["trend"]["hum"]["delta_24h"] = trend.hum.delta_24h;
+        doc["trend"]["hum"]["delta_48h"] = trend.hum.delta_48h;
+        doc["trend"]["hum"]["direction_1h"] = trend.hum.direction_1h.c_str();
+        doc["trend"]["hum"]["direction_12h"] = trend.hum.direction_12h.c_str();
+        doc["trend"]["hum"]["direction_24h"] = trend.hum.direction_24h.c_str();
+        doc["trend"]["hum"]["direction_48h"] = trend.hum.direction_48h.c_str();
+        doc["trend"]["pres"]["delta_1h"] = trend.pres.delta_1h;
+        doc["trend"]["pres"]["delta_12h"] = trend.pres.delta_12h;
+        doc["trend"]["pres"]["delta_24h"] = trend.pres.delta_24h;
+        doc["trend"]["pres"]["delta_48h"] = trend.pres.delta_48h;
+        doc["trend"]["pres"]["direction_1h"] = trend.pres.direction_1h.c_str();
+        doc["trend"]["pres"]["direction_12h"] = trend.pres.direction_12h.c_str();
+        doc["trend"]["pres"]["direction_24h"] = trend.pres.direction_24h.c_str();
+        doc["trend"]["pres"]["direction_48h"] = trend.pres.direction_48h.c_str();
+
         serializeJson(doc, *response);
         request->send(response);
     });
@@ -432,8 +477,7 @@ void WebManager::_setupApi() {
             if(!first) response->print(",");
             response->print("{\"name\":\"");
             
-            const char* fname = file.path();
-            if (fname && fname[0] != '/') response->print("/");
+            const char* fname = file.name();
             response->print(fname ? fname : "");
             
             response->print("\",\"size\":");

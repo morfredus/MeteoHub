@@ -325,37 +325,55 @@ async function fetchStats() {
         `;
 
         const trendBody = document.getElementById('trendBody');
+        const trendGlobal = document.getElementById('trendGlobal');
         if (trendBody) {
             const trend = data.trend || {};
             const t = trend.temp || {};
             const h = trend.hum || {};
             const p = trend.pres || {};
+            const available48h = !!trend.available_48h;
             const globalLabel = trend.global_label_fr || 'Tendance stable';
+
+            // Affiche la variation et la direction ensemble (ex: "+0.8 °C ↗")
+            const arrow = (direction) => {
+                if (direction === 'hausse') return '↗';
+                if (direction === 'baisse') return '↘';
+                if (direction === 'indisponible') return '';
+                return '→';
+            };
+            const cell = (delta, direction, unit, decimals) => {
+                if (direction === 'indisponible') return 'N/D';
+                const sign = delta > 0 ? '+' : '';
+                return `${sign}${(delta ?? 0).toFixed(decimals)} ${unit} ${arrow(direction)}`;
+            };
 
             trendBody.innerHTML = `
                 <tr>
                     <td>Température</td>
-                    <td>${(t.delta_1h ?? 0).toFixed(1)} °C</td>
-                    <td>${(t.delta_24h ?? 0).toFixed(1)} °C</td>
-                    <td>${t.direction_1h || 'stable'} / ${t.direction_24h || 'stable'}</td>
+                    <td>${cell(t.delta_1h, t.direction_1h, '°C', 1)}</td>
+                    <td>${cell(t.delta_12h, t.direction_12h, '°C', 1)}</td>
+                    <td>${cell(t.delta_24h, t.direction_24h, '°C', 1)}</td>
+                    <td>${available48h ? cell(t.delta_48h, t.direction_48h, '°C', 1) : 'N/D'}</td>
                 </tr>
                 <tr>
                     <td>Humidité</td>
-                    <td>${(h.delta_1h ?? 0).toFixed(1)} %</td>
-                    <td>${(h.delta_24h ?? 0).toFixed(1)} %</td>
-                    <td>${h.direction_1h || 'stable'} / ${h.direction_24h || 'stable'}</td>
+                    <td>${cell(h.delta_1h, h.direction_1h, '%', 1)}</td>
+                    <td>${cell(h.delta_12h, h.direction_12h, '%', 1)}</td>
+                    <td>${cell(h.delta_24h, h.direction_24h, '%', 1)}</td>
+                    <td>${available48h ? cell(h.delta_48h, h.direction_48h, '%', 1) : 'N/D'}</td>
                 </tr>
                 <tr>
                     <td>Pression</td>
-                    <td>${(p.delta_1h ?? 0).toFixed(1)} hPa</td>
-                    <td>${(p.delta_24h ?? 0).toFixed(1)} hPa</td>
-                    <td>${p.direction_1h || 'stable'} / ${p.direction_24h || 'stable'}</td>
-                </tr>
-                <tr>
-                    <td><strong>Tendance globale</strong></td>
-                    <td colspan="3"><strong>${globalLabel}</strong></td>
+                    <td>${cell(p.delta_1h, p.direction_1h, 'hPa', 1)}</td>
+                    <td>${cell(p.delta_12h, p.direction_12h, 'hPa', 1)}</td>
+                    <td>${cell(p.delta_24h, p.direction_24h, 'hPa', 1)}</td>
+                    <td>${available48h ? cell(p.delta_48h, p.direction_48h, 'hPa', 1) : 'N/D'}</td>
                 </tr>
             `;
+
+            if (trendGlobal) {
+                trendGlobal.innerHTML = `<strong>Tendance générale (1h/12h/24h${available48h ? '/48h' : ''}) :</strong> ${globalLabel}`;
+            }
         }
 
         const status = document.getElementById('status');
