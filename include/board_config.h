@@ -61,6 +61,9 @@
 // Module SD (J1) — SPI secondaire "safe"
 // (routage en bas à gauche sur le schéma)
 // =====================================================
+// Modules SD à 6 broches (sans DAT1/DAT2 routées) : à éviter,
+// génèrent des échecs SD.begin() aléatoires selon les cartes SD.
+// Cf. diagnostic complet du 02/07/2026.
 // Aucun conflit avec PSRAM Octal / USB / pins de strapping.
 #define SD_CLK_PIN   13   // SCK  -> broche "CLK" du connecteur micro-SD
 #define SD_MISO_PIN  12   // DO   -> broche "DO/SO" (DAT0)
