@@ -1,3 +1,0 @@
-Fichiers supprimés par ce commit (à supprimer aussi dans votre repo local) :
-- src/managers/vigilance_manager.cpp
-- src/managers/vigilance_manager.h
