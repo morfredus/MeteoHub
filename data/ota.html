@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>MeteoHub - OTA</title>
+    <title>MeteoHub - Système</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🔄 Mise à jour OTA</h1>
+            <h1>⚙️ Système</h1>
             <span id="status">Prêt</span>
         </header>
 
@@ -25,6 +25,16 @@
             </div>
 
             <div id="otaResult" class="ota-result">En attente d'un fichier...</div>
+        </div>
+
+        <div class="card neo-card">
+            <h2>Intensité de la LED (NeoPixel)</h2>
+            <div class="neo-row">
+                <input id="neoRange" type="range" min="0" max="100" step="1" value="0" />
+                <span id="neoValue" class="neo-value">0 %</span>
+            </div>
+            <button id="neoBtn" class="btn">Enregistrer</button>
+            <div id="neoResult" class="ota-result">Chargement...</div>
         </div>
     </div>
 
@@ -89,6 +99,53 @@
             };
 
             xhr.send(formData);
+        });
+
+        // --- Réglage de l'intensité de la NeoPixel ---
+        const neoRange = document.getElementById('neoRange');
+        const neoValue = document.getElementById('neoValue');
+        const neoBtn = document.getElementById('neoBtn');
+        const neoResult = document.getElementById('neoResult');
+
+        function setNeoResult(message, state) {
+            neoResult.textContent = message;
+            neoResult.className = 'ota-result ' + (state || '');
+        }
+
+        neoRange.addEventListener('input', () => {
+            neoValue.textContent = neoRange.value + ' %';
+        });
+
+        fetch('/api/neopixel')
+            .then((r) => r.json())
+            .then((data) => {
+                const pct = Math.max(0, Math.min(100, parseInt(data.brightness, 10) || 0));
+                neoRange.value = pct;
+                neoValue.textContent = pct + ' %';
+                setNeoResult('Intensité actuelle : ' + pct + ' %', 'info');
+            })
+            .catch(() => setNeoResult("Impossible de lire l'intensité actuelle", 'error'));
+
+        neoBtn.addEventListener('click', () => {
+            const value = neoRange.value;
+            neoBtn.disabled = true;
+            setNeoResult('Enregistrement...', 'info');
+
+            fetch('/api/neopixel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'value=' + encodeURIComponent(value)
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (data.ok) {
+                        setNeoResult('✅ Intensité réglée sur ' + data.brightness + ' %', 'success');
+                    } else {
+                        setNeoResult('❌ ' + (data.message || 'Erreur inconnue'), 'error');
+                    }
+                })
+                .catch(() => setNeoResult('❌ Erreur réseau', 'error'))
+                .finally(() => { neoBtn.disabled = false; });
         });
     </script>
 </body>

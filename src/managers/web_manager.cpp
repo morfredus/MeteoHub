@@ -9,6 +9,7 @@
 #include "utils/logs.h"
 #include "utils/system_info.h"
 #include "utils/cooperative_yield.h"
+#include "modules/neopixel_status.h"
 #include "web_pages.h"
 
 #ifndef WEB_MDNS_HOSTNAME
@@ -476,6 +477,29 @@ void WebManager::_setupApi() {
     _server.on("/api/system", HTTP_GET, [this](AsyncWebServerRequest *request) {
         std::string sysInfo = getSystemInfoJson(_sd);
         request->send(200, "application/json", sysInfo.c_str());
+    });
+
+    // API NeoPixel : lecture de l'intensité courante (0..100 %)
+    _server.on("/api/neopixel", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "{\"brightness\":%u}", static_cast<unsigned>(neoGetBrightnessPercent()));
+        request->send(200, "application/json", buffer);
+    });
+
+    // API NeoPixel : réglage de l'intensité (paramètre POST "value", 0..100 %)
+    _server.on("/api/neopixel", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (!request->hasParam("value", true)) {
+            request->send(400, "application/json", "{\"ok\":false,\"message\":\"Parametre value manquant\"}");
+            return;
+        }
+        int value = request->getParam("value", true)->value().toInt();
+        if (value < 0) value = 0;
+        if (value > 100) value = 100;
+        neoSetBrightnessPercent(static_cast<uint8_t>(value));
+        char buffer[48];
+        snprintf(buffer, sizeof(buffer), "{\"ok\":true,\"brightness\":%d}", value);
+        request->send(200, "application/json", buffer);
+        LOG_INFO("NeoPixel brightness set to " + std::to_string(value) + "%");
     });
 
     // API Files List
