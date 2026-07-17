@@ -41,7 +41,15 @@
             <h2>Alerte météo</h2>
             <div id="alertText">Aucune alerte</div>
             <div id="alertValidity" class="alert-validity">Validité : --</div>
-            <div id="alertDetailsBody"></div>
+            <button id="alertDetailsBtn" class="alert-details-icon" type="button" disabled aria-label="Voir détails complets" title="Voir détails complets">📜</button>
+        </div>
+
+        <div id="alertModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="alertModalTitle">
+            <div class="modal-content">
+                <button id="alertModalClose" class="modal-close" type="button" aria-label="Fermer">×</button>
+                <h3 id="alertModalTitle">Détails de l'alerte</h3>
+                <div id="alertModalBody">Aucune alerte active.</div>
+            </div>
         </div>
 
         <div class="chart-container">

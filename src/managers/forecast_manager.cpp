@@ -127,30 +127,6 @@ void ForecastManager::parseResponse(const std::string& payload) {
         tomorrow.description[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(tomorrow.description[0])));
     }
 
-    // Prévision étendue sur 8 jours (aujourd'hui + 7), utilisée pour le résumé
-    // texte de la page Tendances.
-    JsonArray daily_array = doc["daily"].as<JsonArray>();
-    daily_count = 0;
-    for (JsonObject day : daily_array) {
-        if (daily_count >= FORECAST_DAILY_MAX) {
-            break;
-        }
-        DailyForecast& slot = daily[daily_count];
-        slot.dt = day["dt"] | 0;
-        slot.temp_min = day["temp"]["min"] | 0.0f;
-        slot.temp_max = day["temp"]["max"] | 0.0f;
-        slot.description = day["weather"][0]["description"].as<const char*>();
-        if (!slot.description.empty()) {
-            slot.description[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(slot.description[0])));
-        }
-        slot.weather_id = day["weather"][0]["id"] | 0;
-        slot.pop = day["pop"] | 0.0f;
-        slot.rain_mm = day["rain"] | 0.0f;
-        slot.wind_speed = day["wind_speed"] | 0.0f;
-        slot.wind_deg = day["wind_deg"] | 0;
-        daily_count++;
-    }
-
     // Alerts
     JsonArray alerts = doc["alerts"].as<JsonArray>();
     if (!alerts.isNull() && alerts.size() > 0) {

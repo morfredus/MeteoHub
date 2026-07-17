@@ -24,8 +24,12 @@ function setGraphScaleMarginPct(pct) {
 }
 
 function getDynamicMinMax(data, key, userMin, userMax) {
-    let dynMin = Math.min(...data.map(d => d[key]));
-    let dynMax = Math.max(...data.map(d => d[key]));
+    const values = data.map(d => d[key]).filter(Number.isFinite);
+    if (values.length === 0) {
+        return [userMin, userMax];
+    }
+    let dynMin = Math.min(...values);
+    let dynMax = Math.max(...values);
     if (dynMin === dynMax) {
         dynMin -= 0.3;
         dynMax += 0.3;
@@ -47,11 +51,16 @@ function getDynamicMinMax(data, key, userMin, userMax) {
 
 function updateChartScale() {
     if (!chart || !chart.data || !chart.data.datasets) return;
-    const data = chart.data.labels.length > 0 ? chart.data.datasets[0].data.map((_, i) => ({
-        temp: chart.data.datasets[0].data[i],
-        hum: chart.data.datasets[1].data[i],
-        pres: chart.data.datasets[2].data[i]
-    })) : [];
+    const data = [];
+    for (let i = 0; i < chart.data.labels.length; i++) {
+        const row = {};
+        for (const dataset of chart.data.datasets) {
+            if (dataset.metric && Number.isFinite(dataset.data[i])) {
+                row[dataset.metric] = dataset.data[i];
+            }
+        }
+        data.push(row);
+    }
     if (data.length === 0) return;
     let [tmin, tmax] = getDynamicMinMax(data, 'temp', GRAPH_TEMP_MIN, GRAPH_TEMP_MAX);
     let [hmin, hmax] = getDynamicMinMax(data, 'hum', GRAPH_HUM_MIN, GRAPH_HUM_MAX);
@@ -101,46 +110,91 @@ function renderSensorValidityBadge(isValid) {
     }
 }
 
-function escapeHtmlAndBreakLines(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML.replace(/\n/g, '<br>');
+function updateAlertDetailsButton(enabled) {
+    const detailsBtn = document.getElementById('alertDetailsBtn');
+    if (!detailsBtn) return;
+
+    detailsBtn.disabled = !enabled;
 }
 
-function renderAlertCard(data) {
+function renderAlertCard(data, isDetailed) {
     const alertText = document.getElementById('alertText');
     const alertValidity = document.getElementById('alertValidity');
-    const detailsBody = document.getElementById('alertDetailsBody');
     if (!alertText || !alertValidity) return;
 
     if (data.alert_active || data.active) {
         const level = Number.isFinite(data.alert_severity) ? data.alert_severity : (Number.isFinite(data.severity) ? data.severity : 0);
         const levelLabel = data.alert_level_label_fr || 'Alerte';
         const event = data.alert_event_fr || data.event_fr || data.alert_event || data.event || 'Alerte météo';
-        const senderValue = data.alert_sender || data.sender || 'Inconnu';
-        const summary = data.description_fr || data.alert_description_fr || '';
-        const rawDescription = data.description_raw || data.alert_description_raw || '';
-        const startUnix = data.alert_start_unix || data.start_unix;
-        const endUnix = data.alert_end_unix || data.end_unix;
+        const senderValue = data.alert_sender || data.sender || '';
+        const sender = senderValue ? ` • Source: ${senderValue}` : '';
+        const detailsText = data.description_fr || data.alert_description_fr || "";
+        const details = isDetailed && detailsText ? ` — ${detailsText}` : "";
 
-        alertText.textContent = `${levelLabel} (${level}) - ${event}`;
+        alertText.textContent = `${levelLabel} (${level}) - ${event}${sender}${details}`;
         alertText.style.fontWeight = '700';
-        alertValidity.textContent = formatAlertValidity(startUnix, endUnix);
+        alertValidity.textContent = formatAlertValidity(data.alert_start_unix || data.start_unix, data.alert_end_unix || data.end_unix);
         applyAlertCardTheme(level);
-
-        if (detailsBody) {
-            const sourceBlock = rawDescription
-                ? `<p><strong>Bulletin source (${escapeHtmlAndBreakLines(senderValue)}, langue d'origine) :</strong></p><p>${escapeHtmlAndBreakLines(rawDescription)}</p>`
-                : '';
-            detailsBody.innerHTML = `<p>${escapeHtmlAndBreakLines(summary)}</p>${sourceBlock}<p><strong>Consigne :</strong> Surveillez l’évolution locale et limitez les déplacements non essentiels.</p>`;
-        }
+        updateAlertDetailsButton(true);
     } else {
         alertText.textContent = 'Aucune alerte météo en cours.';
         alertText.style.fontWeight = '500';
         alertValidity.textContent = 'Validité : --';
         applyAlertCardTheme(0);
-        if (detailsBody) detailsBody.innerHTML = '';
+        updateAlertDetailsButton(false);
     }
+}
+
+function openAlertModal() {
+    const modal = document.getElementById('alertModal');
+    const body = document.getElementById('alertModalBody');
+    if (!modal || !body) return;
+
+    if (!current_alert_payload || !(current_alert_payload.active || current_alert_payload.alert_active)) {
+        body.textContent = 'Aucune alerte active.';
+    } else {
+        const level = Number.isFinite(current_alert_payload.severity) ? current_alert_payload.severity : current_alert_payload.alert_severity;
+        const levelLabel = current_alert_payload.alert_level_label_fr || 'Alerte';
+        const event = current_alert_payload.event_fr || current_alert_payload.alert_event_fr || current_alert_payload.event || current_alert_payload.alert_event || 'Alerte météo';
+        const senderValue = current_alert_payload.sender || current_alert_payload.alert_sender || 'Inconnu';
+        const description = current_alert_payload.description_fr || current_alert_payload.alert_description_fr || 'Aucune description détaillée fournie.';
+        const validity = formatAlertValidity(current_alert_payload.start_unix || current_alert_payload.alert_start_unix, current_alert_payload.end_unix || current_alert_payload.alert_end_unix);
+
+        body.innerHTML = `<p><strong>${levelLabel} (${level})</strong> — ${event}</p><p><strong>Source :</strong> ${senderValue}</p><p><strong>${validity}</strong></p><p>${description}</p><p><strong>Consigne :</strong> Surveillez l’évolution locale et limitez les déplacements non essentiels.</p>`;
+    }
+
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAlertModal() {
+    const modal = document.getElementById('alertModal');
+    if (!modal) return;
+
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function initAlertModal() {
+    const detailsBtn = document.getElementById('alertDetailsBtn');
+    const closeBtn = document.getElementById('alertModalClose');
+    const modal = document.getElementById('alertModal');
+
+    if (detailsBtn) detailsBtn.addEventListener('click', openAlertModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeAlertModal);
+    if (modal) {
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeAlertModal();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeAlertModal();
+        }
+    });
 }
 
 async function fetchAlert() {
@@ -151,9 +205,10 @@ async function fetchAlert() {
         const res = await fetch('/api/alert');
         const data = await res.json();
         current_alert_payload = data;
-        renderAlertCard(data);
+        renderAlertCard(data, true);
     } catch (e) {
         alertText.textContent = "Erreur lors de la récupération de l'alerte météo.";
+        updateAlertDetailsButton(false);
         applyAlertCardTheme(0);
     }
 }
@@ -163,12 +218,17 @@ const HISTORY_WINDOWS_SECONDS = {
     short: 2 * 60 * 60,
     long: 24 * 60 * 60
 };
+const HISTORY_PERIOD_LABELS = {
+    7200: '2 dernières heures',
+    21600: '6 dernières heures',
+    43200: '12 dernières heures',
+    86400: '24 dernières heures'
+};
 
 const HISTORY_REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 5000;
 const ALERT_REFRESH_MS = 15 * 60 * 1000;
 const STATS_REFRESH_MS = 15000;
-const FORECAST7_REFRESH_MS = 30 * 60 * 1000;
 
 function getPageName() {
     return document.body?.dataset?.page || 'dashboard';
@@ -184,19 +244,43 @@ function isStatsPage() {
 }
 
 function getHistoryWindowSeconds() {
-    return getPageName() === 'longterm' ? HISTORY_WINDOWS_SECONDS.long : HISTORY_WINDOWS_SECONDS.short;
+    if (getPageName() !== 'longterm') return HISTORY_WINDOWS_SECONDS.short;
+    const periodSelect = document.getElementById('historyPeriod');
+    return Number(periodSelect?.value || HISTORY_WINDOWS_SECONDS.long);
 }
 
 function getHistoryIntervalSeconds() {
-    return getPageName() === 'longterm' ? 30 * 60 : 5 * 60;
+    if (getPageName() !== 'longterm') return 5 * 60;
+    const windowSeconds = getHistoryWindowSeconds();
+    if (windowSeconds <= 2 * 60 * 60) return 5 * 60;
+    if (windowSeconds <= 6 * 60 * 60) return 10 * 60;
+    if (windowSeconds <= 12 * 60 * 60) return 15 * 60;
+    return 30 * 60;
 }
 
-function buildHistoryUrl() {
+function isHistoryCompareEnabled() {
+    return getPageName() === 'longterm' && !!document.getElementById('historyCompare')?.checked;
+}
+
+function buildHistoryUrl(offsetSeconds = 0) {
     const params = new URLSearchParams({
         window: String(getHistoryWindowSeconds()),
         interval: String(getHistoryIntervalSeconds())
     });
+    if (offsetSeconds > 0) {
+        params.set('offset', String(offsetSeconds));
+    }
     return `/api/history?${params.toString()}`;
+}
+
+function updateHistoryCaption(primaryCount, compareCount) {
+    const caption = document.getElementById('historyCaption');
+    if (!caption) return;
+
+    const windowSeconds = getHistoryWindowSeconds();
+    const label = HISTORY_PERIOD_LABELS[windowSeconds] || `${Math.round(windowSeconds / 3600)} dernières heures`;
+    const compareText = isHistoryCompareEnabled() ? ` • comparaison précédente (${compareCount} points)` : '';
+    caption.textContent = `Données des ${label} (${primaryCount} points)${compareText}`;
 }
 
 async function fetchLive() {
@@ -234,7 +318,15 @@ async function fetchHistory() {
     try {
         const res = await fetch(buildHistoryUrl());
         const json = await res.json();
-        updateChart(Array.isArray(json.data) ? json.data : []);
+        const primary = Array.isArray(json.data) ? json.data : [];
+        let compare = [];
+        if (isHistoryCompareEnabled()) {
+            const compareRes = await fetch(buildHistoryUrl(getHistoryWindowSeconds()));
+            const compareJson = await compareRes.json();
+            compare = Array.isArray(compareJson.data) ? compareJson.data : [];
+        }
+        updateChart(primary, compare);
+        updateHistoryCaption(primary.length, compare.length);
     } catch (e) {
         console.error('Erreur historique', e);
     }
@@ -341,108 +433,32 @@ async function fetchStats() {
     }
 }
 
-function windDirectionFr(deg) {
-    const directions = ['nord', 'nord-est', 'est', 'sud-est', 'sud', 'sud-ouest', 'ouest', 'nord-ouest'];
-    const index = Math.round((deg % 360) / 45) % 8;
-    return directions[index];
+function formatHistoryLabel(timestamp, index) {
+    if (getPageName() === 'longterm') {
+        return dataLabelFromIndex(index);
+    }
+    return new Date(timestamp * 1000).toLocaleTimeString();
 }
 
-function formatForecastDayLabel(dtUnix, isFirst) {
-    if (isFirst) return 'Demain';
-    const weekday = new Date(dtUnix * 1000).toLocaleDateString('fr-FR', { weekday: 'long' });
-    return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+function dataLabelFromIndex(index) {
+    const intervalSeconds = getHistoryIntervalSeconds();
+    const elapsedSeconds = index * intervalSeconds;
+    const hours = Math.floor(elapsedSeconds / 3600);
+    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+    if (hours > 0) return `+${hours}h${minutes ? String(minutes).padStart(2, '0') : ''}`;
+    return `+${minutes}min`;
 }
 
-// Génère un court résumé en français pour un jour de prévision, à partir des
-// données brutes OpenWeatherMap (température, probabilité/volume de pluie,
-// vent). Heuristique simple, pas une traduction exacte d'un bulletin officiel.
-function buildForecastDayNarrative(day, prevDay, isFirst) {
-    const tempMax = day.temp_max;
-    const pop = day.pop || 0;
-    const rain = day.rain_mm || 0;
-    const windKmh = (day.wind_speed || 0) * 3.6;
-    const popPct = Math.round(pop * 100);
-
-    let heat;
-    if (tempMax >= 35) heat = 'caniculaire';
-    else if (tempMax >= 30) heat = 'très chaud';
-    else if (tempMax >= 25) heat = 'chaud';
-    else if (tempMax >= 18) heat = 'doux';
-    else heat = 'frais';
-
-    let trendPhrase;
-    if (prevDay) {
-        const delta = tempMax - prevDay.temp_max;
-        if (delta <= -4) {
-            trendPhrase = `Le break météo. Les températures chutent nettement avec un max à ${tempMax.toFixed(1)}°C`;
-        } else if (delta <= -1.5) {
-            trendPhrase = `Légère baisse mais ${heat}. Max à ${tempMax.toFixed(1)}°C`;
-        } else if (delta >= 4) {
-            trendPhrase = `Nette hausse, ${heat}. Max à ${tempMax.toFixed(1)}°C`;
-        } else if (delta >= 1.5) {
-            trendPhrase = `Légère hausse, ${heat}. Max à ${tempMax.toFixed(1)}°C`;
-        } else {
-            trendPhrase = `Stable, ${heat}. Max à ${tempMax.toFixed(1)}°C`;
-        }
-    } else {
-        trendPhrase = `Toujours ${heat}. Max à ${tempMax.toFixed(1)}°C`;
-    }
-
-    let rainPhrase;
-    if (pop >= 0.8 || rain >= 5) {
-        rainPhrase = `C'est la journée la plus pluvieuse de la série : ${popPct}% de chances de précipitations${rain > 0 ? ` avec ${rain.toFixed(1)} mm de pluie` : ''}.`;
-    } else if (pop >= 0.4) {
-        rainPhrase = `Le risque de pluie augmente (${popPct}%).`;
-    } else if (pop >= 0.15) {
-        rainPhrase = `Légère pluie fine prévue (probabilité ${popPct}%)${rain > 0 ? `, ${rain.toFixed(1)} mm attendus` : ''}.`;
-    } else {
-        rainPhrase = 'Beau ciel dégagé, aucune pluie.';
-    }
-
-    let windPhrase = '';
-    if (windKmh >= 15) {
-        windPhrase = ` Le vent souffle du ${windDirectionFr(day.wind_deg || 0)} autour de ${Math.round(windKmh)} km/h.`;
-    }
-
-    return `${trendPhrase}. ${rainPhrase}${windPhrase}`;
-}
-
-async function fetchForecast7() {
-    const container = document.getElementById('forecast7Body');
-    if (!container) return;
-
-    try {
-        const res = await fetch('/api/forecast7');
-        const days = await res.json();
-
-        if (!Array.isArray(days) || days.length === 0) {
-            container.textContent = 'Prévisions indisponibles.';
-            return;
-        }
-
-        let prev = null;
-        const parts = days.map((day, index) => {
-            const label = formatForecastDayLabel(day.dt, index === 0);
-            const narrative = buildForecastDayNarrative(day, prev, index === 0);
-            prev = day;
-            return `<div class="forecast-day">
-                <div class="forecast-day-title">${escapeHtmlAndBreakLines(label)}</div>
-                <div class="forecast-day-text">${escapeHtmlAndBreakLines(narrative)}</div>
-            </div>`;
-        });
-
-        container.innerHTML = parts.join('');
-    } catch (e) {
-        container.textContent = 'Erreur lors de la récupération des prévisions.';
-    }
-}
-
-function updateChart(data) {
+function updateChart(data, compareData = []) {
     if (!chart) return;
-    chart.data.labels = data.map((d) => new Date(d.t * 1000).toLocaleTimeString());
+    const labelCount = Math.max(data.length, compareData.length);
+    chart.data.labels = Array.from({ length: labelCount }, (_, i) => formatHistoryLabel(data[i]?.t || compareData[i]?.t || 0, i));
     chart.data.datasets[0].data = data.map((d) => d.temp);
     chart.data.datasets[1].data = data.map((d) => d.hum);
     chart.data.datasets[2].data = data.map((d) => d.pres);
+    chart.data.datasets[3].data = compareData.map((d) => d.temp);
+    chart.data.datasets[4].data = compareData.map((d) => d.hum);
+    chart.data.datasets[5].data = compareData.map((d) => d.pres);
     updateChartScale();
 }
 
@@ -465,7 +481,8 @@ function initChart() {
                     cubicInterpolationMode: 'monotone',
                     pointRadius: 0,
                     stepped: false,
-                    yAxisID: 'y'
+                    yAxisID: 'y',
+                    metric: 'temp'
                 },
                 {
                     label: 'Humidité (%)',
@@ -477,7 +494,8 @@ function initChart() {
                     pointRadius: 0,
                     stepped: false,
                     yAxisID: 'y1',
-                    hidden: false
+                    hidden: false,
+                    metric: 'hum'
                 },
                 {
                     label: 'Pression (hPa)',
@@ -489,7 +507,47 @@ function initChart() {
                     pointRadius: 0,
                     stepped: false,
                     yAxisID: 'y2',
-                    hidden: false
+                    hidden: false,
+                    metric: 'pres'
+                },
+                {
+                    label: 'Température période précédente (°C)',
+                    data: [],
+                    borderColor: 'rgba(0, 168, 255, 0.55)',
+                    backgroundColor: 'rgba(0, 168, 255, 0.04)',
+                    borderDash: [8, 5],
+                    tension: 0.45,
+                    cubicInterpolationMode: 'monotone',
+                    pointRadius: 0,
+                    stepped: false,
+                    yAxisID: 'y',
+                    metric: 'temp'
+                },
+                {
+                    label: 'Humidité période précédente (%)',
+                    data: [],
+                    borderColor: 'rgba(0, 255, 136, 0.55)',
+                    backgroundColor: 'rgba(0, 255, 136, 0.04)',
+                    borderDash: [8, 5],
+                    tension: 0.45,
+                    cubicInterpolationMode: 'monotone',
+                    pointRadius: 0,
+                    stepped: false,
+                    yAxisID: 'y1',
+                    metric: 'hum'
+                },
+                {
+                    label: 'Pression période précédente (hPa)',
+                    data: [],
+                    borderColor: 'rgba(255, 0, 255, 0.55)',
+                    backgroundColor: 'rgba(255, 0, 255, 0.04)',
+                    borderDash: [8, 5],
+                    tension: 0.45,
+                    cubicInterpolationMode: 'monotone',
+                    pointRadius: 0,
+                    stepped: false,
+                    yAxisID: 'y2',
+                    metric: 'pres'
                 }
             ]
         },
@@ -529,6 +587,7 @@ function initChart() {
 }
 
 window.onload = () => {
+    initAlertModal();
     fetchSystem();
     fetchLive();
     fetchAlert();
@@ -547,13 +606,16 @@ window.onload = () => {
         // Synchronise le select avec la valeur initiale
         const modeSelect = document.getElementById('scaleMode');
         if (modeSelect) modeSelect.value = GRAPH_SCALE_MODE;
+
+        const periodSelect = document.getElementById('historyPeriod');
+        const compareCheck = document.getElementById('historyCompare');
+        if (periodSelect) periodSelect.addEventListener('change', fetchHistory);
+        if (compareCheck) compareCheck.addEventListener('change', fetchHistory);
     }
 
     if (isStatsPage()) {
         fetchStats();
         setInterval(fetchStats, STATS_REFRESH_MS);
-        fetchForecast7();
-        setInterval(fetchForecast7, FORECAST7_REFRESH_MS);
     }
 
     setInterval(fetchLive, LIVE_REFRESH_MS);

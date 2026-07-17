@@ -3,18 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Historique Long Terme - MeteoHub S3</title>
+    <title>Historique - MeteoHub S3</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body data-page="longterm">
     <div class="container">
         <header>
-            <h1>Historique Long Terme</h1>
+            <h1>Historique</h1>
             <div id="status">Connexion...</div>
         </header>
 
         <nav data-shared-menu="true" data-active="/longterm.html"></nav>
+
+        <section class="history-toolbar">
+            <label for="historyPeriod">Période</label>
+            <select id="historyPeriod">
+                <option value="7200">2 h</option>
+                <option value="21600">6 h</option>
+                <option value="43200">12 h</option>
+                <option value="86400" selected>24 h</option>
+            </select>
+            <label class="history-compare">
+                <input type="checkbox" id="historyCompare">
+                Comparer à la période précédente
+            </label>
+        </section>
 
         <div class="chart-container" style="height: 600px;">
             <canvas id="historyChart"></canvas>
@@ -32,7 +46,7 @@
                 </div>
             </div>
         </div>
-        <p style="text-align: center; color: #666; margin-top: 10px;">Données des 24 dernières heures</p>
+        <p id="historyCaption" style="text-align: center; color: #666; margin-top: 10px;">Données des 24 dernières heures</p>
 
         <footer>
         </footer>

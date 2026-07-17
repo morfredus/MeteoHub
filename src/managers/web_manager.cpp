@@ -9,7 +9,6 @@
 #include "utils/logs.h"
 #include "utils/system_info.h"
 #include "utils/cooperative_yield.h"
-#include "modules/neopixel_status.h"
 #include "web_pages.h"
 
 #ifndef WEB_MDNS_HOSTNAME
@@ -284,21 +283,18 @@ void WebManager::_setupApi() {
     // API Alert
     _server.on("/api/alert", HTTP_GET, [this](AsyncWebServerRequest *request) {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
-        DynamicJsonDocument doc(3072);
+        DynamicJsonDocument doc(1024);
 
         if (_forecast) {
             doc["active"] = _forecast->alert_active;
             doc["severity"] = _forecast->alert.severity;
             doc["sender"] = _forecast->alert.sender.c_str();
             doc["event"] = _forecast->alert.event.c_str();
-
+            
             // CONVERSION EXPLICITE
             std::string event_cpp(_forecast->alert.event.c_str());
             doc["event_fr"] = translateAlertToFrench(event_cpp).c_str();
             doc["description_fr"] = getAlertDescriptionFr(_forecast).c_str();
-            // Texte officiel brut renvoyé par la source (souvent en anglais via
-            // OpenWeatherMap), affiché tel quel.
-            doc["description_raw"] = _forecast->alert.description.c_str();
             doc["alert_level_label_fr"] = getAlertLevelLabelFr(_forecast->alert.severity);
             doc["start_unix"] = _forecast->alert.start_unix;
             doc["end_unix"] = _forecast->alert.end_unix;
@@ -311,45 +307,26 @@ void WebManager::_setupApi() {
         request->send(response);
     });
 
-    // API Prévisions 7 jours (pour la page Tendances) : un élément par jour à
-    // venir (J+1 à J+7), index 0 du tableau JSON = demain.
-    _server.on("/api/forecast7", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
-        DynamicJsonDocument doc(2560);
-        JsonArray days = doc.to<JsonArray>();
-
-        if (_forecast) {
-            for (int i = 1; i < _forecast->daily_count; i++) {
-                const DailyForecast& day = _forecast->daily[i];
-                JsonObject item = days.createNestedObject();
-                item["dt"] = day.dt;
-                item["temp_min"] = day.temp_min;
-                item["temp_max"] = day.temp_max;
-                item["description"] = day.description;
-                item["weather_id"] = day.weather_id;
-                item["pop"] = day.pop;
-                item["rain_mm"] = day.rain_mm;
-                item["wind_speed"] = day.wind_speed;
-                item["wind_deg"] = day.wind_deg;
-            }
-        }
-
-        serializeJson(doc, *response);
-        request->send(response);
-    });
-
     // API History (Logique inchangée, déjà compatible)
     _server.on("/api/history", HTTP_GET, [this](AsyncWebServerRequest *request) {
         const auto& full_history = _history->getRecentHistory();
         int window_s = request->hasParam("window") ? request->getParam("window")->value().toInt() : 0;
         int interval_s = request->hasParam("interval") ? request->getParam("interval")->value().toInt() : 0;
         int max_points = request->hasParam("points") ? request->getParam("points")->value().toInt() : 0;
+        int offset_s = request->hasParam("offset") ? request->getParam("offset")->value().toInt() : 0;
+        if (offset_s < 0) offset_s = 0;
 
         size_t start_index = 0;
+        size_t end_index = full_history.size();
         if (!full_history.empty() && window_s > 0) {
             const long latest_ts = static_cast<long>(full_history.back().timestamp);
-            const long min_ts = latest_ts - static_cast<long>(window_s);
+            const long max_ts = latest_ts - static_cast<long>(offset_s);
+            const long min_ts = max_ts - static_cast<long>(window_s);
             size_t i = full_history.size();
+            while (i > 0 && static_cast<long>(full_history[i - 1].timestamp) > max_ts) {
+                i--;
+            }
+            end_index = i;
             while (i > 0 && static_cast<long>(full_history[i - 1].timestamp) >= min_ts) {
                 i--;
             }
@@ -360,10 +337,10 @@ void WebManager::_setupApi() {
         response->print("{\"data\":[");
 
         bool first = true;
-        const size_t available_points = full_history.size() - start_index;
+        const size_t available_points = (end_index > start_index) ? (end_index - start_index) : 0;
 
         if (interval_s > 0 && available_points > 0) {
-            const long latest_ts = static_cast<long>(full_history.back().timestamp);
+            const long latest_ts = static_cast<long>(full_history[end_index - 1].timestamp);
             const long window_start_ts = (window_s > 0) ? (latest_ts - static_cast<long>(window_s)) : static_cast<long>(full_history[start_index].timestamp);
 
             size_t idx = start_index;
@@ -372,7 +349,7 @@ void WebManager::_setupApi() {
                 double sum_t = 0.0, sum_h = 0.0, sum_p = 0.0;
                 int count = 0;
 
-                while (idx < full_history.size()) {
+                while (idx < end_index) {
                     const long ts = static_cast<long>(full_history[idx].timestamp);
                     if (ts < bucket_start) { idx++; continue; }
                     if (ts >= bucket_end) break;
@@ -401,7 +378,7 @@ void WebManager::_setupApi() {
                 step = (available_points + static_cast<size_t>(max_points) - 1) / static_cast<size_t>(max_points);
             }
 
-            for (size_t i = start_index; i < full_history.size(); i += step) {
+            for (size_t i = start_index; i < end_index; i += step) {
                 COOPERATIVE_YIELD_EVERY(i - start_index, 64);
                 if (!first) response->print(",");
                 first = false;
@@ -477,29 +454,6 @@ void WebManager::_setupApi() {
     _server.on("/api/system", HTTP_GET, [this](AsyncWebServerRequest *request) {
         std::string sysInfo = getSystemInfoJson(_sd);
         request->send(200, "application/json", sysInfo.c_str());
-    });
-
-    // API NeoPixel : lecture de l'intensité courante (0..100 %)
-    _server.on("/api/neopixel", HTTP_GET, [](AsyncWebServerRequest *request) {
-        char buffer[32];
-        snprintf(buffer, sizeof(buffer), "{\"brightness\":%u}", static_cast<unsigned>(neoGetBrightnessPercent()));
-        request->send(200, "application/json", buffer);
-    });
-
-    // API NeoPixel : réglage de l'intensité (paramètre POST "value", 0..100 %)
-    _server.on("/api/neopixel", HTTP_POST, [](AsyncWebServerRequest *request) {
-        if (!request->hasParam("value", true)) {
-            request->send(400, "application/json", "{\"ok\":false,\"message\":\"Parametre value manquant\"}");
-            return;
-        }
-        int value = request->getParam("value", true)->value().toInt();
-        if (value < 0) value = 0;
-        if (value > 100) value = 100;
-        neoSetBrightnessPercent(static_cast<uint8_t>(value));
-        char buffer[48];
-        snprintf(buffer, sizeof(buffer), "{\"ok\":true,\"brightness\":%d}", value);
-        request->send(200, "application/json", buffer);
-        LOG_INFO("NeoPixel brightness set to " + std::to_string(value) + "%");
     });
 
     // API Files List

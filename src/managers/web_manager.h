@@ -8,7 +8,7 @@
 #include "managers/history_manager.h"
 #include "managers/forecast_manager.h"
 #include "modules/sensors.h"
-
+ 
 class WebManager {
 public:
     WebManager();
@@ -17,7 +17,7 @@ public:
 
 private:
     AsyncWebServer _server;
-
+    
     void _setupRoutes();
     void _setupApi();
     HistoryManager* _history = nullptr;

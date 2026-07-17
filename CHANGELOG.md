@@ -1,26 +1,18 @@
-# [1.1.9] – 2026-06-25
-### Changed
-- **Lisibilité du résumé 7 jours** (page Tendances) : chaque jour s'affiche désormais dans son propre cartouche (titre du jour en évidence, texte en dessous, alignement à gauche) au lieu d'un bloc de texte continu peu lisible. Fichiers : `data/app.js` (`fetchForecast7`), `data/style.css` (nouvelles règles `.forecast-day*`).
-
-# [1.1.8] – 2026-06-25
-### Changed
-- **Cartouche d'alerte météo (page d'accueil)** : suppression de la fenêtre modale de détail d'alerte et du bouton « Détails » associé. Le cartouche affiche désormais directement et en permanence le contenu qui était dans la modale (résumé en français, bulletin source OpenWeatherMap, validité). Fichiers : `data/index.html`, `data/app.js`, `data/style.css` (suppression des règles `.modal*` et `.alert-details-icon*` devenues mortes).
-- **Page Statistiques renommée « Tendances »** (`data/stats.html`, titre, `<h1>`, libellé du menu dans `data/menu.js`). L'identifiant technique `data-page="stats"` et les routes (`/stats.html`) restent inchangés.
-
+# [1.1.6] – 2026-07-17
 ### Added
-- **Résumé court des prévisions à 7 jours** sur la page Tendances : nouvelle structure `DailyForecast` et tableau `daily[]` (jusqu'à 8 jours) dans `ForecastManager` (`src/managers/forecast_manager.h/.cpp`), alimentés depuis le tableau `daily` déjà présent dans la réponse OpenWeatherMap (température min/max, description, probabilité et quantité de pluie, vitesse/direction du vent) mais jusqu'ici non exploité au-delà d'aujourd'hui/demain. Nouvelle API `/api/forecast7` (`src/managers/web_manager.cpp`) exposant les 7 jours à venir. Le frontend (`data/app.js`) génère pour chaque jour une courte phrase en français (tendance de température par rapport au jour précédent, risque de pluie, vent si significatif) ; le premier jour à venir est toujours libellé « Demain », les jours suivants reprennent le nom réel du jour de la semaine calculé à partir de la date. Ce texte est un résumé généré par heuristique, pas une traduction du bulletin officiel.
+- Page web **Historique** : l'ancien onglet « Historique 24h » devient
+  « Historique » et permet de choisir la fenêtre affichée (2h, 6h, 12h, 24h).
+- Ajout d'une comparaison optionnelle avec la période précédente de même durée :
+  les courbes précédentes sont affichées en pointillés pour la température,
+  l'humidité et la pression.
+- API `/api/history` : ajout du paramètre `offset` pour lire une fenêtre
+  historique décalée, utilisé par la comparaison côté interface web.
 
-
-### Removed
-- **Intégration de la vigilance Météo-France** : retirée intégralement (`VigilanceManager`, son branchement dans `WebManager`/`/api/alert`, le bloc d'affichage dédié dans la modal de détail d'alerte). Le portail public utilisé (`vigilance2-api.meteofrance.fr`) ne permet plus l'établissement de connexion (API non officielle, non documentée, dont la disponibilité n'était pas garantie). La fenêtre de détail d'alerte revient à l'affichage du résumé en français et du bulletin source OpenWeatherMap (langue d'origine) déjà en place. `MF_VIGILANCE_ENABLED` et `MF_VIGILANCE_DEPT_CODE` ne sont plus utilisés.
-
-# [1.1.6] – 2026-06-24
-### Added
-- **Bulletin officiel complet dans la fenêtre de détail d'alerte** : le champ `description` brut renvoyé par l'API météo (récupéré côté firmware depuis `forecast_manager.cpp` mais jamais transmis jusqu'ici) est désormais exposé par `/api/alert` sous `description_raw` et affiché dans la modal de détail (`data/app.js`), en plus du résumé déjà visible sur la page d'accueil. Buffer JSON de `/api/alert` agrandi de 1024 à 3072 octets pour accueillir ce texte et le bulletin de vigilance. Échappement HTML systématique du contenu de la modal côté frontend, cette donnée provenant d'une source externe.
-- **Intégration de la vigilance Météo-France** (API publique, gratuite, sans clé ni abonnement) : nouveau `VigilanceManager` (`src/managers/vigilance_manager.h/.cpp`), branché dans `WebManager` et exposé par `/api/alert` (`vigilance_active`, `vigilance_color_level`, `vigilance_color_label_fr`, `vigilance_phenomenons`). La fenêtre de détail d'alerte affiche désormais ce bulletin **nativement en français** en priorité, le texte source OpenWeatherMap (souvent en anglais) restant affiché en complément sans traduction automatique. Activé par défaut (`MF_VIGILANCE_ENABLED=1` dans `include/config.h`) ; nécessite de renseigner `MF_VIGILANCE_DEPT_CODE` dans `include/secrets.h`. Cette API n'étant pas documentée officiellement, un échec de récupération/analyse désactive simplement l'affichage du bulletin sans impacter le reste du dashboard.
-
-### Removed
-- La traduction automatique mot-à-mot du bulletin officiel (introduite puis retirée dans la même version) : peu lisible et remplacée par le bulletin de vigilance Météo-France, nativement en français.
+### Changed
+- La page Historique adapte automatiquement l'intervalle d'agrégation selon la
+  période choisie et affiche le nombre de points chargés.
+- Le fichier embarqué `include/web_pages.h` a été régénéré pour inclure la
+  nouvelle interface web.
 
 # [1.1.5] – 2026-06-23
 ### Added

@@ -1,6 +1,6 @@
 # MeteoHub S3
 
-> **Version minimale valide : 1.1.3**
+> **Version minimale valide : 1.1.6**
 
 ## Documentation complète
 - [Index de la documentation](docs/index.md)
@@ -25,6 +25,8 @@ MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bor
 - Upload : `platformio run --target upload`
 
 ## Fonctionnalités principales (Nouveautés v1.1.x)
+- **Historique web comparatif (v1.1.6)** : l'onglet Historique permet de choisir
+  une période (2h, 6h, 12h, 24h) et de la comparer à la période précédente.
 - **Stabilité SD renforcée (v1.1.2)** : Écritures sécurisées avec `flush()` explicite et protection par Mutex contre la corruption de fichiers.
 - **Moteur C++ Standard (v1.1.0)** : Refonte du cœur web pour utiliser `std::string`, garantissant une meilleure stabilité mémoire.
 - **Gestion de fichiers avancée** : Upload, téléchargement et suppression de fichiers via l'interface web.
