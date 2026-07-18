@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.2.0
+Version minimale valide : 1.6.3
 
 - Tourner l’encodeur pour naviguer entre les pages.
 - Le clic encodeur ouvre le menu.
@@ -24,7 +24,7 @@ Pages principales :
 
 ### Interface web
 - Accès à l’interface web via l’adresse http://<nom>.local (mDNS) ou IP locale.
-- Visualisation des données en temps réel, historiques, graphiques, logs, fichiers, et OTA.
+- Menu principal à quatre entrées : **Tableau de bord**, **Statistiques**, **Historique**, **Système**. Les outils Fichiers et Logs sont accessibles depuis la page Système.
 
 ### Gestion des fichiers (LittleFS/SD)
 - Navigation, téléchargement, suppression, upload de fichiers via l’interface web (onglet Fichiers), y compris dans les sous-dossiers.
@@ -33,7 +33,7 @@ Pages principales :
 
 ### Historique et statistiques
 - Page **Historique** : visualisation graphique de l’historique (température `°C`, humidité `Hu%`, pression `hPa`).
-  - **Sélection de période** : dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd’hui », ou une plage **personnalisée** (champs *du* / *au*). Les périodes au-delà de ~24 h sont reconstituées à partir des fichiers CSV journaliers de la carte SD.
+  - **Sélection de période** : dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd’hui », ou une plage **personnalisée** (champs *du* / *au*). Les périodes au-delà de ~24 h sont reconstituées à partir des fichiers binaires journaliers de la carte SD.
   - **Comparaison de deux périodes** : « aucune », « période précédente » (même durée, juste avant la période affichée) ou « autre période… » (début libre, durée identique à la période principale). La période comparée (B) est tracée en pointillés et alignée sur la période principale (A) ; une ligne d’information rappelle les plages exactes.
   - **Échelle** : mode *Fixe* / *Dynamique* / *Mixte*. En mode *Mixte*, le curseur **Zoom** (0 → 100 %) interpole entre l’échelle complète configurée (0 %, courbe quasi plate) et l’amplitude exacte des données (100 %, courbe pleine hauteur).
   - **Synthèse** (option, masquée par défaut) : une ligne au-dessus du graphe résume la période affichée pour chaque grandeur — variation sur la période (flèche ▲/▼/=), minimum, maximum et moyenne — pour une lecture rapide sans analyser les courbes.
@@ -41,12 +41,15 @@ Pages principales :
   - Fenêtre glissante : `window`, `interval`, `points` (utilisée par le tableau de bord).
   - Plage absolue : `from`, `to` (secondes Unix) et `interval` optionnel (utilisée par la page Historique ; lecture SD + RAM, tranches vides renvoyées à `null`).
 - API : `/api/history/summary?from=&to=` — synthèse pré-calculée d'une plage (min/max/moyenne + variation par grandeur) reconstruite à partir des fichiers `.stats` journaliers, sans relire les mesures.
-- Statistiques 24h via `/api/stats` (min, max, moyenne).
+- Statistiques 24h via `/api/stats` (min, max, moyenne). Ces statistiques sont calculées avec un **filtre robuste (médiane/MAD)** qui écarte les valeurs aberrantes, y compris en série, pour rester représentatives.
 
 #### Stockage de l'historique (carte SD)
 - L'historique est stocké au **format binaire compact**, découpé par jour : `/history/AAAA/MM/AAAA-MM-JJ.bin` (enregistrements de 16 octets : horodatage + température/humidité/pression). Ce format est plusieurs fois plus petit que le CSV et permet un accès direct à une mesure sans relire tout le fichier ; une consultation 24 h ne lit qu'un fichier.
 - Chaque `.bin` débute par un **en-tête** (magic `MTHB`, version de format, tailles, capteurs présents, nombre de mesures, premier/dernier relevé). Cet en-tête rend le format **pérenne** : de futurs capteurs pourront agrandir l'enregistrement sans imposer de convertir les anciens fichiers (compatibilité ascendante).
-- **Qualité des données** : à l'affichage, les valeurs manifestement aberrantes (pic/creux d'un seul point incohérent avec les relevés voisins) sont automatiquement **écartées des graphiques et des statistiques** (détection par cohérence temporelle, pas de seuil fixe). Les mesures brutes restent conservées dans les fichiers ; seule leur exploitation est adaptée pour des courbes plus lisibles.
+- **Qualité des données** : à l'exploitation (côté serveur, sur les mesures brutes avant agrégation), les valeurs manifestement aberrantes sont automatiquement **écartées des graphiques et des statistiques**, par grandeur (température, humidité et pression traitées indépendamment) :
+  - pour les **graphes** (`/api/history`), un filtre de **cohérence temporelle** écarte un pic/creux ponctuel incohérent avec ses deux voisins (pas de seuil fixe), les points valides étant reliés directement ;
+  - pour les **statistiques** (`/api/stats`), un filtre **robuste médiane/MAD** écarte les valeurs aberrantes même en série (ex. plusieurs mesures à 0 d'affilée après un incident capteur).
+  - Les **mesures brutes restent conservées** dans les fichiers : seule leur exploitation est adaptée.
 - À côté de chaque `.bin`, un fichier `.stats` conserve les statistiques du jour déjà calculées (min/max/moyenne, nombre de mesures, première/dernière mesure), mises à jour au fil des acquisitions — d'où l'affichage quasi instantané de la synthèse.
 - Le **CSV** reste disponible **uniquement comme format d'export** (pour Excel/LibreOffice).
 - Les anciens fichiers CSV présents sur la carte sont **convertis automatiquement au binaire au premier démarrage** (puis renommés en `.csv.bak`).
@@ -64,6 +67,12 @@ Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Stati
   - **Configuration** effective au format JSON — API `GET /api/config/export`.
 - **Mise à jour du firmware (OTA)** : upload d’un fichier `.bin`, reboot automatique après succès. API : `/api/ota/update`. (L’ancienne URL `/ota.html` redirige vers `/system.html`.)
 - **Outils** : accès au **gestionnaire de fichiers** (`/files.html`) et aux **logs système** (`/logs`), qui ne figurent plus dans le menu principal.
+
+### Acquisition capteur (AHT20 + BMP280, bus I2C)
+- Une mesure est enregistrée toutes les minutes. Chaque lecture est **vérifiée** (succès de la communication I2C + plausibilité) : en cas d'échec, la minute est **sautée** plutôt que d'enregistrer une valeur erronée.
+- **Robustesse** : jusqu'à 3 tentatives par lecture (les erreurs I2C sont souvent transitoires) et **récupération automatique du bus I2C** après plusieurs échecs consécutifs. En temps réel, la dernière valeur valide est affichée si une lecture échoue.
+- Un badge signale une lecture capteur invalide sur le tableau de bord.
+- En cas d'erreurs I2C fréquentes (`i2cRead returned Error -1` dans les logs), voir la section correspondante de [Maintenance et dépannage](maintenance_and_troubleshooting.md).
 
 ### Alertes météo et tendances
 - Affichage des alertes météo (niveau, type, description, couleur) sur l’interface et l’OLED.

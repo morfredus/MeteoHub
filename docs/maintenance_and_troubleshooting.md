@@ -2,12 +2,29 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.2.0
+Version minimale valide : 1.6.3
 
 - Si le Wi-Fi ne se connecte pas, vérifier `include/secrets.h`.
 - Si les prévisions sont vides, vérifier la clé API et l’accès réseau.
 - Si l’historique est vide, vérifier le montage LittleFS et l’état SD optionnel.
-- Utiliser la page OTA pour les mises à jour firmware.
+- Utiliser la page **Système** pour les mises à jour firmware (OTA), le réglage de la luminosité et les exports.
+
+## Capteurs I2C instables (valeurs à zéro, erreurs `i2cRead`)
+
+Symptômes dans les logs : `i2cRead returned Error -1`, `i2cWriteReadNonStop returned Error -1`, ou des mesures ponctuelles à 0.
+
+Côté logiciel, MeteoHub encaisse déjà ces incidents : chaque lecture est validée, réessayée jusqu'à 3 fois, le bus I2C est réinitialisé automatiquement après plusieurs échecs, une lecture ratée n'est pas enregistrée, et les valeurs aberrantes résiduelles sont écartées des graphes et statistiques. Si les erreurs restent **fréquentes**, la cause est généralement matérielle :
+
+1. **Résistances de pull-up SDA/SCL** : un seul jeu de pull-ups (≈ 4,7 kΩ vers 3,3 V) doit être présent sur le bus. Si plusieurs modules (AHT/BMP, OLED) intègrent chacun leurs pull-ups, ils se retrouvent en parallèle et surchargent le bus : retirer les pull-ups redondants.
+2. **Câblage** : fils I2C les plus courts possible, masse commune franche, connexions fiables (SDA = IO8, SCL = IO9).
+3. **Alimentation 3,3 V stable** : les pics de consommation Wi-Fi peuvent faire chuter la tension et perturber les capteurs.
+4. **Vitesse du bus** : si le problème persiste, baisser la fréquence I2C (`I2C_FREQ_HZ` dans `src/modules/sensors.cpp`, ex. 50000 Hz) apporte de la marge.
+
+## Historique et stockage
+
+- L'historique interne est stocké au **format binaire** (`/history/AAAA/MM/AAAA-MM-JJ.bin` + fichiers `.stats`). Le CSV n'est utilisé que pour l'export (page Système).
+- Les anciens fichiers `.csv` sont **convertis automatiquement** au binaire au premier démarrage après mise à jour (puis renommés `.csv.bak`) ; surveiller les lignes `History migration…` dans le moniteur série.
+- Sauvegarder le dossier `/history` de la carte SD avant une mise à jour majeure du firmware, par prudence.
 
 ## Dépannage carte SD
 

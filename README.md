@@ -1,6 +1,6 @@
 # MeteoHub S3
 
-> **Minimum supported version: 1.1.3**
+> **Minimum supported version: 1.6.3**
 
 ## Full Documentation
 
@@ -38,26 +38,26 @@ platformio run
 platformio run --target upload
 ```
 
-## Key Features (v1.1.x Highlights)
+## Key Features (v1.6.x Highlights)
 
-* **Improved SD Card Reliability (v1.1.2)**
-  Safe write operations with explicit `flush()` calls and Mutex protection to reduce the risk of file corruption.
+* **Compact binary history storage (v1.4.0+)**
+  Per-day binary files (`/history/YYYY/MM/YYYY-MM-DD.bin`) with a file header for forward compatibility, plus daily `.stats` files. Direct record access, far smaller than CSV. CSV is now export-only; legacy CSV files are migrated automatically on first boot.
 
-* **Standard C++ Engine (v1.1.0)**
-  Core web engine refactored to use `std::string`, providing improved memory stability and maintainability.
+* **History page: period selection & comparison**
+  Pick a window (24h / 48h / 7d / 30d / today / custom range), compare two periods, optional per-metric synthesis line, and an inverted "Zoom" scale control.
 
-* **Advanced File Management**
-  Upload, download, and delete files directly from the web interface.
+* **System page (hub)**
+  OTA firmware update, NeoLED brightness (persisted in NVS), CSV/config exports, and access to the File manager and Logs. The main menu is streamlined to four entries: Dashboard, Statistics, History, System.
 
-* **Robust OTA Updates**
-  Secure wireless firmware update system.
+* **Data quality & sensor robustness (v1.6.x)**
+  I2C reads are validated, retried, and the bus auto-recovers on repeated failures; failed reads are not stored. Outliers are removed from charts (temporal coherence) and statistics (robust median/MAD) while raw data is preserved.
 
-* **Advanced Charts**
-  Three scaling modes (Fixed, Dynamic, and Mixed) for temperature, humidity, and pressure visualization.
+* **Reliable SD writes**
+  Safe write operations with explicit `flush()` and mutex protection to reduce the risk of file corruption.
 
 ## Usage
 
-See the [User Guide](docs/user_guide.md) for detailed information about chart scaling modes, file management, and system operation.
+See the [User Guide](docs/user_guide.md) for details on the History page, the System page, chart scaling, exports, and system operation.
 
 ## SD Card Notes
 
@@ -65,9 +65,10 @@ To minimize the risk of data corruption:
 
 1. Format the SD card using **FAT32** (32 KB allocation size recommended).
 2. Properly shut down the device before removing the card, even though data is protected by `flush()` operations after each write.
+3. Back up the `/history` folder before a major firmware upgrade (the binary format is migrated automatically, but a backup is good practice).
 
 ---
 
 ### Configuration Notes
 
-Any changes made to `config.h` are automatically injected into the web interface during the build process.
+`config.h` is compiled into the firmware; the web assets in `data/` are embedded at build time (`scripts/embed_web_files.py`). The effective configuration can be exported from the **System** page or via `GET /api/config/export`. Runtime settings such as NeoLED brightness are stored in NVS.

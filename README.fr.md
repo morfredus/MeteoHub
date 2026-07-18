@@ -1,6 +1,6 @@
 # MeteoHub S3
 
-> **Version minimale valide : 1.1.3**
+> **Version minimale valide : 1.6.3**
 
 ## Documentation complète
 - [Index de la documentation](docs/index.md)
@@ -24,21 +24,22 @@ MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bor
 - Build : `platformio run`
 - Upload : `platformio run --target upload`
 
-## Fonctionnalités principales (Nouveautés v1.1.x)
-- **Stabilité SD renforcée (v1.1.2)** : Écritures sécurisées avec `flush()` explicite et protection par Mutex contre la corruption de fichiers.
-- **Moteur C++ Standard (v1.1.0)** : Refonte du cœur web pour utiliser `std::string`, garantissant une meilleure stabilité mémoire.
-- **Gestion de fichiers avancée** : Upload, téléchargement et suppression de fichiers via l'interface web.
-- **Mises à jour OTA robustes** : Système de mise à jour sans fil sécurisé.
-- **Graphiques avancés** : Trois modes d'échelle (Fixe, Dynamique, Mixte) pour température, humidité et pression.
+## Fonctionnalités principales (Nouveautés v1.6.x)
+- **Stockage binaire compact de l'historique (v1.4.0+)** : fichiers binaires par jour (`/history/AAAA/MM/AAAA-MM-JJ.bin`) avec en-tête de fichier (compatibilité ascendante) et fichiers `.stats` journaliers. Accès direct aux mesures, bien plus compact que le CSV. Le CSV ne sert plus qu'à l'export ; les anciens CSV sont migrés automatiquement au premier démarrage.
+- **Page Historique : sélection et comparaison de périodes** : fenêtre 24 h / 48 h / 7 j / 30 j / aujourd'hui / plage personnalisée, comparaison de deux périodes, ligne de synthèse optionnelle par grandeur, et curseur d'échelle « Zoom » inversé.
+- **Page Système (hub)** : mise à jour OTA, luminosité de la NeoLED (persistée en NVS), exports CSV/configuration, accès au gestionnaire de fichiers et aux logs. Menu principal réduit à quatre entrées : Tableau de bord, Statistiques, Historique, Système.
+- **Qualité des données et robustesse capteur (v1.6.x)** : lectures I2C validées, réessayées, avec récupération automatique du bus après échecs ; les lectures ratées ne sont pas enregistrées. Les valeurs aberrantes sont écartées des graphes (cohérence temporelle) et des statistiques (médiane/MAD robuste), les données brutes restant conservées.
+- **Écritures SD fiables** : `flush()` explicite et protection par Mutex contre la corruption de fichiers.
 
 ## Utilisation
-Voir [Guide utilisateur](docs/user_guide.md) pour le détail des modes d'échelle et la gestion des fichiers.
+Voir [Guide utilisateur](docs/user_guide.md) pour le détail de la page Historique, de la page Système, des échelles et des exports.
 
 ### Note sur la carte SD
 Pour éviter toute corruption, assurez-vous que :
 1. La carte est formatée en **FAT32** (taille d'allocation 32 ko).
 2. Le système est correctement éteint avant de retirer la carte (bien que le `flush()` protège les données à chaque écriture).
+3. Sauvegardez le dossier `/history` avant une mise à jour majeure du firmware (le format binaire est migré automatiquement, mais une sauvegarde reste prudente).
 
 ---
 
-Pour toute modification de config.h, les valeurs sont injectées dans l'UI web lors du build.
+`config.h` est compilé dans le firmware ; les ressources web de `data/` sont embarquées au build (`scripts/embed_web_files.py`). La configuration effective peut être exportée depuis la page **Système** ou via `GET /api/config/export`. Les réglages d'exécution (ex. luminosité de la NeoLED) sont conservés en NVS.

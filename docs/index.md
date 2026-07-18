@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.2.0
+Version minimale valide : 1.6.3
 
 - [Démarrage rapide](getting_started.md)
 - [Câblage matériel](hardware_wiring.md)
