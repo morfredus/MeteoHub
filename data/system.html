@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MeteoHub - Système</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="system">
+    <div class="container">
+        <header>
+            <h1>⚙️ Système</h1>
+            <span id="status">Prêt</span>
+        </header>
+
+        <nav data-shared-menu="true" data-active="/system.html"></nav>
+
+        <!-- Luminosité de la NeoLED -->
+        <div class="card sys-card">
+            <h2>💡 Luminosité de la LED</h2>
+            <div class="sys-row">
+                <input type="range" id="ledRange" min="0" max="255" step="1" value="40" style="flex:1;">
+                <span id="ledValue" class="sys-value">40</span>
+            </div>
+            <div id="ledResult" class="sys-hint">Réglage appliqué immédiatement et conservé au redémarrage.</div>
+        </div>
+
+        <!-- Export des données et de la configuration -->
+        <div class="card sys-card">
+            <h2>⬇️ Export</h2>
+            <div class="sys-row">
+                <label for="exportPeriod">Historique (CSV) :</label>
+                <select id="exportPeriod">
+                    <option value="86400">Dernières 24 h</option>
+                    <option value="604800">7 derniers jours</option>
+                    <option value="2592000">30 derniers jours</option>
+                    <option value="all" selected>Tout l'historique</option>
+                </select>
+                <button type="button" id="exportCsvBtn" class="btn">Exporter le CSV</button>
+            </div>
+            <div class="sys-row">
+                <label>Configuration :</label>
+                <button type="button" id="exportConfigBtn" class="btn">Exporter la configuration (JSON)</button>
+            </div>
+            <div class="sys-hint">Le CSV s'ouvre dans Excel ou LibreOffice. Le format interne de MeteoHub reste binaire.</div>
+        </div>
+
+        <!-- Mise à jour OTA -->
+        <div class="card ota-card">
+            <h2>🔄 Mise à jour du firmware (OTA)</h2>
+            <input id="otaFile" type="file" accept=".bin" />
+            <button id="otaBtn" class="btn">Lancer la mise à jour</button>
+            <div class="ota-progress-wrap">
+                <div id="otaProgress" class="ota-progress"></div>
+            </div>
+            <div id="otaResult" class="ota-result info">En attente d'un fichier...</div>
+        </div>
+
+        <!-- Accès aux outils système -->
+        <div class="card sys-card">
+            <h2>🛠️ Outils</h2>
+            <div class="sys-row">
+                <a href="/files.html" class="btn">💾 Gestionnaire de fichiers</a>
+                <a href="/logs" class="btn">📜 Logs système</a>
+            </div>
+        </div>
+
+        <footer></footer>
+    </div>
+
+    <script src="menu.js"></script>
+    <script src="footer.js"></script>
+    <script>
+        // --- Luminosité LED ---
+        const ledRange = document.getElementById('ledRange');
+        const ledValue = document.getElementById('ledValue');
+        const ledResult = document.getElementById('ledResult');
+        let ledTimer = null;
+
+        fetch('/api/led')
+            .then((r) => r.json())
+            .then((d) => {
+                if (typeof d.brightness === 'number') {
+                    ledRange.value = d.brightness;
+                    ledValue.textContent = d.brightness;
+                }
+            })
+            .catch(() => {});
+
+        function applyBrightness(value) {
+            const body = new URLSearchParams({ brightness: String(value) });
+            fetch('/api/led', { method: 'POST', body })
+                .then((r) => r.json())
+                .then((d) => {
+                    if (d && d.ok) ledResult.textContent = 'Luminosité réglée à ' + d.brightness + ' / 255.';
+                })
+                .catch(() => { ledResult.textContent = 'Erreur lors du réglage de la luminosité.'; });
+        }
+
+        ledRange.addEventListener('input', () => {
+            ledValue.textContent = ledRange.value;
+            // Débounce : évite d'envoyer une requête à chaque pixel du curseur.
+            clearTimeout(ledTimer);
+            const v = ledRange.value;
+            ledTimer = setTimeout(() => applyBrightness(v), 150);
+        });
+
+        // --- Export ---
+        document.getElementById('exportCsvBtn').addEventListener('click', () => {
+            const sel = document.getElementById('exportPeriod').value;
+            let url = '/api/history/export.csv';
+            if (sel !== 'all') {
+                const now = Math.floor(Date.now() / 1000);
+                url += '?from=' + (now - Number(sel)) + '&to=' + now;
+            }
+            window.location.href = url;
+        });
+        document.getElementById('exportConfigBtn').addEventListener('click', () => {
+            window.location.href = '/api/config/export';
+        });
+
+        // --- OTA ---
+        const fileInput = document.getElementById('otaFile');
+        const button = document.getElementById('otaBtn');
+        const progress = document.getElementById('otaProgress');
+        const result = document.getElementById('otaResult');
+        const status = document.getElementById('status');
+
+        function setResult(message, state) {
+            result.textContent = message;
+            result.className = 'ota-result ' + state;
+        }
+
+        button.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                setResult('Veuillez sélectionner un fichier .bin', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('update', file, file.name);
+
+            button.disabled = true;
+            progress.style.width = '0%';
+            setResult('Upload en cours...', 'info');
+            status.textContent = 'Mise à jour...';
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/ota/update', true);
+
+            xhr.upload.onprogress = (event) => {
+                if (!event.lengthComputable) return;
+                const pct = Math.round((event.loaded / event.total) * 100);
+                progress.style.width = pct + '%';
+                status.textContent = 'Upload ' + pct + '%';
+            };
+
+            xhr.onload = () => {
+                button.disabled = false;
+                let payload = {};
+                try { payload = JSON.parse(xhr.responseText || '{}'); } catch (_) {}
+
+                if (xhr.status >= 200 && xhr.status < 300 && payload.ok) {
+                    setResult('✅ Mise à jour valide. Redémarrage...', 'success');
+                    status.textContent = 'OTA OK';
+                    setTimeout(() => { window.location.href = '/'; }, 6000);
+                    return;
+                }
+
+                setResult('❌ Échec OTA: ' + (payload.message || 'Erreur inconnue'), 'error');
+                status.textContent = 'OTA KO';
+            };
+
+            xhr.onerror = () => {
+                button.disabled = false;
+                setResult("❌ Erreur réseau pendant l'upload OTA", 'error');
+                status.textContent = 'OTA KO';
+            };
+
+            xhr.send(formData);
+        });
+    </script>
+</body>
+</html>

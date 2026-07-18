@@ -5,10 +5,14 @@
 #include <Update.h>
 #include <cctype>
 #include <string>
+#include <cstring>
 #include <Arduino.h>
 #include "utils/logs.h"
 #include "utils/system_info.h"
 #include "utils/cooperative_yield.h"
+#include "modules/neopixel_status.h"
+#include "project_config.h"
+#include "config.h"
 #include "web_pages.h"
 
 #ifndef WEB_MDNS_HOSTNAME
@@ -198,8 +202,12 @@ void WebManager::_setupRoutes() {
     _server.on("/logs.html", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(200, "text/html", web_logs_html);
     });
+    _server.on("/system.html", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(200, "text/html", web_system_html);
+    });
+    // Redirection de l'ancienne URL OTA vers la nouvelle page Système.
     _server.on("/ota.html", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(200, "text/html", web_ota_html);
+        request->redirect("/system.html");
     });
     
     _server.on("/files", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -307,8 +315,53 @@ void WebManager::_setupApi() {
         request->send(response);
     });
 
-    // API History (Logique inchangée, déjà compatible)
+    // API History
     _server.on("/api/history", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        // Mode plage absolue : ?from=<unix>&to=<unix>[&interval=<s>]
+        // Utilisé par la page Historique pour la sélection et la comparaison de
+        // périodes (données lues sur la carte SD + historique RAM récent).
+        if (request->hasParam("from") && request->hasParam("to")) {
+            long from_s = request->getParam("from")->value().toInt();
+            long to_s = request->getParam("to")->value().toInt();
+            if (from_s > 0 && to_s > from_s) {
+                long interval_s = request->hasParam("interval") ? request->getParam("interval")->value().toInt() : 0;
+                if (interval_s <= 0) {
+                    interval_s = (to_s - from_s) / 300; // ~300 points par défaut
+                    if (interval_s < 60) interval_s = 60;
+                }
+
+                std::vector<HistoryPoint> points = _history->queryRange(
+                    static_cast<time_t>(from_s), static_cast<time_t>(to_s), interval_s);
+
+                AsyncResponseStream *response = request->beginResponseStream("application/json");
+                response->print("{\"data\":[");
+                bool first = true;
+                size_t point_index = 0;
+                for (const auto& pt : points) {
+                    COOPERATIVE_YIELD_EVERY(point_index, 64);
+                    point_index++;
+                    if (!first) response->print(",");
+                    first = false;
+
+                    // Chaque grandeur est émise séparément : une valeur aberrante
+                    // écartée pour une grandeur donne null, sans invalider les autres.
+                    char buffer[160];
+                    char tb[16], hb[16], pb[16];
+                    if (pt.tvalid) snprintf(tb, sizeof(tb), "%.1f", pt.temp); else strcpy(tb, "null");
+                    if (pt.hvalid) snprintf(hb, sizeof(hb), "%.0f", pt.hum);  else strcpy(hb, "null");
+                    if (pt.pvalid) snprintf(pb, sizeof(pb), "%.1f", pt.pres); else strcpy(pb, "null");
+                    snprintf(buffer, sizeof(buffer),
+                        "{\"t\":%ld,\"temp\":%s,\"hum\":%s,\"pres\":%s}",
+                        static_cast<long>(pt.t), tb, hb, pb);
+                    response->print(buffer);
+                }
+                response->print("]}");
+                request->send(response);
+                return;
+            }
+        }
+
+        // Mode fenêtre glissante : ?window=<s>&interval=<s>&points=<n> (rétrocompatible)
         const auto& full_history = _history->getRecentHistory();
         int window_s = request->hasParam("window") ? request->getParam("window")->value().toInt() : 0;
         int interval_s = request->hasParam("interval") ? request->getParam("interval")->value().toInt() : 0;
@@ -387,6 +440,42 @@ void WebManager::_setupApi() {
         request->send(response);
     });
 
+    // API History Summary : synthèse pré-calculée d'une plage [from, to] à partir
+    // des fichiers .stats journaliers (min/max/moyenne + variation), sans relire
+    // les mesures. Sert à afficher la synthèse de la page Historique quasi
+    // instantanément. Renvoie {"valid":false} si aucune donnée .stats disponible.
+    _server.on("/api/history/summary", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        long from_s = request->hasParam("from") ? request->getParam("from")->value().toInt() : 0;
+        long to_s = request->hasParam("to") ? request->getParam("to")->value().toInt() : 0;
+
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        if (from_s <= 0 || to_s <= from_s) {
+            response->print("{\"valid\":false}");
+            request->send(response);
+            return;
+        }
+
+        RangeSynthesis r = _history->querySynthesis(static_cast<time_t>(from_s), static_cast<time_t>(to_s));
+        if (!r.valid) {
+            response->print("{\"valid\":false}");
+            request->send(response);
+            return;
+        }
+
+        char buffer[512];
+        snprintf(buffer, sizeof(buffer),
+            "{\"valid\":true,\"count\":%u,"
+            "\"temp\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f},"
+            "\"hum\":{\"min\":%.0f,\"max\":%.0f,\"avg\":%.0f,\"first\":%.0f,\"last\":%.0f,\"delta\":%.0f},"
+            "\"pres\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f}}",
+            r.count,
+            r.t_min, r.t_max, r.t_avg, r.t_first, r.t_last, r.t_last - r.t_first,
+            r.h_min, r.h_max, r.h_avg, r.h_first, r.h_last, r.h_last - r.h_first,
+            r.p_min, r.p_max, r.p_avg, r.p_first, r.p_last, r.p_last - r.p_first);
+        response->print(buffer);
+        request->send(response);
+    });
+
     // API Stats
     _server.on("/api/stats", HTTP_GET, [this](AsyncWebServerRequest *request) {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
@@ -446,6 +535,66 @@ void WebManager::_setupApi() {
     _server.on("/api/system", HTTP_GET, [this](AsyncWebServerRequest *request) {
         std::string sysInfo = getSystemInfoJson(_sd);
         request->send(200, "application/json", sysInfo.c_str());
+    });
+
+    // API LED : lecture / réglage de la luminosité de la NeoLED (0-255, persistée).
+    _server.on("/api/led", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char buf[48];
+        snprintf(buf, sizeof(buf), "{\"brightness\":%u}", neoGetBrightness());
+        request->send(200, "application/json", buf);
+    });
+    _server.on("/api/led", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (!request->hasParam("brightness", true) && !request->hasParam("brightness")) {
+            request->send(400, "application/json", "{\"ok\":false,\"message\":\"parametre brightness manquant\"}");
+            return;
+        }
+        long v = request->hasParam("brightness", true)
+                     ? request->getParam("brightness", true)->value().toInt()
+                     : request->getParam("brightness")->value().toInt();
+        if (v < 0) v = 0;
+        if (v > 255) v = 255;
+        neoSetBrightness(static_cast<uint8_t>(v));
+        char buf[48];
+        snprintf(buf, sizeof(buf), "{\"ok\":true,\"brightness\":%u}", neoGetBrightness());
+        request->send(200, "application/json", buf);
+    });
+
+    // API Config Export : configuration effective au format JSON (téléchargement).
+    _server.on("/api/config/export", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char buf[768];
+        snprintf(buf, sizeof(buf),
+            "{\n"
+            "  \"project\": {\"name\": \"%s\", \"version\": \"%s\", \"build_date\": \"%s\", \"build_time\": \"%s\", \"git_commit\": \"%s\"},\n"
+            "  \"network\": {\"mdns_host\": \"%s\"},\n"
+            "  \"graph\": {\"scale_mode\": %d, \"scale_margin_pct\": %d, \"temp_min\": %.1f, \"temp_max\": %.1f, \"hum_min\": %.1f, \"hum_max\": %.1f, \"pres_min\": %.1f, \"pres_max\": %.1f},\n"
+            "  \"led\": {\"brightness\": %u},\n"
+            "  \"sampling_interval_s\": 60\n"
+            "}\n",
+            PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_TIME, GIT_COMMIT,
+            WEB_MDNS_HOSTNAME,
+            GRAPH_SCALE_MODE, GRAPH_SCALE_MARGIN_PCT,
+            (double)GRAPH_TEMP_MIN, (double)GRAPH_TEMP_MAX,
+            (double)GRAPH_HUM_MIN, (double)GRAPH_HUM_MAX,
+            (double)GRAPH_PRES_MIN, (double)GRAPH_PRES_MAX,
+            neoGetBrightness());
+        AsyncWebServerResponse *response = request->beginResponse(200, "application/json", buf);
+        response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-config.json\"");
+        request->send(response);
+    });
+
+    // API History Export CSV : export brut des mesures de la plage au format CSV
+    // (téléchargement, pour Excel/LibreOffice). ?from=&to= optionnels.
+    _server.on("/api/history/export.csv", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        long to_s = request->hasParam("to") ? request->getParam("to")->value().toInt() : (long)time(NULL);
+        long from_s = request->hasParam("from") ? request->getParam("from")->value().toInt() : 1577836800L; // 2020-01-01
+        if (to_s <= 0) to_s = (long)time(NULL);
+        if (from_s < 0) from_s = 0;
+
+        AsyncResponseStream *response = request->beginResponseStream("text/csv");
+        response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-history.csv\"");
+        _history->exportCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s),
+            [response](const char* line) { response->print(line); });
+        request->send(response);
     });
 
     // API Files List

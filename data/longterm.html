@@ -3,36 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Historique Long Terme - MeteoHub S3</title>
+    <title>Historique - MeteoHub S3</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body data-page="longterm">
     <div class="container">
         <header>
-            <h1>Historique Long Terme</h1>
+            <h1>Historique</h1>
             <div id="status">Connexion...</div>
         </header>
 
         <nav data-shared-menu="true" data-active="/longterm.html"></nav>
 
-        <div class="chart-container" style="height: 600px;">
-            <canvas id="historyChart"></canvas>
-            <div class="graph-controls" style="margin-top:10px; display:flex; flex-direction:column; align-items:center;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <label for="scaleMode">Échelle :</label>
-                    <select id="scaleMode" onchange="setGraphScaleMode(Number(this.value))">
-                        <option value="0">Fixe</option>
-                        <option value="1">Dynamique</option>
-                        <option value="2" selected>Mixte</option>
-                    </select>
-                    <label for="scaleMargin" style="margin-left:10px;">Élargissement (%) :</label>
-                    <input type="range" id="scaleMargin" min="0" max="50" value="20" step="1" style="vertical-align:middle;" oninput="setGraphScaleMarginPct(Number(this.value))">
-                    <span id="scaleMarginValue">20</span>%
-                </div>
+        <div class="period-bar">
+            <div class="field">
+                <label for="periodPreset">Période :</label>
+                <select id="periodPreset">
+                    <option value="86400" selected>Dernières 24 h</option>
+                    <option value="172800">Dernières 48 h</option>
+                    <option value="604800">7 derniers jours</option>
+                    <option value="2592000">30 derniers jours</option>
+                    <option value="today">Aujourd'hui</option>
+                    <option value="custom">Personnalisé…</option>
+                </select>
+                <span id="customRange" hidden class="field">
+                    <label for="fromInput">du</label>
+                    <input type="datetime-local" id="fromInput">
+                    <label for="toInput">au</label>
+                    <input type="datetime-local" id="toInput">
+                </span>
+            </div>
+            <div class="field">
+                <label for="comparePreset">Comparer :</label>
+                <select id="comparePreset">
+                    <option value="none" selected>Aucune comparaison</option>
+                    <option value="prev">Période précédente</option>
+                    <option value="custom">Autre période…</option>
+                </select>
+                <span id="compareCustom" hidden class="field">
+                    <label for="compareFromInput">à partir du</label>
+                    <input type="datetime-local" id="compareFromInput">
+                </span>
+            </div>
+            <div class="field">
+                <label for="synthToggle"><input type="checkbox" id="synthToggle"> Synthèse</label>
             </div>
         </div>
-        <p style="text-align: center; color: #666; margin-top: 10px;">Données des 24 dernières heures</p>
+
+        <div id="synthPanel" class="synth-panel" hidden></div>
+
+        <div class="chart-container" style="height: 600px;">
+            <canvas id="historyChart"></canvas>
+            <div id="chartLoading" class="chart-loading" hidden>Chargement en cours…</div>
+            <div class="graph-controls" style="margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center;">
+                <label for="scaleMode">Échelle :</label>
+                <select id="scaleMode" onchange="setGraphScaleMode(Number(this.value))">
+                    <option value="0">Fixe</option>
+                    <option value="1">Dynamique</option>
+                    <option value="2" selected>Mixte</option>
+                </select>
+                <label for="scaleMargin" style="margin-left:10px;">Zoom (%) :</label>
+                <input type="range" id="scaleMargin" min="0" max="100" value="75" step="1" style="vertical-align:middle;" oninput="setGraphScaleMarginPct(Number(this.value))">
+                <span id="scaleMarginValue">75</span>%
+            </div>
+        </div>
+        <p id="periodInfo" style="text-align: center; color: #666; margin-top: 10px;">Données des 24 dernières heures</p>
 
         <footer>
         </footer>

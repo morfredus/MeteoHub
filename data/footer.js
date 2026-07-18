@@ -4,8 +4,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     footer.innerHTML = `
         <span id="projectName">--</span> Web Interface - v<span id="version">--</span>
-        <a href="/files.html" class="footer-icon" title="Gestionnaire de fichiers">💾</a>
-        <a href="/logs" class="footer-icon" title="Logs Système">📜</a>
     `;
 
     fetch('/api/system')

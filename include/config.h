@@ -8,7 +8,7 @@
 #define GRAPH_SCALE_DYNAMIC      1   // Utiliser min/max dynamiques
 #define GRAPH_SCALE_MIXED        2   // Mixte : dynamique élargi
 #define GRAPH_SCALE_MODE         GRAPH_SCALE_MIXED // Mode d'échelle pour les graphes
-#define GRAPH_SCALE_MARGIN_PCT   20   // Pourcentage d'élargissement pour le mode mixte (ex: 20 = 20%)
+#define GRAPH_SCALE_MARGIN_PCT   50   // Zoom du mode mixte : 0 = échelle complète (min/max fixes), 100 = amplitude exacte des données
 #define GRAPH_TEMP_MIN           -10.0f   // Température minimale affichée (°C)
 #define GRAPH_TEMP_MAX            40.0f   // Température maximale affichée (°C)
 #define GRAPH_HUM_MIN             20.0f   // Humidité minimale affichée (%)

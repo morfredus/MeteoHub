@@ -5,10 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const links = [
         { href: '/', label: 'Tableau de bord' },
         { href: '/stats.html', label: 'Statistiques' },
-        { href: '/longterm.html', label: 'Historique 24h' },
-        { href: '/files.html', label: 'Fichiers' },
-        { href: '/logs', label: 'Logs' },
-        { href: '/ota.html', label: 'Mise à jour OTA' }
+        { href: '/longterm.html', label: 'Historique' },
+        { href: '/system.html', label: 'Système' }
     ];
 
     const active_href = nav.dataset.active || '/';

@@ -1,3 +1,82 @@
+# [1.6.3] – 2026-07-18
+### Fixed
+- **Page Statistiques : minima toujours à 0 (séries de valeurs aberrantes).** Le filtre temporel de `getRecentStats()` ne repérait qu'un pic **d'un seul point** ; or les échecs I2C répétés (avant le correctif 1.6.2) ont pu enregistrer **plusieurs mesures à 0 d'affilée**, que ce filtre laissait passer (le voisin étant aussi à 0). `getRecentStats()` utilise désormais un filtre **robuste médiane/MAD** par grandeur (`robustMetric`, `src/managers/history_manager.cpp`) : le seuil de rejet est piloté par la dispersion réelle des données (médiane ± 5·1,4826·MAD, avec un plancher), ce qui écarte les valeurs aberrantes **même en série** sans toucher aux variations normales. Les mesures enregistrées depuis la 1.6.2 étant déjà propres, les anciens zéros restants disparaissent aussi des statistiques au fil de leur sortie de la fenêtre 24 h.
+
+# [1.6.2] – 2026-07-18
+### Fixed
+- **Stabilité de l'acquisition capteur / valeurs à zéro à la source.** La lecture (`src/modules/sensors.cpp`) ignorait le booléen de succès de `aht.getEvent()` et forçait `valid=true` : une erreur I2C (`i2cRead returned Error -1`) faisait enregistrer une mesure à `0`. Désormais :
+  - le succès **et** la plausibilité de chaque lecture sont vérifiés (rejet des `NaN`, du `0 %` d'humidité, des valeurs hors plage) ; en cas d'échec, `valid=false` et l'historique n'enregistre rien (la minute est simplement sautée) ;
+  - **jusqu'à 3 tentatives** par lecture (les erreurs I2C sont le plus souvent transitoires) ;
+  - **récupération automatique du bus I2C** après 5 échecs consécutifs (`Wire.end()` + réinitialisation du bus et des capteurs) ;
+  - la **dernière valeur valide** est renvoyée pour l'affichage temps réel quand une lecture échoue (au lieu d'afficher 0), avec `valid=false` ;
+  - `Wire.setClock(100 kHz)`, `Wire.setTimeOut(50 ms)` (évite un blocage long si le bus se coince) et suréchantillonnage + filtre IIR du BMP280 (`setSampling`) pour des lectures plus stables.
+
+# [1.6.1] – 2026-07-18
+### Fixed
+- **Valeurs aberrantes toujours visibles (graphe Historique) et statistiques à 0 incohérentes.** En 1.6.0, le filtrage n'agissait que côté client sur les points **déjà agrégés** (donc dilués, et sans traiter les bords), et la page **Statistiques** (`/api/stats` → `getRecentStats`) calculait min/max/moyenne sur les mesures **brutes** — d'où des minima à `0` / `-0.0` lorsqu'un capteur renvoie ponctuellement une valeur nulle. Le filtrage est désormais fait **au niveau des mesures brutes, côté serveur**, avant toute agrégation :
+  - `queryRange()` applique un filtre anti-aberrations **en flux** (fenêtre glissante de 3 mesures) **par grandeur** : une mesure incohérente avec ses deux voisines est écartée de l'agrégation de la grandeur concernée (les autres restent valides). Les tranches sont désormais renvoyées avec une validité **par grandeur** (`temp`/`hum`/`pres` à `null` indépendamment) et l'API `/api/history` sérialise ces `null` séparément.
+  - `getRecentStats()` (page Statistiques) écarte de la même façon les valeurs aberrantes par grandeur avant de calculer min/max/moyenne.
+  - Le filtrage sur données brutes (échantillonnage 1 min) est bien plus efficace qu'au niveau des points agrégés : une valeur nulle isolée entre deux mesures normales est un pic évident. Le filtre client (`data/app.js`) est conservé comme second rempart. Les données brutes restent inchangées dans les fichiers.
+
+# [1.6.0] – 2026-07-18
+### Added
+- **En-tête de fichier pour le format binaire (pérennité / compatibilité ascendante).** Chaque fichier `.bin` commence désormais par un en-tête `FileHeader` (`src/managers/history_manager.cpp`) : magic `"MTHB"`, version de format, taille d'en-tête, taille d'enregistrement, drapeaux de capteurs présents, nombre d'enregistrements et horodatages du premier/dernier relevé. MeteoHub identifie ainsi le format avant de lire et se déplace selon `recordSize` : de futurs capteurs (qualité de l'air, vent, UV…) pourront agrandir l'enregistrement **sans imposer de migrer** les anciens fichiers. La lecture (`probeBin`/`readBinRecordAt`) gère de façon transparente les fichiers avec en-tête **et** les fichiers sans en-tête de la v1.4.0 ; ces derniers sont convertis une fois lors du prochain enregistrement du jour (`upgradeLegacyBin`). La migration CSV et l'export s'appuient sur le même en-tête.
+- **Détection des valeurs aberrantes à l'exploitation.** Un pic ou un creux d'un seul point (valeur incohérente au regard des relevés qui l'entourent, suivie d'un retour immédiat à la normale) est désormais **écarté du tracé des graphiques et des statistiques**, les points valides étant reliés directement (`filterOutliers`, `spanGaps`, `data/app.js`). La détection repose sur la **cohérence temporelle** (écart fort avec les deux voisins alors que ceux-ci restent cohérents entre eux), et non sur un seuil fixe ; un plancher de bruit par grandeur évite de nettoyer les micro-variations. Les **données brutes restent conservées** dans les fichiers : seule leur exploitation est adaptée. La synthèse de la page Historique est calculée sur ces mêmes séries filtrées (statistiques plus représentatives). Appliqué aussi au tableau de bord.
+
+# [1.5.0] – 2026-07-18
+### Added
+- **Page « Système » (ex-« Mise à jour OTA »), hub de gestion.** La page (`data/system.html`) regroupe désormais, en plus de la mise à jour OTA :
+  - **Luminosité de la NeoLED** : curseur 0-255 appliqué en direct et **persisté en NVS** (survit au redémarrage) — module `neopixel_status` (`neoSetBrightness`/`neoGetBrightness`, `Preferences`), API `GET`/`POST /api/led`.
+  - **Export CSV de l'historique** : dernières 24 h / 7 j / 30 j / tout, en flux (`HistoryManager::exportCsv()`, lecture des `.bin`), API `GET /api/history/export.csv?from=&to=` avec en-tête de téléchargement. Le CSV redevient ainsi purement un format d'export.
+  - **Export de la configuration** effective au format JSON — API `GET /api/config/export`.
+  - **Accès aux outils** : liens vers le gestionnaire de fichiers et les logs.
+
+### Changed
+- **Menu principal réduit à 4 entrées : Tableau de bord, Statistiques, Historique, Système** (`data/menu.js`). Les pages **Fichiers** et **Logs** ne sont plus dans le menu : elles restent accessibles depuis la page Système.
+- **Pied de page épuré** : suppression des icônes 💾 (Fichiers) et 📜 (Logs) — l'accès passe par la page Système (`data/footer.js`).
+- L'ancienne URL `/ota.html` **redirige** vers `/system.html` (`src/managers/web_manager.cpp`) ; `data/ota.html` est supprimé.
+
+# [1.4.0] – 2026-07-18
+### Changed
+- **Refonte du stockage de l'historique : format binaire journalier au lieu du CSV.** Le fonctionnement interne de MeteoHub ne repose plus sur des fichiers CSV mais sur un format binaire compact, mieux adapté à l'ESP32 et à un historique appelé à grandir pendant des années. Le CSV est conservé uniquement comme format d'export (lisible dans Excel/LibreOffice).
+  - **Enregistrements de taille fixe (16 octets)** : `timestamp` (uint32) + température/humidité/pression (float), soit ~2× plus compact que le CSV, et surtout un **accès direct à une mesure par sa position** (recherche dichotomique) sans relire ce qui précède (`struct BinRecord`, `src/managers/history_manager.cpp`).
+  - **Découpage par jour** : `/history/AAAA/MM/AAAA-MM-JJ.bin`. Une consultation 24 h ne lit qu'un fichier, une semaine sept. `queryRange()` saute directement (dichotomie) au premier enregistrement de la plage puis lit séquentiellement jusqu'à la borne — le coût ne dépend plus de la taille totale de l'historique.
+  - **Fichiers de statistiques journalières `.bin` → `.stats`** : à côté de chaque `.bin`, un fichier `.stats` contient les valeurs déjà calculées au fil des acquisitions (min/max/moyenne de T°/Hu/Pression, nombre de mesures, première/dernière mesure et leurs horodatages). Mis à jour de façon incrémentale à chaque mesure (`DayStats`, `updateDayStats()`), ils permettent d'afficher la **synthèse quasi instantanément** sans relire les milliers de points du graphe.
+  - **Nouvel endpoint `/api/history/summary?from=&to=`** : agrège les `.stats` de la plage et renvoie min/max/moyenne + variation par grandeur (`HistoryManager::querySynthesis()`). La synthèse de la page Historique l'utilise en priorité (extrêmes réels, non lissés par l'agrégation du graphe), avec repli sur un calcul côté client si aucun `.stats` n'est disponible.
+  - **Migration automatique au démarrage** : les anciens fichiers `/history/AAAA-MM-JJ.csv` sont convertis une fois en `.bin` + `.stats`, puis renommés en `.csv.bak` pour ne pas être retraités. La lecture conserve un repli sur ces CSV tant qu'un `.bin` équivalent n'existe pas.
+  - `readSdSampleNear()` (tendance 48 h de la page Statistiques) et `clearHistory()` (suppression récursive de l'arborescence) sont adaptés au nouveau format.
+
+# [1.3.2] – 2026-07-18
+### Added
+- **Synthèse Historique : écart A ↔ B en comparaison.** Lorsqu'une période de comparaison est active, chaque carte de synthèse affiche en plus l'écart des moyennes `A − B` (avec flèche/couleur), pour chiffrer d'un coup d'œil de combien la période principale est plus chaude/humide/haute en pression que la période comparée (`data/app.js`, `data/style.css` : `.synth-compare`).
+
+# [1.3.1] – 2026-07-18
+### Fixed
+- **Page Historique : icône du calendrier des champs de dates peu visible.** L'icône native du sélecteur `datetime-local` restait sombre sur le fond foncé. Ajout de `color-scheme: dark` (et d'un filtre `invert` de repli sur `::-webkit-calendar-picker-indicator`) pour la rendre claire et lisible (`data/style.css`).
+
+# [1.3.0] – 2026-07-18
+### Added
+- **Page Historique : ligne de synthèse optionnelle au-dessus du graphe.** Une bascule « Synthèse » (masquée par défaut) affiche, pour la période sélectionnée, un résumé calculé automatiquement par grandeur (température, humidité, pression) : variation sur la période (dernier − premier point, avec flèche ▲/▼/= et couleur), minimum, maximum et moyenne. Objectif : savoir d'un coup d'œil si la période a été stable, si un front est passé, si l'humidité s'est effondrée, sans analyser les courbes. Le calcul est effectué côté client (`data/app.js`, `computeSynthesis()` / `renderSynthesis()`) à partir des points déjà renvoyés par `/api/history` — aucun nouvel endpoint. La synthèse porte sur la période principale (A) ; activer/désactiver la bascule redessine sans relancer de requête (`data/longterm.html`, `data/style.css` : `.synth-panel`).
+
+# [1.2.2] – 2026-07-18
+### Changed
+- **Page Historique : couleurs des courbes de comparaison.** Les courbes de la période comparée (B) reprennent désormais les mêmes couleurs que les courbes principales (température `#00a8ff`, humidité `#00ff88`, pression `#ff00ff`) et ne se distinguent plus que par leur tracé en pointillés (`data/app.js`, `COMPARE_COLORS`).
+
+# [1.2.1] – 2026-07-18
+### Fixed
+- **Reboot en boucle à la consultation de l'historique (task watchdog `async_tcp`).** La lecture des fichiers CSV sur la carte SD par `HistoryManager::queryRange()` s'exécute dans la tâche `async_tcp` (handler ESPAsyncWebServer), laquelle est surveillée par le task watchdog (`CONFIG_ASYNC_TCP_USE_WDT`). L'ancien yield coopératif (`delay(0)`) ne réarmait pas ce watchdog : une lecture un peu longue déclenchait un abort puis un redémarrage en boucle. `cooperativeYieldEvery()` (`src/utils/cooperative_yield.h`) appelle désormais `esp_task_wdt_reset()` avant de céder la main (protège aussi `readSdSampleNear()` via `/api/stats`), et la boucle de lecture SD de `queryRange()` cède la main plus souvent (toutes les 32 lignes). Côté web (`data/app.js`), le rafraîchissement automatique de la page Historique est en outre limité aux périodes ≤ 48 h pour éviter de relancer en continu un scan de plusieurs fichiers CSV.
+
+# [1.2.0] – 2026-07-18
+### Added
+- **Page « Historique » (ex-« Historique 24h ») : sélection et comparaison de périodes.** La page (`data/longterm.html`, `data/app.js`) permet désormais de choisir la fenêtre affichée — dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd'hui », ou une plage personnalisée (`du`/`au` via des champs date-heure) — et de comparer deux périodes de même durée (aucune, « période précédente », ou « autre période… »). La période B est superposée en traits pointillés et alignée par index sur la période A ; une ligne d'information rappelle les plages exactes affichées. Les sélecteurs de période et de comparaison sont regroupés dans une barre en haut de page ; toute modification est appliquée automatiquement (pas de bouton « Afficher »), les champs de dates personnalisés ne s'affichant que lorsque l'option correspondante est choisie.
+- **Cartouche « Chargement en cours… »** centré sur le graphe pendant la récupération des données de la page Historique (`#chartLoading`, `data/style.css`).
+- **API `/api/history` : mode plage absolue `?from=<unix>&to=<unix>[&interval=<s>]`.** Nouvelle méthode `HistoryManager::queryRange()` (`src/managers/history_manager.cpp`) qui agrège les mesures sur une plage temporelle arbitraire, en lisant en priorité les fichiers CSV journaliers de la carte SD (`/history/AAAA-MM-JJ.csv`, potentiellement sur plusieurs jours) puis en complétant par l'historique RAM le plus récent non encore écrit sur SD (ou l'intégralité en l'absence de carte SD). Le nombre de tranches est borné (800 max) pour maîtriser la mémoire, l'intervalle étant élargi automatiquement si besoin. Les tranches sans donnée sont émises avec des valeurs `null` afin de conserver l'alignement des index entre deux périodes comparées. Le mode fenêtre glissante historique (`window`/`interval`/`points`) reste inchangé et rétrocompatible (utilisé par le tableau de bord).
+
+### Changed
+- **Graphe d'historique : légendes raccourcies.** Les libellés des trois séries deviennent `°C`, `Hu%` et `hPa` (au lieu de « Température (°C) », « Humidité (%) », « Pression (hPa) »), plus lisibles sur mobile. En comparaison, les séries de la période B portent le suffixe `(B)`.
+- **Contrôle d'échelle « Élargissement » renommé « Zoom » et sémantique inversée.** Le curseur va désormais de 0 à 100 % : à `0 %` l'échelle correspond aux min/max fixes configurés (la courbe apparaît quasiment plate/unique), à `100 %` l'échelle épouse exactement l'amplitude des données (la courbe occupe toute la hauteur). En interne (`getDynamicMinMax`, mode « Mixte »), l'ancienne marge additive est remplacée par une interpolation linéaire entre l'échelle complète et l'amplitude dynamique. Valeur par défaut spécifique à chaque page, portée par l'attribut `value` du curseur : `90 %` sur le tableau de bord (`data/index.html`), `75 %` sur la page Historique (`data/longterm.html`). Le calcul d'échelle (`updateChartScale`) prend en compte l'ensemble des séries affichées, y compris la période comparée.
+- **Entrée de menu « Historique 24h » renommée « Historique »** (`data/menu.js`, titre et en-tête de `data/longterm.html`).
+
 # [1.1.5] – 2026-06-23
 ### Added
 - **Tendance météo sur 1h/12h/24h/48h** (page Statistiques) : `HistoryManager::getTrend()` calcule désormais le delta et la direction (hausse/baisse/stable) de la température, l'humidité et la pression sur quatre fenêtres temporelles au lieu de deux (1h et 24h auparavant). La fenêtre 12h est dérivée de l'historique RAM (24h disponibles à ~1 point/min) ; la fenêtre 48h est récupérée en lisant le fichier CSV journalier de J-2 sur la carte SD (`/history/AAAA-MM-JJ.csv`, nouvelle méthode `HistoryManager::readSdSampleNear()`) et n'est disponible que si une carte SD avec historique est présente (flag `available_48h`, affiché « N/D » sinon).

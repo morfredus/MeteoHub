@@ -8,5 +8,5 @@ window.GRAPH_CONFIG = {
     pres_min: 970.0,
     pres_max: 1040.0,
     scale_mode: 2, // 0=fixed, 1=dynamic, 2=mixed
-    scale_margin_pct: 20
+    scale_margin_pct: 50 // Zoom (0 = échelle complète, 100 = amplitude des données)
 };

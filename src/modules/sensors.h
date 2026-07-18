@@ -19,6 +19,18 @@ private:
     Adafruit_BMP280 bmp;
     bool ahtFound = false;
     bool bmpFound = false;
+    uint8_t bmpAddr = 0x77;
+
+    // Dernière lecture valide, renvoyée (avec valid=false) quand une lecture échoue
+    // afin de ne pas afficher 0 en temps réel.
+    float _lastTemp = 0, _lastHum = 0, _lastPres = 0;
+    bool _hasLast = false;
+    int _consecutiveFailures = 0;
+
+    bool readAht(float& t, float& h);
+    bool readBmp(float& p);
+    void applyBmpSampling();
+    void recoverBus();
 };
 
 //

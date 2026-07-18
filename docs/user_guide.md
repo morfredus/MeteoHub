@@ -32,19 +32,38 @@ Pages principales :
 - API : `/api/files/list`, `/api/files/download`, `/api/files/delete`, `/api/files/upload` (paramètre `fs=sd` ou `fs=littlefs`).
 
 ### Historique et statistiques
-- Visualisation graphique de l’historique (température, humidité, pression).
-- API : `/api/history` (paramètres `window`, `interval`, `points` pour l’agrégation).
+- Page **Historique** : visualisation graphique de l’historique (température `°C`, humidité `Hu%`, pression `hPa`).
+  - **Sélection de période** : dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd’hui », ou une plage **personnalisée** (champs *du* / *au*). Les périodes au-delà de ~24 h sont reconstituées à partir des fichiers CSV journaliers de la carte SD.
+  - **Comparaison de deux périodes** : « aucune », « période précédente » (même durée, juste avant la période affichée) ou « autre période… » (début libre, durée identique à la période principale). La période comparée (B) est tracée en pointillés et alignée sur la période principale (A) ; une ligne d’information rappelle les plages exactes.
+  - **Échelle** : mode *Fixe* / *Dynamique* / *Mixte*. En mode *Mixte*, le curseur **Zoom** (0 → 100 %) interpole entre l’échelle complète configurée (0 %, courbe quasi plate) et l’amplitude exacte des données (100 %, courbe pleine hauteur).
+  - **Synthèse** (option, masquée par défaut) : une ligne au-dessus du graphe résume la période affichée pour chaque grandeur — variation sur la période (flèche ▲/▼/=), minimum, maximum et moyenne — pour une lecture rapide sans analyser les courbes.
+- API : `/api/history`
+  - Fenêtre glissante : `window`, `interval`, `points` (utilisée par le tableau de bord).
+  - Plage absolue : `from`, `to` (secondes Unix) et `interval` optionnel (utilisée par la page Historique ; lecture SD + RAM, tranches vides renvoyées à `null`).
+- API : `/api/history/summary?from=&to=` — synthèse pré-calculée d'une plage (min/max/moyenne + variation par grandeur) reconstruite à partir des fichiers `.stats` journaliers, sans relire les mesures.
 - Statistiques 24h via `/api/stats` (min, max, moyenne).
-- Page Statistiques : tendances détaillées sur 1h, 12h, 24h et 48h (température, humidité, pression), ainsi qu’une tendance générale qui croise la direction de la pression sur ces fenêtres pour dégager une véritable évolution (amélioration/dégradation durable, stable, ou variable). La fenêtre 48h nécessite une carte SD avec l’historique journalier (fichier CSV de J-2) ; elle s’affiche « N/D » si indisponible.
+
+#### Stockage de l'historique (carte SD)
+- L'historique est stocké au **format binaire compact**, découpé par jour : `/history/AAAA/MM/AAAA-MM-JJ.bin` (enregistrements de 16 octets : horodatage + température/humidité/pression). Ce format est plusieurs fois plus petit que le CSV et permet un accès direct à une mesure sans relire tout le fichier ; une consultation 24 h ne lit qu'un fichier.
+- Chaque `.bin` débute par un **en-tête** (magic `MTHB`, version de format, tailles, capteurs présents, nombre de mesures, premier/dernier relevé). Cet en-tête rend le format **pérenne** : de futurs capteurs pourront agrandir l'enregistrement sans imposer de convertir les anciens fichiers (compatibilité ascendante).
+- **Qualité des données** : à l'affichage, les valeurs manifestement aberrantes (pic/creux d'un seul point incohérent avec les relevés voisins) sont automatiquement **écartées des graphiques et des statistiques** (détection par cohérence temporelle, pas de seuil fixe). Les mesures brutes restent conservées dans les fichiers ; seule leur exploitation est adaptée pour des courbes plus lisibles.
+- À côté de chaque `.bin`, un fichier `.stats` conserve les statistiques du jour déjà calculées (min/max/moyenne, nombre de mesures, première/dernière mesure), mises à jour au fil des acquisitions — d'où l'affichage quasi instantané de la synthèse.
+- Le **CSV** reste disponible **uniquement comme format d'export** (pour Excel/LibreOffice).
+- Les anciens fichiers CSV présents sur la carte sont **convertis automatiquement au binaire au premier démarrage** (puis renommés en `.csv.bak`).
+- Page Statistiques : tendances détaillées sur 1h, 12h, 24h et 48h (température, humidité, pression), ainsi qu’une tendance générale qui croise la direction de la pression sur ces fenêtres pour dégager une véritable évolution (amélioration/dégradation durable, stable, ou variable). La fenêtre 48h nécessite une carte SD avec l’historique journalier (fichier binaire de J-2) ; elle s’affiche « N/D » si indisponible.
 
 ### Logs et diagnostic
-- Accès aux logs système via l’interface web (onglet Logs) et API `/api/logs`.
+- Accès aux logs système via l’interface web (depuis la page **Système** → « Logs système ») et API `/api/logs`.
 - Diagnostic système via `/api/system` (informations matérielles, firmware, SD, uptime, etc.).
 
-### OTA (mise à jour firmware)
-- Mise à jour du firmware via l’interface web (onglet OTA).
-- Upload du fichier binaire, reboot automatique après succès.
-- API : `/api/ota/update`.
+### Page Système
+Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Statistiques**, **Historique** et **Système**. La page Système regroupe :
+- **Luminosité de la LED** : réglage de la NeoLED (0-255), appliqué immédiatement et conservé au redémarrage (persisté en NVS). API : `GET`/`POST /api/led`.
+- **Export** :
+  - Historique au format **CSV** (dernières 24 h / 7 j / 30 j / tout), pour Excel/LibreOffice — API `GET /api/history/export.csv?from=&to=` ;
+  - **Configuration** effective au format JSON — API `GET /api/config/export`.
+- **Mise à jour du firmware (OTA)** : upload d’un fichier `.bin`, reboot automatique après succès. API : `/api/ota/update`. (L’ancienne URL `/ota.html` redirige vers `/system.html`.)
+- **Outils** : accès au **gestionnaire de fichiers** (`/files.html`) et aux **logs système** (`/logs`), qui ne figurent plus dans le menu principal.
 
 ### Alertes météo et tendances
 - Affichage des alertes météo (niveau, type, description, couleur) sur l’interface et l’OLED.
