@@ -1,6 +1,6 @@
 # MeteoHub S3
 
-> **Minimum supported version: 1.1.6**
+> **Minimum supported version: 1.1.3**
 
 ## Full Documentation
 
@@ -39,9 +39,6 @@ platformio run --target upload
 ```
 
 ## Key Features (v1.1.x Highlights)
-
-* **Comparative Web History (v1.1.6)**
-  The History tab now supports selectable periods (2h, 6h, 12h, 24h) and optional comparison with the previous period.
 
 * **Improved SD Card Reliability (v1.1.2)**
   Safe write operations with explicit `flush()` calls and Mutex protection to reduce the risk of file corruption.

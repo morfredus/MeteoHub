@@ -313,20 +313,12 @@ void WebManager::_setupApi() {
         int window_s = request->hasParam("window") ? request->getParam("window")->value().toInt() : 0;
         int interval_s = request->hasParam("interval") ? request->getParam("interval")->value().toInt() : 0;
         int max_points = request->hasParam("points") ? request->getParam("points")->value().toInt() : 0;
-        int offset_s = request->hasParam("offset") ? request->getParam("offset")->value().toInt() : 0;
-        if (offset_s < 0) offset_s = 0;
 
         size_t start_index = 0;
-        size_t end_index = full_history.size();
         if (!full_history.empty() && window_s > 0) {
             const long latest_ts = static_cast<long>(full_history.back().timestamp);
-            const long max_ts = latest_ts - static_cast<long>(offset_s);
-            const long min_ts = max_ts - static_cast<long>(window_s);
+            const long min_ts = latest_ts - static_cast<long>(window_s);
             size_t i = full_history.size();
-            while (i > 0 && static_cast<long>(full_history[i - 1].timestamp) > max_ts) {
-                i--;
-            }
-            end_index = i;
             while (i > 0 && static_cast<long>(full_history[i - 1].timestamp) >= min_ts) {
                 i--;
             }
@@ -337,10 +329,10 @@ void WebManager::_setupApi() {
         response->print("{\"data\":[");
 
         bool first = true;
-        const size_t available_points = (end_index > start_index) ? (end_index - start_index) : 0;
+        const size_t available_points = full_history.size() - start_index;
 
         if (interval_s > 0 && available_points > 0) {
-            const long latest_ts = static_cast<long>(full_history[end_index - 1].timestamp);
+            const long latest_ts = static_cast<long>(full_history.back().timestamp);
             const long window_start_ts = (window_s > 0) ? (latest_ts - static_cast<long>(window_s)) : static_cast<long>(full_history[start_index].timestamp);
 
             size_t idx = start_index;
@@ -349,7 +341,7 @@ void WebManager::_setupApi() {
                 double sum_t = 0.0, sum_h = 0.0, sum_p = 0.0;
                 int count = 0;
 
-                while (idx < end_index) {
+                while (idx < full_history.size()) {
                     const long ts = static_cast<long>(full_history[idx].timestamp);
                     if (ts < bucket_start) { idx++; continue; }
                     if (ts >= bucket_end) break;
@@ -378,7 +370,7 @@ void WebManager::_setupApi() {
                 step = (available_points + static_cast<size_t>(max_points) - 1) / static_cast<size_t>(max_points);
             }
 
-            for (size_t i = start_index; i < end_index; i += step) {
+            for (size_t i = start_index; i < full_history.size(); i += step) {
                 COOPERATIVE_YIELD_EVERY(i - start_index, 64);
                 if (!first) response->print(",");
                 first = false;

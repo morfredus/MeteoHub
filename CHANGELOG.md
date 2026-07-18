@@ -1,19 +1,3 @@
-# [1.1.6] – 2026-07-17
-### Added
-- Page web **Historique** : l'ancien onglet « Historique 24h » devient
-  « Historique » et permet de choisir la fenêtre affichée (2h, 6h, 12h, 24h).
-- Ajout d'une comparaison optionnelle avec la période précédente de même durée :
-  les courbes précédentes sont affichées en pointillés pour la température,
-  l'humidité et la pression.
-- API `/api/history` : ajout du paramètre `offset` pour lire une fenêtre
-  historique décalée, utilisé par la comparaison côté interface web.
-
-### Changed
-- La page Historique adapte automatiquement l'intervalle d'agrégation selon la
-  période choisie et affiche le nombre de points chargés.
-- Le fichier embarqué `include/web_pages.h` a été régénéré pour inclure la
-  nouvelle interface web.
-
 # [1.1.5] – 2026-06-23
 ### Added
 - **Tendance météo sur 1h/12h/24h/48h** (page Statistiques) : `HistoryManager::getTrend()` calcule désormais le delta et la direction (hausse/baisse/stable) de la température, l'humidité et la pression sur quatre fenêtres temporelles au lieu de deux (1h et 24h auparavant). La fenêtre 12h est dérivée de l'historique RAM (24h disponibles à ~1 point/min) ; la fenêtre 48h est récupérée en lisant le fichier CSV journalier de J-2 sur la carte SD (`/history/AAAA-MM-JJ.csv`, nouvelle méthode `HistoryManager::readSdSampleNear()`) et n'est disponible que si une carte SD avec historique est présente (flag `available_48h`, affiché « N/D » sinon).

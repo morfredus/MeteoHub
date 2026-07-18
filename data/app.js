@@ -24,12 +24,8 @@ function setGraphScaleMarginPct(pct) {
 }
 
 function getDynamicMinMax(data, key, userMin, userMax) {
-    const values = data.map(d => d[key]).filter(Number.isFinite);
-    if (values.length === 0) {
-        return [userMin, userMax];
-    }
-    let dynMin = Math.min(...values);
-    let dynMax = Math.max(...values);
+    let dynMin = Math.min(...data.map(d => d[key]));
+    let dynMax = Math.max(...data.map(d => d[key]));
     if (dynMin === dynMax) {
         dynMin -= 0.3;
         dynMax += 0.3;
@@ -51,16 +47,11 @@ function getDynamicMinMax(data, key, userMin, userMax) {
 
 function updateChartScale() {
     if (!chart || !chart.data || !chart.data.datasets) return;
-    const data = [];
-    for (let i = 0; i < chart.data.labels.length; i++) {
-        const row = {};
-        for (const dataset of chart.data.datasets) {
-            if (dataset.metric && Number.isFinite(dataset.data[i])) {
-                row[dataset.metric] = dataset.data[i];
-            }
-        }
-        data.push(row);
-    }
+    const data = chart.data.labels.length > 0 ? chart.data.datasets[0].data.map((_, i) => ({
+        temp: chart.data.datasets[0].data[i],
+        hum: chart.data.datasets[1].data[i],
+        pres: chart.data.datasets[2].data[i]
+    })) : [];
     if (data.length === 0) return;
     let [tmin, tmax] = getDynamicMinMax(data, 'temp', GRAPH_TEMP_MIN, GRAPH_TEMP_MAX);
     let [hmin, hmax] = getDynamicMinMax(data, 'hum', GRAPH_HUM_MIN, GRAPH_HUM_MAX);
@@ -218,12 +209,6 @@ const HISTORY_WINDOWS_SECONDS = {
     short: 2 * 60 * 60,
     long: 24 * 60 * 60
 };
-const HISTORY_PERIOD_LABELS = {
-    7200: '2 dernières heures',
-    21600: '6 dernières heures',
-    43200: '12 dernières heures',
-    86400: '24 dernières heures'
-};
 
 const HISTORY_REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 5000;
@@ -244,43 +229,19 @@ function isStatsPage() {
 }
 
 function getHistoryWindowSeconds() {
-    if (getPageName() !== 'longterm') return HISTORY_WINDOWS_SECONDS.short;
-    const periodSelect = document.getElementById('historyPeriod');
-    return Number(periodSelect?.value || HISTORY_WINDOWS_SECONDS.long);
+    return getPageName() === 'longterm' ? HISTORY_WINDOWS_SECONDS.long : HISTORY_WINDOWS_SECONDS.short;
 }
 
 function getHistoryIntervalSeconds() {
-    if (getPageName() !== 'longterm') return 5 * 60;
-    const windowSeconds = getHistoryWindowSeconds();
-    if (windowSeconds <= 2 * 60 * 60) return 5 * 60;
-    if (windowSeconds <= 6 * 60 * 60) return 10 * 60;
-    if (windowSeconds <= 12 * 60 * 60) return 15 * 60;
-    return 30 * 60;
+    return getPageName() === 'longterm' ? 30 * 60 : 5 * 60;
 }
 
-function isHistoryCompareEnabled() {
-    return getPageName() === 'longterm' && !!document.getElementById('historyCompare')?.checked;
-}
-
-function buildHistoryUrl(offsetSeconds = 0) {
+function buildHistoryUrl() {
     const params = new URLSearchParams({
         window: String(getHistoryWindowSeconds()),
         interval: String(getHistoryIntervalSeconds())
     });
-    if (offsetSeconds > 0) {
-        params.set('offset', String(offsetSeconds));
-    }
     return `/api/history?${params.toString()}`;
-}
-
-function updateHistoryCaption(primaryCount, compareCount) {
-    const caption = document.getElementById('historyCaption');
-    if (!caption) return;
-
-    const windowSeconds = getHistoryWindowSeconds();
-    const label = HISTORY_PERIOD_LABELS[windowSeconds] || `${Math.round(windowSeconds / 3600)} dernières heures`;
-    const compareText = isHistoryCompareEnabled() ? ` • comparaison précédente (${compareCount} points)` : '';
-    caption.textContent = `Données des ${label} (${primaryCount} points)${compareText}`;
 }
 
 async function fetchLive() {
@@ -318,15 +279,7 @@ async function fetchHistory() {
     try {
         const res = await fetch(buildHistoryUrl());
         const json = await res.json();
-        const primary = Array.isArray(json.data) ? json.data : [];
-        let compare = [];
-        if (isHistoryCompareEnabled()) {
-            const compareRes = await fetch(buildHistoryUrl(getHistoryWindowSeconds()));
-            const compareJson = await compareRes.json();
-            compare = Array.isArray(compareJson.data) ? compareJson.data : [];
-        }
-        updateChart(primary, compare);
-        updateHistoryCaption(primary.length, compare.length);
+        updateChart(Array.isArray(json.data) ? json.data : []);
     } catch (e) {
         console.error('Erreur historique', e);
     }
@@ -433,32 +386,12 @@ async function fetchStats() {
     }
 }
 
-function formatHistoryLabel(timestamp, index) {
-    if (getPageName() === 'longterm') {
-        return dataLabelFromIndex(index);
-    }
-    return new Date(timestamp * 1000).toLocaleTimeString();
-}
-
-function dataLabelFromIndex(index) {
-    const intervalSeconds = getHistoryIntervalSeconds();
-    const elapsedSeconds = index * intervalSeconds;
-    const hours = Math.floor(elapsedSeconds / 3600);
-    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-    if (hours > 0) return `+${hours}h${minutes ? String(minutes).padStart(2, '0') : ''}`;
-    return `+${minutes}min`;
-}
-
-function updateChart(data, compareData = []) {
+function updateChart(data) {
     if (!chart) return;
-    const labelCount = Math.max(data.length, compareData.length);
-    chart.data.labels = Array.from({ length: labelCount }, (_, i) => formatHistoryLabel(data[i]?.t || compareData[i]?.t || 0, i));
+    chart.data.labels = data.map((d) => new Date(d.t * 1000).toLocaleTimeString());
     chart.data.datasets[0].data = data.map((d) => d.temp);
     chart.data.datasets[1].data = data.map((d) => d.hum);
     chart.data.datasets[2].data = data.map((d) => d.pres);
-    chart.data.datasets[3].data = compareData.map((d) => d.temp);
-    chart.data.datasets[4].data = compareData.map((d) => d.hum);
-    chart.data.datasets[5].data = compareData.map((d) => d.pres);
     updateChartScale();
 }
 
@@ -481,8 +414,7 @@ function initChart() {
                     cubicInterpolationMode: 'monotone',
                     pointRadius: 0,
                     stepped: false,
-                    yAxisID: 'y',
-                    metric: 'temp'
+                    yAxisID: 'y'
                 },
                 {
                     label: 'Humidité (%)',
@@ -494,8 +426,7 @@ function initChart() {
                     pointRadius: 0,
                     stepped: false,
                     yAxisID: 'y1',
-                    hidden: false,
-                    metric: 'hum'
+                    hidden: false
                 },
                 {
                     label: 'Pression (hPa)',
@@ -507,47 +438,7 @@ function initChart() {
                     pointRadius: 0,
                     stepped: false,
                     yAxisID: 'y2',
-                    hidden: false,
-                    metric: 'pres'
-                },
-                {
-                    label: 'Température période précédente (°C)',
-                    data: [],
-                    borderColor: 'rgba(0, 168, 255, 0.55)',
-                    backgroundColor: 'rgba(0, 168, 255, 0.04)',
-                    borderDash: [8, 5],
-                    tension: 0.45,
-                    cubicInterpolationMode: 'monotone',
-                    pointRadius: 0,
-                    stepped: false,
-                    yAxisID: 'y',
-                    metric: 'temp'
-                },
-                {
-                    label: 'Humidité période précédente (%)',
-                    data: [],
-                    borderColor: 'rgba(0, 255, 136, 0.55)',
-                    backgroundColor: 'rgba(0, 255, 136, 0.04)',
-                    borderDash: [8, 5],
-                    tension: 0.45,
-                    cubicInterpolationMode: 'monotone',
-                    pointRadius: 0,
-                    stepped: false,
-                    yAxisID: 'y1',
-                    metric: 'hum'
-                },
-                {
-                    label: 'Pression période précédente (hPa)',
-                    data: [],
-                    borderColor: 'rgba(255, 0, 255, 0.55)',
-                    backgroundColor: 'rgba(255, 0, 255, 0.04)',
-                    borderDash: [8, 5],
-                    tension: 0.45,
-                    cubicInterpolationMode: 'monotone',
-                    pointRadius: 0,
-                    stepped: false,
-                    yAxisID: 'y2',
-                    metric: 'pres'
+                    hidden: false
                 }
             ]
         },
@@ -606,11 +497,6 @@ window.onload = () => {
         // Synchronise le select avec la valeur initiale
         const modeSelect = document.getElementById('scaleMode');
         if (modeSelect) modeSelect.value = GRAPH_SCALE_MODE;
-
-        const periodSelect = document.getElementById('historyPeriod');
-        const compareCheck = document.getElementById('historyCompare');
-        if (periodSelect) periodSelect.addEventListener('change', fetchHistory);
-        if (compareCheck) compareCheck.addEventListener('change', fetchHistory);
     }
 
     if (isStatsPage()) {

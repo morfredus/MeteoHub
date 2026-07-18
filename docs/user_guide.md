@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.1.6
+Version minimale valide : 1.2.0
 
 - Tourner l’encodeur pour naviguer entre les pages.
 - Le clic encodeur ouvre le menu.
@@ -33,11 +33,7 @@ Pages principales :
 
 ### Historique et statistiques
 - Visualisation graphique de l’historique (température, humidité, pression).
-- Onglet Historique : choix de période (2h, 6h, 12h, 24h) et comparaison
-  optionnelle avec la période précédente de même durée. Les courbes de
-  comparaison sont affichées en pointillés.
-- API : `/api/history` (paramètres `window`, `interval`, `points` pour
-  l’agrégation, et `offset` pour lire une fenêtre décalée dans le temps).
+- API : `/api/history` (paramètres `window`, `interval`, `points` pour l’agrégation).
 - Statistiques 24h via `/api/stats` (min, max, moyenne).
 - Page Statistiques : tendances détaillées sur 1h, 12h, 24h et 48h (température, humidité, pression), ainsi qu’une tendance générale qui croise la direction de la pression sur ces fenêtres pour dégager une véritable évolution (amélioration/dégradation durable, stable, ou variable). La fenêtre 48h nécessite une carte SD avec l’historique journalier (fichier CSV de J-2) ; elle s’affiche « N/D » si indisponible.
 
