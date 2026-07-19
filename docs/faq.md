@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.6.3
+Version minimale valide : 1.9.0
 
 ## Quel afficheur est supporté ?
 Uniquement OLED (SH1106/SSD1306).

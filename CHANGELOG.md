@@ -1,3 +1,7 @@
+# [1.9.0] – 2026-07-19
+### Added
+- **Monitoring des logs par UDP (sans câble série).** Nouveau module `src/utils/udp_logger.*` : les logs applicatifs (`addLog`) **et** ceux du cœur ESP-IDF/Arduino (WiFi, I2C, watchdog…) sont diffusés en UDP sur le réseau local, pour être suivis à distance (par ex. dans **Tabby**). L'émission passe par une **file FreeRTOS + une tâche dédiée** : le contexte d'origine d'un log (y compris la pile réseau) n'émet jamais lui-même de paquet, ce qui évite tout risque de réentrance/blocage. Les logs sont aussi désormais mis en miroir sur le port série (`Serial`). Configurable dans `include/config.h` : `UDP_LOG_ENABLED`, `UDP_LOG_PORT` (5005 par défaut), `UDP_LOG_HOST` (IP du PC récepteur ou `255.255.255.255` pour un broadcast). La réception côté PC et la configuration de Tabby sont décrites dans le guide utilisateur.
+
 # [1.8.0] – 2026-07-19
 ### Changed
 - **Affichage de l'historique nettement plus rapide (lecture SD optimisée).** Deux optimisations, sans perte de précision :

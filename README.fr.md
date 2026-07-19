@@ -1,6 +1,6 @@
 # MeteoHub S3
 
-> **Version minimale valide : 1.6.3**
+> **Version minimale valide : 1.9.0**
 
 ## Documentation complète
 - [Index de la documentation](docs/index.md)
@@ -24,11 +24,13 @@ MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bor
 - Build : `platformio run`
 - Upload : `platformio run --target upload`
 
-## Fonctionnalités principales (Nouveautés v1.6.x)
+## Fonctionnalités principales (Nouveautés v1.9.x)
 - **Stockage binaire compact de l'historique (v1.4.0+)** : fichiers binaires par jour (`/history/AAAA/MM/AAAA-MM-JJ.bin`) avec en-tête de fichier (compatibilité ascendante) et fichiers `.stats` journaliers. Accès direct aux mesures, bien plus compact que le CSV. Le CSV ne sert plus qu'à l'export ; les anciens CSV sont migrés automatiquement au premier démarrage.
-- **Page Historique : sélection et comparaison de périodes** : fenêtre 24 h / 48 h / 7 j / 30 j / aujourd'hui / plage personnalisée, comparaison de deux périodes, ligne de synthèse optionnelle par grandeur, et curseur d'échelle « Zoom » inversé.
+- **Affichage de l'historique accéléré (v1.8.0)** : lecture séquentielle par blocs (sans seek par mesure) et cascade de fréquence SPI de la carte SD (20/10/4/1 MHz, validée par un test écriture + relecture) accélèrent nettement le chargement, avec repli fiable.
+- **Page Historique : sélection et comparaison de périodes** : fenêtre 24 h / 48 h / 7 j / 30 j / aujourd'hui / plage personnalisée, comparaison de deux périodes, ligne de synthèse optionnelle par grandeur, curseur d'échelle « Zoom » inversé et bascule « Temps réel ».
 - **Page Système (hub)** : mise à jour OTA, luminosité de la NeoLED (persistée en NVS), exports CSV/configuration, accès au gestionnaire de fichiers et aux logs. Menu principal réduit à quatre entrées : Tableau de bord, Statistiques, Historique, Système.
 - **Qualité des données et robustesse capteur (v1.6.x)** : lectures I2C validées, réessayées, avec récupération automatique du bus après échecs ; les lectures ratées ne sont pas enregistrées. Les valeurs aberrantes sont écartées des graphes (cohérence temporelle) et des statistiques (médiane/MAD robuste), les données brutes restant conservées.
+- **Monitoring des logs par UDP (v1.9.0)** : les logs applicatifs et ceux du cœur ESP (WiFi, I2C, watchdog…) sont diffusés en UDP pour un suivi à distance sans fil (ex. dans Tabby), sans câble série. Configurable dans `config.h`.
 - **Écritures SD fiables** : `flush()` explicite et protection par Mutex contre la corruption de fichiers.
 
 ## Utilisation

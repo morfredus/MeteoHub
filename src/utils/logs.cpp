@@ -1,4 +1,6 @@
 #include "logs.h"
+#include "udp_logger.h"
+#include <Arduino.h>
 #include <vector>
 #include <string>
 
@@ -11,6 +13,9 @@ void addLog(const std::string& msg) {
         logs.erase(logs.begin());
     }
     logs.push_back(msg);
+
+    Serial.println(msg.c_str()); // miroir sur le port série
+    udpLogSend(msg);             // diffusion réseau (UDP), voir udp_logger
 }
 
 std::string getLog(int index) {

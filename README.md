@@ -1,6 +1,6 @@
 # MeteoHub S3
 
-> **Minimum supported version: 1.6.3**
+> **Minimum supported version: 1.9.0**
 
 ## Full Documentation
 
@@ -38,19 +38,25 @@ platformio run
 platformio run --target upload
 ```
 
-## Key Features (v1.6.x Highlights)
+## Key Features (v1.9.x Highlights)
 
 * **Compact binary history storage (v1.4.0+)**
   Per-day binary files (`/history/YYYY/MM/YYYY-MM-DD.bin`) with a file header for forward compatibility, plus daily `.stats` files. Direct record access, far smaller than CSV. CSV is now export-only; legacy CSV files are migrated automatically on first boot.
 
+* **Fast history display (v1.8.0)**
+  Sequential block reads (no per-record seek) and an SD SPI frequency ladder (20/10/4/1 MHz, verified by a write+read-back test) dramatically speed up history loading, with a safe fallback.
+
 * **History page: period selection & comparison**
-  Pick a window (24h / 48h / 7d / 30d / today / custom range), compare two periods, optional per-metric synthesis line, and an inverted "Zoom" scale control.
+  Pick a window (24h / 48h / 7d / 30d / today / custom range), compare two periods, optional per-metric synthesis line, an inverted "Zoom" scale control, and a real-time toggle.
 
 * **System page (hub)**
   OTA firmware update, NeoLED brightness (persisted in NVS), CSV/config exports, and access to the File manager and Logs. The main menu is streamlined to four entries: Dashboard, Statistics, History, System.
 
 * **Data quality & sensor robustness (v1.6.x)**
   I2C reads are validated, retried, and the bus auto-recovers on repeated failures; failed reads are not stored. Outliers are removed from charts (temporal coherence) and statistics (robust median/MAD) while raw data is preserved.
+
+* **UDP log monitoring (v1.9.0)**
+  App and ESP-core logs (WiFi, I2C, watchdog…) are broadcast over UDP so you can follow them wirelessly (e.g. in Tabby), no serial cable required. Configurable in `config.h`.
 
 * **Reliable SD writes**
   Safe write operations with explicit `flush()` and mutex protection to reduce the risk of file corruption.

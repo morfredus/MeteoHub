@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.6.3
+Version minimale valide : 1.9.0
 
 1. Cloner le projet.
 2. Créer `include/secrets.h` à partir de `include/secrets_example.h`.

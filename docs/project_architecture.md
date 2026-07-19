@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.6.3
+Version minimale valide : 1.9.0
 
 - `src/modules/` : modules matériels et affichage OLED (`sensors`, `oled_display`, `neopixel_status`, `encoder`, `pages_oled`…)
 - `src/managers/` : gestionnaires fonctionnels et orchestration (`web_manager`, `history_manager`, `sd_manager`, `wifi_manager`, `forecast_manager`, `ui_manager`)

@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.6.3
+Version minimale valide : 1.9.0
 
 - Si le Wi-Fi ne se connecte pas, vérifier `include/secrets.h`.
 - Si les prévisions sont vides, vérifier la clé API et l’accès réseau.

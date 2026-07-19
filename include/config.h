@@ -37,3 +37,12 @@
 // ===============
 #define DASHBOARD_REFRESH_MS     1000
 #define BUTTON_GUARD_MS          200
+
+// ===============
+// Monitoring réseau (logs par UDP)
+// ===============
+// Diffuse les logs (applicatifs + cœur ESP : WiFi, I2C, watchdog…) par UDP, pour
+// les suivre à distance sans câble série (ex. dans Tabby). Voir docs/user_guide.md.
+#define UDP_LOG_ENABLED          1                     // 1 = activer, 0 = désactiver
+#define UDP_LOG_PORT             5005                  // port UDP d'écoute côté PC
+#define UDP_LOG_HOST             "255.255.255.255"     // IP du PC récepteur, ou 255.255.255.255 pour un broadcast sur le réseau local

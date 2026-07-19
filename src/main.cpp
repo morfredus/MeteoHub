@@ -19,6 +19,7 @@
 #include "modules/pages_oled.h"
 #endif
 #include "utils/logs.h"
+#include "utils/udp_logger.h"
 
 DisplayInterface* display = nullptr;
 WifiManager wifi;
@@ -134,6 +135,10 @@ void setup() {
         delay(100);
         w++;
     }
+
+    // Monitoring des logs par UDP (sans câble série). Installé une fois ; les
+    // envois sont automatiquement inhibés tant que le WiFi n'est pas connecté.
+    udpLogBegin();
 
     if (wifi.ip() != "0.0.0.0") {
         ArduinoOTA.begin();

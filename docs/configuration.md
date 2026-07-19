@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.6.3
+Version minimale valide : 1.9.0
 
 
 ## Fichiers modifiables
@@ -31,6 +31,12 @@ Version minimale valide : 1.6.3
 ### Paramètres système
 - `DASHBOARD_REFRESH_MS` : Fréquence de rafraîchissement du dashboard (ms)
 - `BUTTON_GUARD_MS` : Anti-rebond pour les boutons (ms)
+
+### Monitoring des logs par UDP
+- `UDP_LOG_ENABLED` : diffuser les logs par UDP sur le réseau (1 = activé)
+- `UDP_LOG_PORT` : port UDP d'écoute côté PC (défaut 5005)
+- `UDP_LOG_HOST` : IP du PC récepteur, ou `255.255.255.255` pour un broadcast local
+- Détails et réception (Tabby) : voir le [Guide utilisateur](user_guide.md#monitoring-des-logs-par-udp-sans-câble-série-ex-avec-tabby).
 
 ## Réglages persistés à l'exécution (NVS)
 Certains réglages se modifient directement depuis l'interface web (page **Système**) et sont conservés au redémarrage, sans recompilation :

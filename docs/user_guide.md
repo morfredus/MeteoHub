@@ -2,7 +2,7 @@
 
 **Débutant ?** Voir le [Guide Débutant](beginner/index.md)
 
-Version minimale valide : 1.6.3
+Version minimale valide : 1.9.0
 
 - Tourner l’encodeur pour naviguer entre les pages.
 - Le clic encodeur ouvre le menu.
@@ -60,6 +60,35 @@ Pages principales :
 ### Logs et diagnostic
 - Accès aux logs système via l’interface web (depuis la page **Système** → « Logs système ») et API `/api/logs`.
 - Diagnostic système via `/api/system` (informations matérielles, firmware, SD, uptime, etc.).
+- Les logs sont également émis sur le **port série** (miroir) et diffusés par **UDP** sur le réseau (voir ci-dessous).
+
+### Monitoring des logs par UDP (sans câble série, ex. avec Tabby)
+
+MeteoHub peut diffuser ses logs sur le réseau local en UDP, ce qui permet de les suivre à distance sans être branché physiquement au port série. Sont diffusés à la fois les logs applicatifs (capteurs, SD, migration, etc.) **et** ceux du cœur ESP (WiFi, erreurs I2C, watchdog…).
+
+**1. Configuration (`include/config.h`)** puis reflashage :
+- `UDP_LOG_ENABLED` : `1` pour activer (défaut), `0` pour désactiver.
+- `UDP_LOG_PORT` : port UDP d'écoute (défaut `5005`).
+- `UDP_LOG_HOST` : `"255.255.255.255"` pour un **broadcast** sur le réseau local (aucune IP à connaître), ou l'**IP du PC** récepteur pour un envoi direct (plus fiable si le broadcast est filtré). Dans ce dernier cas, il est conseillé de réserver/fixer l'IP du PC.
+
+**2. Réception côté PC.** Tabby ne sait pas écouter l'UDP nativement : on ouvre un **onglet « terminal local »** dans Tabby et on y lance un écouteur UDP.
+- **Linux / macOS** (recommandé, gère le broadcast) :
+  ```bash
+  socat -u UDP-RECV:5005 STDOUT
+  ```
+  Alternative avec netcat (selon la version) : `nc -u -l -k 5005`.
+- **Windows** : installer **Ncat** (fourni avec Nmap), puis :
+  ```powershell
+  ncat -u -l 5005
+  ```
+  (ou utiliser `socat` sous WSL).
+
+**3. Profil Tabby dédié (optionnel, pour un accès en un clic).** Dans Tabby : *Settings → Profiles & connections → New profile → Local terminal*, et renseigner comme commande l'écouteur ci-dessus (ex. `socat -u UDP-RECV:5005 STDOUT`). Le profil ouvre alors directement le flux de logs.
+
+**4. Points d'attention :**
+- Autoriser le **port UDP** (5005 par défaut) en entrée dans le pare-feu du PC.
+- Le **broadcast** est le plus simple (pas besoin de connaître l'IP du PC) mais nécessite que le réseau laisse passer les paquets broadcast (généralement le cas sur un LAN domestique). En cas de souci, préférer l'envoi direct vers l'IP du PC (`UDP_LOG_HOST`).
+- MeteoHub et le PC doivent être sur le **même réseau local**. L'envoi UDP est automatiquement suspendu tant que le WiFi n'est pas connecté.
 
 ### Page Système
 Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Statistiques**, **Historique** et **Système**. La page Système regroupe :
