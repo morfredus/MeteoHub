@@ -112,6 +112,45 @@ static bool readBinRecordAt(File& f, const BinLayout& L, size_t idx, BinRecord& 
     return f.read(reinterpret_cast<uint8_t*>(&br), sizeof(BinRecord)) == (int)sizeof(BinRecord);
 }
 
+// Parcours SÉQUENTIEL des enregistrements [startIdx, nrec) d'un .bin. Pour le
+// format courant (recordSize == 16 octets), les enregistrements sont contigus :
+// on lit par blocs de plusieurs Ko (un seul seek initial, aucun seek par mesure),
+// ce qui accélère nettement la lecture SD par rapport à un accès mesure par mesure.
+// Le callback reçoit chaque enregistrement et renvoie false pour arrêter (p. ex.
+// horodatage au-delà de la plage). Repli index par index si recordSize > 16.
+template <typename Fn>
+static void forEachBinRecordFrom(File& f, const BinLayout& L, size_t startIdx, Fn&& cb) {
+    if (startIdx >= L.nrec) return;
+
+    if (L.recordSize == sizeof(BinRecord)) {
+        f.seek(L.dataOffset + static_cast<uint32_t>(startIdx) * L.recordSize);
+        const size_t CHUNK = 64; // 64 * 16 = 1 Ko par lecture
+        BinRecord buf[CHUNK];
+        size_t remaining = L.nrec - startIdx;
+        size_t processed = 0;
+        while (remaining > 0) {
+            const size_t want = remaining < CHUNK ? remaining : CHUNK;
+            const int got = f.read(reinterpret_cast<uint8_t*>(buf), want * sizeof(BinRecord));
+            if (got <= 0) break;
+            const size_t nread = static_cast<size_t>(got) / sizeof(BinRecord);
+            for (size_t k = 0; k < nread; ++k) {
+                if (!cb(buf[k])) return;
+            }
+            COOPERATIVE_YIELD_EVERY(processed, 256);
+            processed += nread;
+            if (nread < want) break; // fin de fichier
+            remaining -= nread;
+        }
+    } else {
+        BinRecord br;
+        for (size_t i = startIdx; i < L.nrec; ++i) {
+            COOPERATIVE_YIELD_EVERY(i, 64);
+            if (!readBinRecordAt(f, L, i, br)) return;
+            if (!cb(br)) return;
+        }
+    }
+}
+
 // Convertit un ancien fichier .bin sans en-tête (v1.4.0) en fichier avec en-tête,
 // une seule fois (réécriture complète via un fichier temporaire).
 static void upgradeLegacyBin(const char* binPath, FileHeader& outHdr) {
@@ -570,14 +609,13 @@ std::vector<HistoryPoint> HistoryManager::queryRange(time_t from, time_t to, lon
                     if (static_cast<long>(br.ts) < from_l) lo = mid + 1; else hi = mid;
                 }
 
-                for (size_t i = lo; i < L.nrec; ++i) {
-                    COOPERATIVE_YIELD_EVERY(i, 64);
-                    if (!readBinRecordAt(f, L, i, br)) break;
-                    long ts = static_cast<long>(br.ts);
-                    if (ts > to_l) break; // au-delà de la plage : les suivants aussi
-                    feed(ts, br.t, br.h, br.p);
+                forEachBinRecordFrom(f, L, lo, [&](const BinRecord& rec) -> bool {
+                    const long ts = static_cast<long>(rec.ts);
+                    if (ts > to_l) return false; // triés : les suivants aussi
+                    feed(ts, rec.t, rec.h, rec.p);
                     if (ts > lastSdTs) lastSdTs = ts;
-                }
+                    return true;
+                });
                 f.close();
                 continue;
             }
@@ -825,14 +863,13 @@ void HistoryManager::exportCsv(time_t from, time_t to, const std::function<void(
         }
 
         char line[64];
-        for (size_t i = lo; i < L.nrec; ++i) {
-            COOPERATIVE_YIELD_EVERY(i, 64);
-            if (!readBinRecordAt(f, L, i, br)) break;
-            if (static_cast<long>(br.ts) > to_l) break;
+        forEachBinRecordFrom(f, L, lo, [&](const BinRecord& rec) -> bool {
+            if (static_cast<long>(rec.ts) > to_l) return false;
             snprintf(line, sizeof(line), "%lu,%.2f,%.1f,%.1f\n",
-                     static_cast<unsigned long>(br.ts), br.t, br.h, br.p);
+                     static_cast<unsigned long>(rec.ts), rec.t, rec.h, rec.p);
             emit(line);
-        }
+            return true;
+        });
         f.close();
     }
 }

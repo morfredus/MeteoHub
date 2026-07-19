@@ -49,3 +49,10 @@ Si les logs indiquent `SD Mount FAILED` ou `cardType is CARD_NONE` :
 4. **Tester une autre carte**
    - Certaines cartes anciennes ou de très grande capacité (> 64 Go) peuvent être incompatibles.
    - Privilégiez les cartes de 4 Go à 32 Go pour une compatibilité maximale.
+
+### Vitesse de la carte SD (fréquence SPI)
+
+Au démarrage, MeteoHub monte la carte à la **fréquence SPI la plus élevée qui fonctionne réellement**, en cascade décroissante **20 → 10 → 4 → 1 MHz**, avec à chaque palier un test d'écriture **et de relecture**. La fréquence retenue est indiquée dans les logs (`SD mounted at N MHz`). Cela accélère fortement l'affichage de l'historique par rapport au montage fixe à 1 MHz des versions précédentes.
+
+- Si l'historique se charge lentement, vérifier dans les logs la fréquence retenue : une valeur basse (1–4 MHz) indique un câblage SPI marginal (fils trop longs, mauvaises soudures, alimentation). Raccourcir/fiabiliser le câblage permet d'atteindre des fréquences plus élevées.
+- Le repli automatique garantit qu'une carte/wiring lent reste fonctionnel (aucune régression), au prix d'une lecture plus lente.

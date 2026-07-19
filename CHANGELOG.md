@@ -1,3 +1,9 @@
+# [1.8.0] – 2026-07-19
+### Changed
+- **Affichage de l'historique nettement plus rapide (lecture SD optimisée).** Deux optimisations, sans perte de précision :
+  - **Lecture séquentielle par blocs** : `queryRange()` et l'export CSV lisaient chaque mesure une par une (un `seek` + un `read` de 16 octets par enregistrement, soit ~1440 accès pour 24 h). Un nouveau parcours `forEachBinRecordFrom()` lit désormais les enregistrements contigus par blocs de 1 Ko (un seul `seek` initial, aucun `seek` par mesure), réduisant massivement le nombre d'accès SD.
+  - **Cascade de fréquence SPI de la carte SD** : la carte était systématiquement montée à **1 MHz**. `SdManager` tente maintenant, en cascade décroissante, **20 → 10 → 4 → 1 MHz** et retient la plus haute fréquence qui fonctionne réellement (montage + création de dossier + test **écriture/relecture**). Une fréquence trop élevée qui « monte » mais lit mal est rejetée et l'on redescend d'un cran ; le formatage n'est jamais déclenché par un simple échec de vitesse. En cas de matériel marginal, le repli à 1 MHz garantit l'absence de régression.
+
 # [1.7.1] – 2026-07-19
 ### Added
 - **Page Historique : bascule « Temps réel ».** Une case à cocher (activée par défaut), placée à côté de « Synthèse », permet d'activer/désactiver le rafraîchissement automatique du graphe (`data/longterm.html`, `data/app.js`). Le rafraîchissement automatique reste par ailleurs limité aux périodes relatives ≤ 48 h sans comparaison.

@@ -66,20 +66,53 @@ bool SdManager::mountAtFrequency(int frequency_hz, bool format_if_fail) {
     return true;
 }
 
+// Monte la carte à la fréquence SPI la plus élevée qui fonctionne réellement
+// (montage + création dossier + test écriture/relecture), en cascade décroissante.
+// Un échec à haute fréquence = souvent « trop rapide » (pas une carte HS) : on ne
+// formate donc JAMAIS pour cette raison. Le formatage n'est tenté qu'en tout dernier
+// recours à basse fréquence, si le caller l'autorise.
+bool SdManager::mountBestFrequency(bool format_if_fail) {
+    static const int freqs[] = { 20000000, 10000000, 4000000, 1000000 };
+
+    auto tryAt = [this](int hz) -> bool {
+        if (!mountAtFrequency(hz, false)) return false;
+        if (ensureHistoryDirectory() && verifyWriteAccess()) {
+            _mount_frequency_hz = hz;
+            LOG_INFO("SD mounted at " + std::to_string(hz / 1000000) + " MHz");
+            return true;
+        }
+        SD.end();
+        return false;
+    };
+
+    // Réutilise en priorité la dernière fréquence qui a marché (reconnexions).
+    if (_mount_frequency_hz > 0 && tryAt(_mount_frequency_hz)) return true;
+    for (int hz : freqs) {
+        if (hz == _mount_frequency_hz) continue; // déjà tenté juste au-dessus
+        if (tryAt(hz)) return true;
+    }
+
+    // Dernier recours : carte réellement illisible -> formatage (si autorisé).
+    if (format_if_fail && mountAtFrequency(1000000, true) &&
+        ensureHistoryDirectory() && verifyWriteAccess()) {
+        _mount_frequency_hz = 1000000;
+        LOG_WARNING("SD reformatted and mounted at 1 MHz");
+        return true;
+    }
+    return false;
+}
+
 bool SdManager::verifyWriteAccess() {
     std::lock_guard<std::mutex> lock(_sd_mutex);
+    const char* testContent = "MeteoHub Test";
 
     File test_file = SD.open(SD_WRITE_TEST_FILE, FILE_WRITE);
     if (!test_file) {
         LOG_WARNING("SD write test: Cannot open file");
         return false;
     }
-
-    const char* testContent = "MeteoHub Test";
     size_t written = test_file.println(testContent);
-    
-    // Correction : flush() appelé sans test de retour (peut être void)
-    test_file.flush(); 
+    test_file.flush(); // flush() appelé sans test de retour (peut être void)
     test_file.close();
 
     if (written == 0) {
@@ -88,8 +121,22 @@ bool SdManager::verifyWriteAccess() {
         return false;
     }
 
+    // Relecture : garantit que la fréquence SPI retenue lit correctement (une
+    // fréquence trop élevée peut « monter » mais corrompre les lectures).
+    bool readOk = false;
+    File rf = SD.open(SD_WRITE_TEST_FILE, FILE_READ);
+    if (rf) {
+        String line = rf.readStringUntil('\n');
+        rf.close();
+        readOk = line.startsWith(testContent);
+    }
+
     SD.remove(SD_WRITE_TEST_FILE);
-    LOG_INFO("SD write test PASSED");
+    if (!readOk) {
+        LOG_WARNING("SD read-back test failed");
+        return false;
+    }
+    LOG_INFO("SD write/read test PASSED");
     return true;
 }
 
@@ -116,14 +163,8 @@ bool SdManager::begin() {
     }
 #endif
 
-    if (!mountAtFrequency(SD_TARGET_FREQUENCY_HZ, true)) {
+    if (!mountBestFrequency(true)) {
         LOG_ERROR("SD Mount FAILED");
-        return false;
-    }
-
-    if (!ensureHistoryDirectory() || !verifyWriteAccess()) {
-        LOG_ERROR("SD Mount OK but checks failed");
-        SD.end();
         return false;
     }
 
@@ -151,16 +192,13 @@ bool SdManager::ensureMounted() {
     if (now - _last_reconnect_attempt_ms < _reconnect_cooldown_ms) return false;
 
     _last_reconnect_attempt_ms = now;
-    if (mountAtFrequency(SD_TARGET_FREQUENCY_HZ, false)) {
-        if (ensureHistoryDirectory() && verifyWriteAccess()) {
-            _available = true;
-            _consecutive_reconnect_failures = 0;
-            _reconnect_cooldown_ms = SD_RECONNECT_COOLDOWN_DEFAULT_MS;
-            return true;
-        }
-        SD.end();
+    if (mountBestFrequency(false)) {
+        _available = true;
+        _consecutive_reconnect_failures = 0;
+        _reconnect_cooldown_ms = SD_RECONNECT_COOLDOWN_DEFAULT_MS;
+        return true;
     }
-    
+
     _consecutive_reconnect_failures++;
     _reconnect_cooldown_ms = std::min(SD_RECONNECT_COOLDOWN_MAX_MS, 
         (unsigned long)(SD_RECONNECT_COOLDOWN_DEFAULT_MS * (_consecutive_reconnect_failures + 1)));
