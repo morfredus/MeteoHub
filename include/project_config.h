@@ -44,7 +44,7 @@
 
 // --- Réseau ---
 #define WEB_SERVER_PORT        80
-#define MDNS_HOSTNAME           "esp32-foundation"
+
 #define WIFI_CONNECT_TIMEOUT_MS 15000
 #define WIFI_PORTAL_AP_NAME     "ESP32-Setup"
 

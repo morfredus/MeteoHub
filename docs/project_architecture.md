@@ -26,4 +26,4 @@ Version minimale valide : 1.9.0
 ## Interface web
 
 - Pages : Tableau de bord (`/`), Statistiques (`/stats.html`), Historique (`/longterm.html`), Système (`/system.html`), plus les outils Fichiers (`/files.html`) et Logs (`/logs`) accessibles depuis Système.
-- API principales : `/api/live`, `/api/history`, `/api/history/summary`, `/api/history/export.csv`, `/api/stats`, `/api/alert`, `/api/system`, `/api/led`, `/api/config/export`, `/api/files/*`, `/api/ota/update`, `/api/logs`.
+- API principales : `/api/live`, `/api/history`, `/api/history/summary`, `/api/history/export.csv`, `/api/history/days`, `/api/history/raw`, `/api/stats`, `/api/alert`, `/api/system`, `/api/led`, `/api/config/export`, `/api/files/*`, `/api/ota/update`, `/api/logs`, `/api/analytics`, `/api/analytics/config`.

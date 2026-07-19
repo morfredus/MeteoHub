@@ -11,6 +11,7 @@
 #include "utils/system_info.h"
 #include "utils/cooperative_yield.h"
 #include "modules/neopixel_status.h"
+#include "modules/analytics_beacon.h"
 #include "project_config.h"
 #include "config.h"
 #include "web_pages.h"
@@ -316,6 +317,312 @@ void WebManager::_setupApi() {
         request->send(response);
     });
 
+
+    // API History Summary : synthèse pré-calculée d'une plage [from, to] à partir
+    // des fichiers .stats journaliers (min/max/moyenne + variation), sans relire
+    // les mesures. Sert à afficher la synthèse de la page Historique quasi
+    // instantanément. Renvoie {"valid":false} si aucune donnée .stats disponible.
+    _server.on("/api/history/summary", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        long from_s = request->hasParam("from") ? request->getParam("from")->value().toInt() : 0;
+        long to_s = request->hasParam("to") ? request->getParam("to")->value().toInt() : 0;
+
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        if (from_s <= 0 || to_s <= from_s) {
+            response->print("{\"valid\":false}");
+            request->send(response);
+            return;
+        }
+
+        RangeSynthesis r = _history->querySynthesis(static_cast<time_t>(from_s), static_cast<time_t>(to_s));
+        if (!r.valid) {
+            response->print("{\"valid\":false}");
+            request->send(response);
+            return;
+        }
+
+        char buffer[512];
+        snprintf(buffer, sizeof(buffer),
+            "{\"valid\":true,\"count\":%u,"
+            "\"temp\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f},"
+            "\"hum\":{\"min\":%.0f,\"max\":%.0f,\"avg\":%.0f,\"first\":%.0f,\"last\":%.0f,\"delta\":%.0f},"
+            "\"pres\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f}}",
+            r.count,
+            r.t_min, r.t_max, r.t_avg, r.t_first, r.t_last, r.t_last - r.t_first,
+            r.h_min, r.h_max, r.h_avg, r.h_first, r.h_last, r.h_last - r.h_first,
+            r.p_min, r.p_max, r.p_avg, r.p_first, r.p_last, r.p_last - r.p_first);
+        response->print(buffer);
+        request->send(response);
+    });
+
+    // API Stats
+    _server.on("/api/stats", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        DynamicJsonDocument doc(4096);
+
+        Stats24h stats = _history->getRecentStats();
+        if (stats.count > 0) {
+            doc["temp"]["min"] = stats.temp.min;
+            doc["temp"]["max"] = stats.temp.max;
+            doc["temp"]["avg"] = stats.temp.avg();
+            doc["hum"]["min"] = stats.hum.min;
+            doc["hum"]["max"] = stats.hum.max;
+            doc["hum"]["avg"] = stats.hum.avg();
+            doc["pres"]["min"] = stats.pres.min;
+            doc["pres"]["max"] = stats.pres.max;
+            doc["pres"]["avg"] = stats.pres.avg();
+        } else {
+            doc["temp"]["min"] = 0; doc["temp"]["max"] = 0; doc["temp"]["avg"] = 0;
+            doc["hum"]["min"] = 0; doc["hum"]["max"] = 0; doc["hum"]["avg"] = 0;
+            doc["pres"]["min"] = 0; doc["pres"]["max"] = 0; doc["pres"]["avg"] = 0;
+        }
+        doc["count"] = stats.count;
+
+        MeteoTrend trend = _history->getTrend();
+        doc["trend"]["global_label_fr"] = computeGlobalTrendLabelFr(trend).c_str();
+        doc["trend"]["available_48h"] = trend.available_48h;
+        doc["trend"]["temp"]["delta_1h"] = trend.temp.delta_1h;
+        doc["trend"]["temp"]["delta_12h"] = trend.temp.delta_12h;
+        doc["trend"]["temp"]["delta_24h"] = trend.temp.delta_24h;
+        doc["trend"]["temp"]["delta_48h"] = trend.temp.delta_48h;
+        doc["trend"]["temp"]["direction_1h"] = trend.temp.direction_1h.c_str();
+        doc["trend"]["temp"]["direction_12h"] = trend.temp.direction_12h.c_str();
+        doc["trend"]["temp"]["direction_24h"] = trend.temp.direction_24h.c_str();
+        doc["trend"]["temp"]["direction_48h"] = trend.temp.direction_48h.c_str();
+        doc["trend"]["hum"]["delta_1h"] = trend.hum.delta_1h;
+        doc["trend"]["hum"]["delta_12h"] = trend.hum.delta_12h;
+        doc["trend"]["hum"]["delta_24h"] = trend.hum.delta_24h;
+        doc["trend"]["hum"]["delta_48h"] = trend.hum.delta_48h;
+        doc["trend"]["hum"]["direction_1h"] = trend.hum.direction_1h.c_str();
+        doc["trend"]["hum"]["direction_12h"] = trend.hum.direction_12h.c_str();
+        doc["trend"]["hum"]["direction_24h"] = trend.hum.direction_24h.c_str();
+        doc["trend"]["hum"]["direction_48h"] = trend.hum.direction_48h.c_str();
+        doc["trend"]["pres"]["delta_1h"] = trend.pres.delta_1h;
+        doc["trend"]["pres"]["delta_12h"] = trend.pres.delta_12h;
+        doc["trend"]["pres"]["delta_24h"] = trend.pres.delta_24h;
+        doc["trend"]["pres"]["delta_48h"] = trend.pres.delta_48h;
+        doc["trend"]["pres"]["direction_1h"] = trend.pres.direction_1h.c_str();
+        doc["trend"]["pres"]["direction_12h"] = trend.pres.direction_12h.c_str();
+        doc["trend"]["pres"]["direction_24h"] = trend.pres.direction_24h.c_str();
+        doc["trend"]["pres"]["direction_48h"] = trend.pres.direction_48h.c_str();
+
+        serializeJson(doc, *response);
+        request->send(response);
+    });
+
+    // API System
+    _server.on("/api/system", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        std::string sysInfo = getSystemInfoJson(_sd);
+        request->send(200, "application/json", sysInfo.c_str());
+    });
+
+    // API Analytics : présence du service morfAnalytics (détection LAN optionnelle).
+    // Toujours disponible ; renvoie simplement l'état constaté. MeteoHub n'en dépend pas.
+    _server.on("/api/analytics", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        if (!_analytics) {
+            request->send(200, "application/json", "{\"available\":false}");
+            return;
+        }
+        // `detected` decrit ce que la decouverte automatique a trouve ;
+        // `effective_url` est l'adresse a ouvrir, adresse manuelle comprise.
+        // Le nom annonce n'est qu'un LIBELLE : la reconnaissance se fait sur la
+        // capacite, jamais sur ce nom (l'utilisateur peut renommer son service).
+        char buf[512];
+        snprintf(buf, sizeof(buf),
+            "{\"available\":%s,\"mode\":\"%s\",\"effective_url\":\"%s\","
+            "\"capability\":\"%s\",\"manual_url\":\"%s\","
+            "\"detected\":{\"found\":%s,\"name\":\"%s\",\"version\":\"%s\","
+            "\"host\":\"%s\",\"status_port\":%d,\"last_seen_s\":%ld}}",
+            _analytics->isAvailable() ? "true" : "false",
+            _analytics->isManual() ? "manual" : "auto",
+            _analytics->effectiveUrl().c_str(),
+            ANALYTICS_CAPABILITY,
+            _analytics->manualUrl().c_str(),
+            _analytics->isDetected() ? "true" : "false",
+            _analytics->name().c_str(), _analytics->version().c_str(),
+            _analytics->host().c_str(), _analytics->statusPort(),
+            _analytics->lastSeenAgoSec());
+        request->send(200, "application/json", buf);
+    });
+
+    // Enregistre (ou efface) l'adresse manuelle du service d'analyse. Persistee
+    // en NVS : elle survit au redemarrage, contrairement a la decouverte.
+    _server.on("/api/analytics/config", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (!_analytics) {
+            request->send(503, "application/json", "{\"ok\":false}");
+            return;
+        }
+        String url = request->hasParam("manual_url", true)
+            ? request->getParam("manual_url", true)->value() : String("");
+        url.trim();
+
+        // Une adresse vide est valide : elle signifie « revenir en automatique ».
+        if (url.length() > 0) {
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                request->send(400, "application/json",
+                    "{\"ok\":false,\"error\":\"l'adresse doit commencer par http:// ou https://\"}");
+                return;
+            }
+            if (url.length() > 120) {
+                request->send(400, "application/json",
+                    "{\"ok\":false,\"error\":\"adresse trop longue\"}");
+                return;
+            }
+        }
+        _analytics->setManualUrl(url.c_str());
+        char buf[200];
+        snprintf(buf, sizeof(buf), "{\"ok\":true,\"mode\":\"%s\",\"effective_url\":\"%s\"}",
+                 _analytics->isManual() ? "manual" : "auto",
+                 _analytics->effectiveUrl().c_str());
+        request->send(200, "application/json", buf);
+    });
+
+    // API LED : lecture / réglage de la luminosité de la NeoLED (0-255, persistée).
+    _server.on("/api/led", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char buf[48];
+        snprintf(buf, sizeof(buf), "{\"brightness\":%u}", neoGetBrightness());
+        request->send(200, "application/json", buf);
+    });
+    _server.on("/api/led", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (!request->hasParam("brightness", true) && !request->hasParam("brightness")) {
+            request->send(400, "application/json", "{\"ok\":false,\"message\":\"parametre brightness manquant\"}");
+            return;
+        }
+        long v = request->hasParam("brightness", true)
+                     ? request->getParam("brightness", true)->value().toInt()
+                     : request->getParam("brightness")->value().toInt();
+        if (v < 0) v = 0;
+        if (v > 255) v = 255;
+        neoSetBrightness(static_cast<uint8_t>(v));
+        char buf[48];
+        snprintf(buf, sizeof(buf), "{\"ok\":true,\"brightness\":%u}", neoGetBrightness());
+        request->send(200, "application/json", buf);
+    });
+
+    // API Config Export : configuration effective au format JSON (téléchargement).
+    _server.on("/api/config/export", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char buf[768];
+        snprintf(buf, sizeof(buf),
+            "{\n"
+            "  \"project\": {\"name\": \"%s\", \"version\": \"%s\", \"build_date\": \"%s\", \"build_time\": \"%s\", \"git_commit\": \"%s\"},\n"
+            "  \"network\": {\"mdns_host\": \"%s\"},\n"
+            "  \"graph\": {\"scale_mode\": %d, \"scale_margin_pct\": %d, \"temp_min\": %.1f, \"temp_max\": %.1f, \"hum_min\": %.1f, \"hum_max\": %.1f, \"pres_min\": %.1f, \"pres_max\": %.1f},\n"
+            "  \"led\": {\"brightness\": %u},\n"
+            "  \"sampling_interval_s\": 60\n"
+            "}\n",
+            PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_TIME, GIT_COMMIT,
+            WEB_MDNS_HOSTNAME,
+            GRAPH_SCALE_MODE, GRAPH_SCALE_MARGIN_PCT,
+            (double)GRAPH_TEMP_MIN, (double)GRAPH_TEMP_MAX,
+            (double)GRAPH_HUM_MIN, (double)GRAPH_HUM_MAX,
+            (double)GRAPH_PRES_MIN, (double)GRAPH_PRES_MAX,
+            neoGetBrightness());
+        AsyncWebServerResponse *response = request->beginResponse(200, "application/json", buf);
+        response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-config.json\"");
+        request->send(response);
+    });
+
+    // API History Export CSV : export brut des mesures de la plage au format CSV
+    // (téléchargement, pour Excel/LibreOffice). ?from=&to= optionnels.
+    _server.on("/api/history/export.csv", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        long to_s = request->hasParam("to") ? request->getParam("to")->value().toInt() : (long)time(NULL);
+        long from_s = request->hasParam("from") ? request->getParam("from")->value().toInt() : 1577836800L; // 2020-01-01
+        if (to_s <= 0) to_s = (long)time(NULL);
+        if (from_s < 0) from_s = 0;
+
+        AsyncResponseStream *response = request->beginResponseStream("text/csv");
+        response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-history.csv\"");
+        _history->exportCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s),
+            [response](const char* line) { response->print(line); });
+        request->send(response);
+    });
+
+    // --- Collecte incrémentale (morfAnalytics) -------------------------------
+    // Ces deux routes servent UNIQUEMENT à un collecteur externe qui recopie
+    // l'historique. Elles exposent les mesures brutes indexées par leur position
+    // dans le fichier du jour, et non par horodatage : les fichiers étant écrits
+    // en ajout seul, (jour, index) ne recule jamais et ne se répète jamais, même
+    // lors d'un changement d'heure ou d'un recalage NTP. Un collecteur mémorise
+    // ce couple et reprend exactement où il s'était arrêté.
+    // MeteoHub reste la source de vérité : ces routes sont en lecture seule.
+
+    _server.on("/api/history/days", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        std::vector<DayIndexEntry> days = _history->listDays();
+
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        response->print("{\"days\":[");
+        bool first = true;
+        for (const auto& d : days) {
+            if (!first) response->print(",");
+            first = false;
+            char buf[128];
+            snprintf(buf, sizeof(buf),
+                "{\"day\":%lu,\"nrec\":%lu,\"first_ts\":%lu,\"last_ts\":%lu}",
+                (unsigned long)d.day_key, (unsigned long)d.nrec,
+                (unsigned long)d.first_ts, (unsigned long)d.last_ts);
+            response->print(buf);
+        }
+        response->print("]}");
+        request->send(response);
+    });
+
+    _server.on("/api/history/raw", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        if (!request->hasParam("day")) {
+            request->send(400, "application/json", "{\"error\":\"missing day\"}");
+            return;
+        }
+        const uint32_t day_key = (uint32_t)request->getParam("day")->value().toInt();
+        const uint32_t index = request->hasParam("index")
+            ? (uint32_t)request->getParam("index")->value().toInt() : 0;
+        uint32_t limit = request->hasParam("limit")
+            ? (uint32_t)request->getParam("limit")->value().toInt() : 250;
+        // Borne haute STRICTE. Mesuré sur l'appareil : au-delà d'environ 300
+        // enregistrements (~9 Ko), le flux de réponse asynchrone abandonne et la
+        // requête se termine sans rien renvoyer. Le collecteur pagine donc, ce
+        // qui coûte quelques requêtes de plus mais ne dépend pas d'une taille de
+        // réponse que l'appareil ne sait pas tenir.
+        if (limit == 0 || limit > 250) limit = 250;
+
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        // L'en-tête est émis avant la lecture : `total` est écrit après coup, donc
+        // on ouvre le tableau d'abord et on referme l'objet avec les compteurs.
+        response->print("{\"day\":");
+        response->print(day_key);
+        response->print(",\"index\":");
+        response->print(index);
+        response->print(",\"data\":[");
+
+        uint32_t count = 0;
+        bool first = true;
+        // Format compact [ts,t,h,p] : ~30 octets par mesure au lieu de ~55 en
+        // objet nommé, soit un import complet nettement plus léger pour l'ESP32.
+        const uint32_t total = _history->exportRaw(day_key, index, limit,
+            [&](const RawRecord& r) {
+                if (!first) response->print(",");
+                first = false;
+                char buf[64];
+                snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
+                         (unsigned long)r.ts, r.t, r.h, r.p);
+                response->print(buf);
+                // Rend la main régulièrement, comme le fait /api/history : sans
+                // cela, la boucle monopolise la tâche réseau et le flux de
+                // réponse ne s'écoule jamais.
+                COOPERATIVE_YIELD_EVERY(count, 32);
+                count++;
+            });
+
+        char tail[64];
+        snprintf(tail, sizeof(tail), "],\"count\":%lu,\"total\":%lu}",
+                 (unsigned long)count, (unsigned long)total);
+        response->print(tail);
+        request->send(response);
+    });
+
+    // ATTENTION A L'ORDRE : ESPAsyncWebServer fait correspondre une route a
+    // toute URL qui COMMENCE par elle. Enregistree avant ses sous-routes,
+    // "/api/history" captait "/api/history/summary", "/api/history/export.csv",
+    // "/api/history/days" et "/api/history/raw" : la synthese et l'export CSV
+    // renvoyaient silencieusement le JSON de l'historique, et les deux routes
+    // de collecte ne repondaient jamais. Elle est donc declaree EN DERNIER.
     // API History
     _server.on("/api/history", HTTP_GET, [this](AsyncWebServerRequest *request) {
         // Mode plage absolue : ?from=<unix>&to=<unix>[&interval=<s>]
@@ -438,178 +745,6 @@ void WebManager::_setupApi() {
         }
 
         response->print("]}");
-        request->send(response);
-    });
-
-    // API History Summary : synthèse pré-calculée d'une plage [from, to] à partir
-    // des fichiers .stats journaliers (min/max/moyenne + variation), sans relire
-    // les mesures. Sert à afficher la synthèse de la page Historique quasi
-    // instantanément. Renvoie {"valid":false} si aucune donnée .stats disponible.
-    _server.on("/api/history/summary", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        long from_s = request->hasParam("from") ? request->getParam("from")->value().toInt() : 0;
-        long to_s = request->hasParam("to") ? request->getParam("to")->value().toInt() : 0;
-
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
-        if (from_s <= 0 || to_s <= from_s) {
-            response->print("{\"valid\":false}");
-            request->send(response);
-            return;
-        }
-
-        RangeSynthesis r = _history->querySynthesis(static_cast<time_t>(from_s), static_cast<time_t>(to_s));
-        if (!r.valid) {
-            response->print("{\"valid\":false}");
-            request->send(response);
-            return;
-        }
-
-        char buffer[512];
-        snprintf(buffer, sizeof(buffer),
-            "{\"valid\":true,\"count\":%u,"
-            "\"temp\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f},"
-            "\"hum\":{\"min\":%.0f,\"max\":%.0f,\"avg\":%.0f,\"first\":%.0f,\"last\":%.0f,\"delta\":%.0f},"
-            "\"pres\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f}}",
-            r.count,
-            r.t_min, r.t_max, r.t_avg, r.t_first, r.t_last, r.t_last - r.t_first,
-            r.h_min, r.h_max, r.h_avg, r.h_first, r.h_last, r.h_last - r.h_first,
-            r.p_min, r.p_max, r.p_avg, r.p_first, r.p_last, r.p_last - r.p_first);
-        response->print(buffer);
-        request->send(response);
-    });
-
-    // API Stats
-    _server.on("/api/stats", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
-        DynamicJsonDocument doc(4096);
-
-        Stats24h stats = _history->getRecentStats();
-        if (stats.count > 0) {
-            doc["temp"]["min"] = stats.temp.min;
-            doc["temp"]["max"] = stats.temp.max;
-            doc["temp"]["avg"] = stats.temp.avg();
-            doc["hum"]["min"] = stats.hum.min;
-            doc["hum"]["max"] = stats.hum.max;
-            doc["hum"]["avg"] = stats.hum.avg();
-            doc["pres"]["min"] = stats.pres.min;
-            doc["pres"]["max"] = stats.pres.max;
-            doc["pres"]["avg"] = stats.pres.avg();
-        } else {
-            doc["temp"]["min"] = 0; doc["temp"]["max"] = 0; doc["temp"]["avg"] = 0;
-            doc["hum"]["min"] = 0; doc["hum"]["max"] = 0; doc["hum"]["avg"] = 0;
-            doc["pres"]["min"] = 0; doc["pres"]["max"] = 0; doc["pres"]["avg"] = 0;
-        }
-        doc["count"] = stats.count;
-
-        MeteoTrend trend = _history->getTrend();
-        doc["trend"]["global_label_fr"] = computeGlobalTrendLabelFr(trend).c_str();
-        doc["trend"]["available_48h"] = trend.available_48h;
-        doc["trend"]["temp"]["delta_1h"] = trend.temp.delta_1h;
-        doc["trend"]["temp"]["delta_12h"] = trend.temp.delta_12h;
-        doc["trend"]["temp"]["delta_24h"] = trend.temp.delta_24h;
-        doc["trend"]["temp"]["delta_48h"] = trend.temp.delta_48h;
-        doc["trend"]["temp"]["direction_1h"] = trend.temp.direction_1h.c_str();
-        doc["trend"]["temp"]["direction_12h"] = trend.temp.direction_12h.c_str();
-        doc["trend"]["temp"]["direction_24h"] = trend.temp.direction_24h.c_str();
-        doc["trend"]["temp"]["direction_48h"] = trend.temp.direction_48h.c_str();
-        doc["trend"]["hum"]["delta_1h"] = trend.hum.delta_1h;
-        doc["trend"]["hum"]["delta_12h"] = trend.hum.delta_12h;
-        doc["trend"]["hum"]["delta_24h"] = trend.hum.delta_24h;
-        doc["trend"]["hum"]["delta_48h"] = trend.hum.delta_48h;
-        doc["trend"]["hum"]["direction_1h"] = trend.hum.direction_1h.c_str();
-        doc["trend"]["hum"]["direction_12h"] = trend.hum.direction_12h.c_str();
-        doc["trend"]["hum"]["direction_24h"] = trend.hum.direction_24h.c_str();
-        doc["trend"]["hum"]["direction_48h"] = trend.hum.direction_48h.c_str();
-        doc["trend"]["pres"]["delta_1h"] = trend.pres.delta_1h;
-        doc["trend"]["pres"]["delta_12h"] = trend.pres.delta_12h;
-        doc["trend"]["pres"]["delta_24h"] = trend.pres.delta_24h;
-        doc["trend"]["pres"]["delta_48h"] = trend.pres.delta_48h;
-        doc["trend"]["pres"]["direction_1h"] = trend.pres.direction_1h.c_str();
-        doc["trend"]["pres"]["direction_12h"] = trend.pres.direction_12h.c_str();
-        doc["trend"]["pres"]["direction_24h"] = trend.pres.direction_24h.c_str();
-        doc["trend"]["pres"]["direction_48h"] = trend.pres.direction_48h.c_str();
-
-        serializeJson(doc, *response);
-        request->send(response);
-    });
-
-    // API System
-    _server.on("/api/system", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        std::string sysInfo = getSystemInfoJson(_sd);
-        request->send(200, "application/json", sysInfo.c_str());
-    });
-
-    // API Analytics : présence du service morfAnalytics (détection LAN optionnelle).
-    // Toujours disponible ; renvoie simplement l'état constaté. MeteoHub n'en dépend pas.
-    _server.on("/api/analytics", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        char buf[256];
-        if (_analytics && _analytics->isAvailable()) {
-            snprintf(buf, sizeof(buf),
-                "{\"available\":true,\"host\":\"%s\",\"version\":\"%s\",\"status_port\":%d,\"last_seen_s\":%ld}",
-                _analytics->host().c_str(), _analytics->version().c_str(),
-                _analytics->statusPort(), _analytics->lastSeenAgoSec());
-        } else {
-            snprintf(buf, sizeof(buf), "{\"available\":false}");
-        }
-        request->send(200, "application/json", buf);
-    });
-
-    // API LED : lecture / réglage de la luminosité de la NeoLED (0-255, persistée).
-    _server.on("/api/led", HTTP_GET, [](AsyncWebServerRequest *request) {
-        char buf[48];
-        snprintf(buf, sizeof(buf), "{\"brightness\":%u}", neoGetBrightness());
-        request->send(200, "application/json", buf);
-    });
-    _server.on("/api/led", HTTP_POST, [](AsyncWebServerRequest *request) {
-        if (!request->hasParam("brightness", true) && !request->hasParam("brightness")) {
-            request->send(400, "application/json", "{\"ok\":false,\"message\":\"parametre brightness manquant\"}");
-            return;
-        }
-        long v = request->hasParam("brightness", true)
-                     ? request->getParam("brightness", true)->value().toInt()
-                     : request->getParam("brightness")->value().toInt();
-        if (v < 0) v = 0;
-        if (v > 255) v = 255;
-        neoSetBrightness(static_cast<uint8_t>(v));
-        char buf[48];
-        snprintf(buf, sizeof(buf), "{\"ok\":true,\"brightness\":%u}", neoGetBrightness());
-        request->send(200, "application/json", buf);
-    });
-
-    // API Config Export : configuration effective au format JSON (téléchargement).
-    _server.on("/api/config/export", HTTP_GET, [](AsyncWebServerRequest *request) {
-        char buf[768];
-        snprintf(buf, sizeof(buf),
-            "{\n"
-            "  \"project\": {\"name\": \"%s\", \"version\": \"%s\", \"build_date\": \"%s\", \"build_time\": \"%s\", \"git_commit\": \"%s\"},\n"
-            "  \"network\": {\"mdns_host\": \"%s\"},\n"
-            "  \"graph\": {\"scale_mode\": %d, \"scale_margin_pct\": %d, \"temp_min\": %.1f, \"temp_max\": %.1f, \"hum_min\": %.1f, \"hum_max\": %.1f, \"pres_min\": %.1f, \"pres_max\": %.1f},\n"
-            "  \"led\": {\"brightness\": %u},\n"
-            "  \"sampling_interval_s\": 60\n"
-            "}\n",
-            PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_TIME, GIT_COMMIT,
-            WEB_MDNS_HOSTNAME,
-            GRAPH_SCALE_MODE, GRAPH_SCALE_MARGIN_PCT,
-            (double)GRAPH_TEMP_MIN, (double)GRAPH_TEMP_MAX,
-            (double)GRAPH_HUM_MIN, (double)GRAPH_HUM_MAX,
-            (double)GRAPH_PRES_MIN, (double)GRAPH_PRES_MAX,
-            neoGetBrightness());
-        AsyncWebServerResponse *response = request->beginResponse(200, "application/json", buf);
-        response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-config.json\"");
-        request->send(response);
-    });
-
-    // API History Export CSV : export brut des mesures de la plage au format CSV
-    // (téléchargement, pour Excel/LibreOffice). ?from=&to= optionnels.
-    _server.on("/api/history/export.csv", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        long to_s = request->hasParam("to") ? request->getParam("to")->value().toInt() : (long)time(NULL);
-        long from_s = request->hasParam("from") ? request->getParam("from")->value().toInt() : 1577836800L; // 2020-01-01
-        if (to_s <= 0) to_s = (long)time(NULL);
-        if (from_s < 0) from_s = 0;
-
-        AsyncResponseStream *response = request->beginResponseStream("text/csv");
-        response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-history.csv\"");
-        _history->exportCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s),
-            [response](const char* line) { response->print(line); });
         request->send(response);
     });
 

@@ -15,10 +15,27 @@
 
         <nav data-shared-menu="true" data-active="/system.html"></nav>
 
-        <!-- Analyse avancée (service morfAnalytics, optionnel) -->
+        <!-- Analyse avancée : service externe, optionnel -->
         <div class="card sys-card">
             <h2>🧠 Analyse avancée</h2>
-            <div id="analyticsStatus" class="sys-hint">Détection du service morfAnalytics…</div>
+            <div id="analyticsStatus" class="sys-hint">Recherche d'un service d'analyse…</div>
+
+            <details id="analyticsConfig" style="margin-top:.8rem;">
+                <summary style="cursor:pointer;">Adresse manuelle (optionnel)</summary>
+                <p class="sys-hint" style="margin:.6rem 0;">
+                    MeteoHub trouve seul le service d'analyse présent sur le réseau : il
+                    n'y a normalement rien à saisir ici. Cette adresse ne sert que si la
+                    détection automatique ne fonctionne pas — réseau découpé en
+                    sous-réseaux, liaison VPN, ou box qui bloque les annonces entre
+                    appareils. Laisser vide pour revenir à la détection automatique.
+                </p>
+                <div class="sys-row">
+                    <input type="text" id="analyticsUrl" placeholder="http://raspberrypi.local:8799"
+                           style="flex:1;" maxlength="120">
+                    <button id="analyticsSave">Enregistrer</button>
+                </div>
+                <div id="analyticsSaveResult" class="sys-hint"></div>
+            </details>
         </div>
 
         <!-- Luminosité de la NeoLED -->
@@ -77,21 +94,41 @@
     <script src="menu.js"></script>
     <script src="footer.js"></script>
     <script>
-        // --- Analyse avancée (morfAnalytics) : détection optionnelle ---
+        // --- Analyse avancée : service externe, détection optionnelle ---
+        // Le service est reconnu à la CAPACITÉ qu'il annonce, jamais à son nom :
+        // celui-ci est librement modifiable et ne sert que de libellé affiché.
+        const escAn = (t) => String(t).replace(/[&<>"]/g, (c) =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
         function refreshAnalytics() {
             const el = document.getElementById('analyticsStatus');
             if (!el) return;
             fetch('/api/analytics')
                 .then((r) => r.json())
                 .then((d) => {
-                    if (d && d.available) {
-                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> — morfAnalytics '
-                            + (d.version ? ('v' + d.version + ' ') : '')
-                            + (d.host ? ('sur ' + d.host) : '') + '.';
+                    const input = document.getElementById('analyticsUrl');
+                    if (input && document.activeElement !== input)
+                        input.value = (d && d.manual_url) || '';
+
+                    const dt = (d && d.detected) || {};
+                    if (d && d.available && d.mode === 'manual') {
+                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> — adresse saisie '
+                            + 'manuellement : <code>' + escAn(d.effective_url) + '</code>.'
+                            + (dt.found ? ' Un service est aussi détecté sur le réseau, mais '
+                                        + 'l&rsquo;adresse manuelle reste prioritaire.' : '');
+                        el.style.color = '#66bb6a';
+                    } else if (d && d.available) {
+                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> — '
+                            + '<strong>' + escAn(dt.name || 'service') + '</strong>'
+                            + (dt.version ? (' v' + escAn(dt.version)) : '')
+                            + (dt.host ? (' sur ' + escAn(dt.host)) : '')
+                            + ', détecté automatiquement sur le réseau.';
                         el.style.color = '#66bb6a';
                     } else {
-                        el.innerHTML = '⚠️ <strong>Analyse avancée indisponible</strong> — aucun serveur morfAnalytics détecté. '
-                            + 'MeteoHub fonctionne normalement (mesures, historique, graphiques et exports restent disponibles).';
+                        el.innerHTML = '⚠️ <strong>Analyse avancée indisponible</strong> — aucun service '
+                            + 'd&rsquo;analyse trouvé sur le réseau. MeteoHub fonctionne normalement : '
+                            + 'mesures, historique, graphiques et exports restent disponibles. '
+                            + 'Si un service tourne malgré tout, saisir son adresse ci-dessous.';
                         el.style.color = '#888';
                     }
                 })
@@ -99,6 +136,40 @@
                     el.textContent = 'Analyse avancée : état indéterminé.';
                 });
         }
+
+        (function setupAnalyticsConfig() {
+            const button = document.getElementById('analyticsSave');
+            const input = document.getElementById('analyticsUrl');
+            const result = document.getElementById('analyticsSaveResult');
+            if (!button || !input || !result) return;
+
+            button.addEventListener('click', () => {
+                const body = new URLSearchParams();
+                body.append('manual_url', input.value.trim());
+                button.disabled = true;
+                result.textContent = 'Enregistrement…';
+                fetch('/api/analytics/config', { method: 'POST', body })
+                    .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+                    .then((res) => {
+                        if (res.ok && res.d.ok) {
+                            result.textContent = input.value.trim()
+                                ? 'Adresse enregistrée. Elle sera conservée après redémarrage.'
+                                : 'Adresse effacée : retour à la détection automatique.';
+                            result.style.color = '#66bb6a';
+                        } else {
+                            result.textContent = 'Échec : ' + (res.d.error || 'adresse refusée');
+                            result.style.color = '#ef5350';
+                        }
+                        refreshAnalytics();
+                    })
+                    .catch(() => {
+                        result.textContent = 'Échec : requête impossible.';
+                        result.style.color = '#ef5350';
+                    })
+                    .finally(() => { button.disabled = false; });
+            });
+        })();
+
         refreshAnalytics();
         setInterval(refreshAnalytics, 20000);
 

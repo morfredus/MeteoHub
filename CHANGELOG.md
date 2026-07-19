@@ -1,3 +1,47 @@
+# [1.12.0] – 2026-07-19
+### Changed
+- **Le service d'analyse est reconnu à sa CAPACITÉ, plus à son nom.** MeteoHub cherchait un heartbeat dont le champ `app` valait exactement `morfAnalytics`. Or le projet est sous licence GPL : chacun peut renommer son service, et la détection cessait alors de fonctionner. MeteoHub cherche désormais un service annonçant la capacité **`advanced_analysis`** (nouveau champ `capabilities` du protocole morfBeacon, voir morfBeacon 0.2.0) et n'utilise le nom annoncé que comme **libellé** affiché dans le menu et la page Système. Renommer son service n'interrompt plus l'intégration.
+
+  **Conséquence de mise à jour** : un service d'analyse antérieur à morfAnalytics 0.4.0 n'annonce pas de capacité et n'est donc plus détecté. Le mettre à jour, ou renseigner son adresse manuellement (ci-dessous).
+- **L'entrée de menu s'ouvre dans le même onglet** (`data/menu.js`), au lieu d'un nouvel onglet. L'utilisateur passe d'un service à l'autre comme entre deux pages, sans accumuler d'onglets ; le service d'analyse propose en retour un lien « Retour à MeteoHub ». Chaque application conserve par ailleurs son indépendance technique et son propre cycle de vie.
+- **L'entrée de menu porte le nom annoncé par le service**, et non un libellé figé.
+
+### Added
+- **Adresse manuelle du service d'analyse** (page **Système** → Analyse avancée → « Adresse manuelle »). La découverte automatique suppose que les annonces UDP atteignent la station, ce qui n'est pas le cas sur un réseau segmenté, à travers un VPN, ou avec un point d'accès isolant les clients. Une adresse peut alors être saisie ; elle est **persistée en NVS**, survit au redémarrage et **prend le pas** sur la découverte. Vider le champ rétablit le mode automatique. Une adresse ne commençant pas par `http://` ou `https://` est refusée avec un message explicite.
+- **API enrichie** : `GET /api/analytics` renvoie désormais `{available, mode, effective_url, capability, manual_url, detected:{found,name,version,host,status_port,last_seen_s}}` ; `POST /api/analytics/config` (paramètre `manual_url`) enregistre ou efface l'adresse manuelle.
+- **Guide débutant [docs/analyse_avancee.md](docs/analyse_avancee.md)** : à quoi sert un service d'analyse, comment la détection fonctionne, comment naviguer entre les deux applications et que faire si la découverte automatique ne passe pas.
+
+### Notes
+- La sélection explicite entre plusieurs services détectés et la personnalisation du nom affiché sont volontairement reportées : elles répondent à des besoins plus spécifiques et n'apportent rien au fonctionnement courant. En présence de plusieurs services, MeteoHub retient le dernier annoncé ; une adresse manuelle permet d'en imposer un.
+- Les emplacements de captures d'écran de `docs/analyse_avancee.md` sont **en attente des images** (voir `docs/images/README.md`, qui décrit précisément ce qu'il faut cadrer).
+
+# [1.11.2] – 2026-07-19
+### Fixed
+- **`/api/history/summary` et `/api/history/export.csv` renvoyaient le JSON de l'historique** (bug préexistant, antérieur à la 1.11.0). ESPAsyncWebServer fait correspondre une route à toute URL qui **commence** par elle : `/api/history`, enregistrée avant ses sous-routes, les captait toutes. La synthèse renvoyait donc la liste des mesures, et le bouton **Export CSV** téléchargeait un fichier JSON portant l'extension `.csv`. La route générique est désormais déclarée **en dernier**, après toutes ses sous-routes (`src/managers/web_manager.cpp`).
+- **`/api/history/days` et `/api/history/raw` ne répondaient jamais**, pour la même raison : captées par `/api/history`, elles tombaient dans une branche qui n'émet aucune réponse pour leurs paramètres.
+- **Journées fantômes dans `/api/history/days`.** Les fichiers `.stats` étaient pris pour des fichiers de mesures : `sscanf` renvoie le nombre de conversions **affectées**, si bien que `"%4u-%2u-%2u.bin"` acceptait `AAAA-MM-JJ.stats`, l'échec du littéral `.bin` final n'étant pas compté. Chaque journée apparaissait deux fois, la seconde avec des horodatages aberrants (2005-2014). L'extension est désormais vérifiée séparément de la date.
+- **`/api/history/raw` échouait au-delà d'environ 300 enregistrements** (réponse abandonnée, aucun octet renvoyé). Deux causes : la boucle d'émission ne rendait jamais la main à la tâche réseau (ajout de `COOPERATIVE_YIELD_EVERY`, comme le fait déjà `/api/history`), et la borne haute était fixée à 2880, très au-delà de ce que le flux de réponse asynchrone tient réellement. Elle est ramenée à **250**, mesurée sûre sur l'appareil ; le collecteur pagine.
+
+  Ces quatre défauts ne sont observables que sur le matériel : ils compilent sans le moindre avertissement.
+
+# [1.11.1] – 2026-07-19
+### Fixed
+- **`GET /api/history/days` ne répondait jamais.** La route restait bloquée indéfiniment (aucune réponse, l'appareil restant par ailleurs parfaitement fonctionnel) : `HistoryManager::listDays()` **imbriquait** les parcours de répertoires, gardant ouverts en même temps les itérateurs de `/history`, `/history/AAAA` et `/history/AAAA/MM`. Maintenir plusieurs itérations de répertoires simultanées bloque la lecture de la carte SD sur ESP32. Chaque niveau est désormais **entièrement lu et refermé avant de descendre** au suivant (`listEntries()`), avec un garde-fou sur le nombre d'entrées. Les horodatages extrêmes de chaque journée sont en outre lus dans l'en-tête du fichier plutôt que par deux positionnements supplémentaires, chaque accès SD étant coûteux.
+
+  Le défaut n'était pas détectable à la compilation : il ne se manifeste que sur une vraie carte SD.
+
+# [1.11.0] – 2026-07-19
+### Added
+- **API de recopie de l'historique pour un serveur d'analyse (lecture seule).** Deux nouvelles routes permettent à **morfAnalytics** de constituer sa copie de travail sans jamais rien modifier sur MeteoHub, qui demeure la **source de vérité** :
+  - `GET /api/history/days` — journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ;
+  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` — mesures brutes de la journée à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]` (~30 octets par mesure au lieu de ~55 en objet nommé).
+
+  Une mesure est repérée par sa **position dans le fichier du jour**, et non par son horodatage : les fichiers `.bin` étant écrits en **ajout seul**, cette position ne change jamais, alors qu'un horodatage peut **reculer** lors d'un recalage NTP ou **se répéter** lors du passage à l'heure d'hiver — un repère temporel ferait donc sauter ou dupliquer des mesures. Le serveur d'analyse retient le couple (jour, position) et ne redemande que ce qui lui manque. Implémentation `HistoryManager::listDays()` / `exportRaw()` (`src/managers/history_manager.*`), réutilisant le parcours séquentiel par blocs introduit en 1.8.0.
+- **Entrée de menu « Analyse avancée ».** Lorsque le service morfAnalytics est détecté sur le réseau local (`GET /api/analytics`), un lien vers sa page d'analyse est inséré au menu **juste avant « Système »**, qui reste la dernière entrée (`data/menu.js`). En l'absence de service détecté, le menu est strictement inchangé : **aucune dépendance** n'est introduite.
+
+### Notes
+- Ces deux routes ne servent qu'à un serveur d'analyse. Pour un export manuel, le **CSV** (`GET /api/history/export.csv`) reste la voie recommandée, directement exploitable dans un tableur. (Cet export était en réalité cassé jusqu'à la 1.11.2 — voir cette version.)
+
 # [1.10.0] – 2026-07-19
 ### Added
 - **Détection optionnelle du service morfAnalytics (écosystème morfSystem).** MeteoHub écoute passivement le heartbeat morfBeacon (`morfbeacon/1`, broadcast UDP sur le port `45454`) et signale la présence du moteur d'analyse `morfAnalytics` (`src/modules/analytics_beacon.*`, API `GET /api/analytics`). La page **Système** affiche « Analyse avancée disponible / indisponible ». **Aucune dépendance** : si aucun serveur n'est détecté, le comportement nominal de MeteoHub (mesures, historique, graphiques, exports) est strictement inchangé. MeteoHub reste la **source de vérité** ; ce module ne fait que constater une présence. Configurable dans `include/config.h` (`ANALYTICS_BEACON_ENABLED`, `ANALYTICS_BEACON_PORT`, `ANALYTICS_APP_NAME`, `ANALYTICS_TIMEOUT_MS`). Voir la vision d'ensemble dans `MORFSYSTEM_ARCHITECTURE.md` (au niveau de l'écosystème).

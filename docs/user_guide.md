@@ -106,11 +106,23 @@ Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Stati
 - Un badge signale une lecture capteur invalide sur le tableau de bord.
 - En cas d'erreurs I2C fréquentes (`i2cRead returned Error -1` dans les logs), voir la section correspondante de [Maintenance et dépannage](maintenance_and_troubleshooting.md).
 
-### Analyse avancée (morfAnalytics, optionnel)
+### Analyse avancée (service externe, optionnel)
+> Guide pas à pas destiné aux débutants : **[Analyse avancée](analyse_avancee.md)**.
+
 - MeteoHub reste **entièrement autonome** : mesures, historique, graphiques et exports fonctionnent sans aucun autre composant.
-- S'il est présent sur le réseau local, le service **morfAnalytics** (moteur d'analyse de l'écosystème morfSystem) est détecté **passivement** via son annonce morfBeacon (UDP `45454`). La page **Système** indique alors « Analyse avancée disponible » ; sinon « indisponible », sans que le comportement nominal ne change.
-- API : `GET /api/analytics` (`{available, host, version, status_port, last_seen_s}`). Réglages dans `include/config.h` (`ANALYTICS_BEACON_*`).
-- Principe : **MeteoHub écrit, morfAnalytics lit — jamais l'inverse**. MeteoHub demeure la source de vérité ; morfAnalytics travaille sur une copie synchronisée et ne renvoie que des résultats synthétiques.
+- Un service d'analyse présent sur le réseau local est détecté **passivement** via son annonce morfBeacon (UDP `45454`). La page **Système** indique alors « Analyse avancée disponible » ; sinon « indisponible », sans que le comportement nominal ne change.
+- **Détection par capacité, jamais par nom.** MeteoHub cherche un service annonçant la capacité `advanced_analysis`, et n'utilise le nom annoncé que comme **libellé** affiché. Le projet étant sous licence GPL, chacun peut renommer son service : une détection fondée sur le nom cesserait de fonctionner au premier renommage.
+- Quand un service est détecté, une entrée portant **son nom annoncé** apparaît dans le menu, juste avant « Système ». Elle s'ouvre dans le **même onglet** — la navigation reste fluide et n'accumule pas d'onglets ; le service propose en retour un lien « Retour à MeteoHub ».
+- **Adresse manuelle de secours.** Si la découverte automatique ne passe pas (réseau segmenté, VPN, isolation des clients Wi-Fi), une adresse peut être saisie dans la page **Système**. Elle est persistée en NVS et **prend le pas** sur la découverte. Vider le champ rétablit le mode automatique.
+- API : `GET /api/analytics` (`{available, mode, effective_url, capability, manual_url, detected:{found,name,version,host,status_port,last_seen_s}}`) et `POST /api/analytics/config` (`manual_url`). Réglages dans `include/config.h` (`ANALYTICS_BEACON_*`).
+- Principe : **MeteoHub écrit, morfAnalytics lit — jamais l'inverse**. MeteoHub demeure la source de vérité ; morfAnalytics travaille sur une copie de l'historique et ne renvoie que des résultats synthétiques.
+
+#### Recopie de l'historique par le serveur d'analyse
+- Deux API **en lecture seule** permettent au serveur de recopier l'historique sans jamais rien modifier sur MeteoHub :
+  - `GET /api/history/days` — liste des journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ;
+  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` — mesures brutes de la journée, à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]`.
+- Une mesure est repérée par sa **position dans le fichier du jour**, et non par son horodatage. Les fichiers étant écrits en ajout seul, cette position ne change jamais, alors qu'un horodatage peut reculer lors d'un recalage d'horloge ou se répéter lors du passage à l'heure d'hiver. Le serveur d'analyse retient donc le couple (jour, position) et ne redemande que ce qui manque : aucune mesure n'est transférée deux fois.
+- Ces API ne sont utiles qu'à un serveur d'analyse. Pour un export manuel, préférer le CSV (`GET /api/history/export.csv`), directement exploitable dans un tableur.
 
 ### Alertes météo et tendances
 - Affichage des alertes météo (niveau, type, description, couleur) sur l’interface et l’OLED.

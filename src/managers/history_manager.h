@@ -27,6 +27,23 @@ struct HistoryPoint {
     bool valid = false;  // vrai si au moins une grandeur est valide
 };
 
+// Une journée disponible dans l'historique binaire, telle que la voit un
+// collecteur externe (morfAnalytics). `nrec` est le nombre d'enregistrements
+// déjà écrits : un collecteur ayant importé `index` mesures sait qu'il lui en
+// reste `nrec - index` à lire.
+struct DayIndexEntry {
+    uint32_t day_key;   // AAAAMMJJ
+    uint32_t nrec;
+    uint32_t first_ts;
+    uint32_t last_ts;
+};
+
+// Une mesure brute, telle qu'elle est stockée (aucune agrégation, aucun filtre).
+struct RawRecord {
+    uint32_t ts;
+    float t, h, p;
+};
+
 struct StatMetric {
     float min = 10000.0f;
     float max = -10000.0f;
@@ -121,6 +138,23 @@ public:
     // reçoit chaque ligne prête à écrire (permet un streaming HTTP sans tout garder
     // en mémoire). Le CSV reste ainsi le format d'export, adapté à Excel/LibreOffice.
     void exportCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const;
+
+    // --- Collecte incrémentale externe (morfAnalytics) -----------------------
+    // Les fichiers journaliers sont écrits en AJOUT SEUL : l'index d'un
+    // enregistrement dans son fichier ne change jamais. Le couple
+    // (jour, index) forme donc un curseur strictement monotone, contrairement à
+    // un horodatage, qui peut reculer ou se répéter lors d'un changement d'heure
+    // ou d'un recalage NTP. Un collecteur mémorise (jour, index) et ne demande
+    // que les enregistrements suivants — jamais de doublon, jamais de trou.
+
+    // Journées présentes sur la carte SD, triées par date croissante.
+    std::vector<DayIndexEntry> listDays() const;
+
+    // Émet les enregistrements [from_index, from_index + limit) du jour donné
+    // (AAAAMMJJ). Renvoie le nombre total d'enregistrements du jour, ce qui
+    // permet à l'appelant de savoir s'il reste des données à lire.
+    uint32_t exportRaw(uint32_t day_key, uint32_t from_index, uint32_t limit,
+                       const std::function<void(const RawRecord&)>& emit) const;
 
     // Gestion LittleFS
     void clearHistory();

@@ -828,6 +828,144 @@ RangeSynthesis HistoryManager::querySynthesis(time_t from, time_t to) const {
     return r;
 }
 
+// --- Collecte incrémentale externe -------------------------------------------
+// Voir le commentaire de listDays()/exportRaw() dans l'en-tête : le curseur d'un
+// collecteur est (jour, index), pas un horodatage.
+
+// Liste les entrées d'UN répertoire, puis le referme aussitôt.
+//
+// Ce découpage n'est pas cosmétique : imbriquer les parcours (garder ouvert
+// l'itérateur de /history pendant qu'on parcourt /history/AAAA, puis
+// /history/AAAA/MM) bloque la lecture de la carte SD sur ESP32. La première
+// version de listDays() procédait ainsi et ne répondait jamais. Chaque niveau
+// est donc entièrement lu et refermé avant de descendre au suivant.
+//
+// `wantDirs` sélectionne les sous-répertoires ; sinon les fichiers.
+static void listEntries(const char* path, bool wantDirs,
+                        std::vector<std::string>& out) {
+    File dir = SD.open(path);
+    if (!dir || !dir.isDirectory()) { if (dir) dir.close(); return; }
+
+    // Garde-fou : si l'itération se mettait malgré tout à boucler, on s'arrête
+    // plutôt que de bloquer indéfiniment la requête HTTP.
+    const size_t kMaxEntries = 512;
+    for (File e = dir.openNextFile(); e && out.size() < kMaxEntries; e = dir.openNextFile()) {
+        if (e.isDirectory() == wantDirs) {
+            const char* nm = e.name();
+            const char* base = strrchr(nm, '/');
+            out.push_back(base ? base + 1 : nm);
+        }
+        e.close();
+    }
+    dir.close();
+}
+
+std::vector<DayIndexEntry> HistoryManager::listDays() const {
+    std::vector<DayIndexEntry> out;
+    if (!_sd || !_sd->ensureMounted()) return out;
+
+    // /history/AAAA/MM/AAAA-MM-JJ.bin : on aplatit les deux niveaux de
+    // répertoires avant d'ouvrir le moindre fichier de mesures.
+    std::vector<std::string> months; // chemins complets des dossiers de mois
+    {
+        std::vector<std::string> years;
+        listEntries("/history", true, years);
+        for (const std::string& y : years) {
+            const std::string yearPath = "/history/" + y;
+            std::vector<std::string> monthNames;
+            listEntries(yearPath.c_str(), true, monthNames);
+            for (const std::string& m : monthNames)
+                months.push_back(yearPath + "/" + m);
+        }
+    }
+
+    for (const std::string& monthPath : months) {
+        std::vector<std::string> files;
+        listEntries(monthPath.c_str(), false, files);
+
+        for (const std::string& name : files) {
+            // L'extension est vérifiée SÉPARÉMENT de la date. sscanf renvoie le
+            // nombre de conversions AFFECTÉES : avec "%4u-%2u-%2u.bin", un
+            // fichier "AAAA-MM-JJ.stats" renvoie quand même 3, l'échec du
+            // littéral ".bin" final n'étant pas compté. Les fichiers .stats
+            // étaient ainsi pris pour des fichiers de mesures et publiaient des
+            // journées fantômes aux horodatages aberrants.
+            const size_t len = name.size();
+            if (len < 14 || name.compare(len - 4, 4, ".bin") != 0)
+                continue;
+
+            unsigned y = 0, mo = 0, d = 0;
+            if (sscanf(name.c_str(), "%4u-%2u-%2u", &y, &mo, &d) != 3)
+                continue;
+            if (mo < 1 || mo > 12 || d < 1 || d > 31)
+                continue;
+
+            const std::string full = monthPath + "/" + name;
+            File f = SD.open(full.c_str(), FILE_READ);
+            if (!f) continue;
+
+            BinLayout L = probeBin(f);
+            if (L.nrec > 0) {
+                DayIndexEntry e{};
+                e.day_key = y * 10000u + mo * 100u + d;
+                e.nrec = static_cast<uint32_t>(L.nrec);
+
+                // Les horodatages extrêmes sont lus dans l'en-tête quand il est
+                // présent : chaque accès à la carte SD coûte cher, et deux
+                // positionnements par journée sont évitables.
+                FileHeader h;
+                f.seek(0);
+                const bool headerOk =
+                    f.read(reinterpret_cast<uint8_t*>(&h), sizeof(h)) == (int)sizeof(h)
+                    && hdrMagicOk(h) && h.firstTimestamp != 0;
+                if (headerOk) {
+                    e.first_ts = static_cast<uint32_t>(h.firstTimestamp);
+                    e.last_ts  = static_cast<uint32_t>(h.lastTimestamp);
+                } else {
+                    BinRecord br;
+                    if (readBinRecordAt(f, L, 0, br)) e.first_ts = br.ts;
+                    if (readBinRecordAt(f, L, L.nrec - 1, br)) e.last_ts = br.ts;
+                }
+                out.push_back(e);
+            }
+            f.close();
+        }
+    }
+
+    std::sort(out.begin(), out.end(),
+              [](const DayIndexEntry& a, const DayIndexEntry& b) { return a.day_key < b.day_key; });
+    return out;
+}
+
+uint32_t HistoryManager::exportRaw(uint32_t day_key, uint32_t from_index, uint32_t limit,
+                                   const std::function<void(const RawRecord&)>& emit) const {
+    if (!_sd || !_sd->ensureMounted()) return 0;
+
+    const unsigned y = day_key / 10000u;
+    const unsigned mo = (day_key / 100u) % 100u;
+    const unsigned d = day_key % 100u;
+
+    char binPath[48];
+    snprintf(binPath, sizeof(binPath), "/history/%04u/%02u/%04u-%02u-%02u.bin", y, mo, y, mo, d);
+
+    File f = SD.open(binPath, FILE_READ);
+    if (!f) return 0;
+
+    BinLayout L = probeBin(f);
+    const uint32_t total = static_cast<uint32_t>(L.nrec);
+
+    uint32_t sent = 0;
+    forEachBinRecordFrom(f, L, from_index, [&](const BinRecord& br) {
+        if (sent >= limit) return false;
+        emit(RawRecord{br.ts, br.t, br.h, br.p});
+        sent++;
+        return true;
+    });
+
+    f.close();
+    return total;
+}
+
 void HistoryManager::exportCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const {
     emit("Timestamp,Temperature,Humidity,Pressure\n");
     if (to <= from || !_sd || !_sd->isAvailable()) return;
