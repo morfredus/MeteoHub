@@ -46,3 +46,14 @@
 #define UDP_LOG_ENABLED          1                     // 1 = activer, 0 = désactiver
 #define UDP_LOG_PORT             5005                  // port UDP d'écoute côté PC
 #define UDP_LOG_HOST             "255.255.255.255"     // IP du PC récepteur, ou 255.255.255.255 pour un broadcast sur le réseau local
+
+// ===============
+// Détection morfAnalytics (écosystème morfSystem, OPTIONNEL)
+// ===============
+// MeteoHub reste 100 % autonome. Il écoute passivement le heartbeat morfBeacon du
+// service morfAnalytics (analyses avancées) sur le LAN : si présent, l'interface le
+// signale ; s'il est absent, le comportement nominal ne change en RIEN.
+#define ANALYTICS_BEACON_ENABLED 1
+#define ANALYTICS_BEACON_PORT    45454          // port morfBeacon (protocole morfbeacon/1)
+#define ANALYTICS_APP_NAME       "morfAnalytics" // nom d'app annoncé à détecter
+#define ANALYTICS_TIMEOUT_MS     60000          // au-delà (sans heartbeat), considéré hors ligne

@@ -106,6 +106,12 @@ Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Stati
 - Un badge signale une lecture capteur invalide sur le tableau de bord.
 - En cas d'erreurs I2C fréquentes (`i2cRead returned Error -1` dans les logs), voir la section correspondante de [Maintenance et dépannage](maintenance_and_troubleshooting.md).
 
+### Analyse avancée (morfAnalytics, optionnel)
+- MeteoHub reste **entièrement autonome** : mesures, historique, graphiques et exports fonctionnent sans aucun autre composant.
+- S'il est présent sur le réseau local, le service **morfAnalytics** (moteur d'analyse de l'écosystème morfSystem) est détecté **passivement** via son annonce morfBeacon (UDP `45454`). La page **Système** indique alors « Analyse avancée disponible » ; sinon « indisponible », sans que le comportement nominal ne change.
+- API : `GET /api/analytics` (`{available, host, version, status_port, last_seen_s}`). Réglages dans `include/config.h` (`ANALYTICS_BEACON_*`).
+- Principe : **MeteoHub écrit, morfAnalytics lit — jamais l'inverse**. MeteoHub demeure la source de vérité ; morfAnalytics travaille sur une copie synchronisée et ne renvoie que des résultats synthétiques.
+
 ### Alertes météo et tendances
 - Affichage des alertes météo (niveau, type, description, couleur) sur l’interface et l’OLED.
 - Traduction automatique des alertes (anglais → français).

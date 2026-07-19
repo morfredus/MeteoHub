@@ -139,10 +139,11 @@ static std::string computeGlobalTrendLabelFr(const MeteoTrend& trend) {
 WebManager::WebManager() : _server(80) {
 }
 
-void WebManager::begin(HistoryManager& history, SdManager& sd, ForecastManager& forecast, SensorManager& sensors) {
+void WebManager::begin(HistoryManager& history, SdManager& sd, ForecastManager& forecast, SensorManager& sensors, AnalyticsBeacon& analytics) {
     LOG_INFO("Initialisation du WebManager...");
 
     _history = &history;
+    _analytics = &analytics;
     _sd = &sd;
     _forecast = &forecast;
     _sensors = &sensors;
@@ -535,6 +536,21 @@ void WebManager::_setupApi() {
     _server.on("/api/system", HTTP_GET, [this](AsyncWebServerRequest *request) {
         std::string sysInfo = getSystemInfoJson(_sd);
         request->send(200, "application/json", sysInfo.c_str());
+    });
+
+    // API Analytics : présence du service morfAnalytics (détection LAN optionnelle).
+    // Toujours disponible ; renvoie simplement l'état constaté. MeteoHub n'en dépend pas.
+    _server.on("/api/analytics", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        char buf[256];
+        if (_analytics && _analytics->isAvailable()) {
+            snprintf(buf, sizeof(buf),
+                "{\"available\":true,\"host\":\"%s\",\"version\":\"%s\",\"status_port\":%d,\"last_seen_s\":%ld}",
+                _analytics->host().c_str(), _analytics->version().c_str(),
+                _analytics->statusPort(), _analytics->lastSeenAgoSec());
+        } else {
+            snprintf(buf, sizeof(buf), "{\"available\":false}");
+        }
+        request->send(200, "application/json", buf);
     });
 
     // API LED : lecture / réglage de la luminosité de la NeoLED (0-255, persistée).

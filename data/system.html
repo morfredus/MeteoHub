@@ -15,6 +15,12 @@
 
         <nav data-shared-menu="true" data-active="/system.html"></nav>
 
+        <!-- Analyse avancée (service morfAnalytics, optionnel) -->
+        <div class="card sys-card">
+            <h2>🧠 Analyse avancée</h2>
+            <div id="analyticsStatus" class="sys-hint">Détection du service morfAnalytics…</div>
+        </div>
+
         <!-- Luminosité de la NeoLED -->
         <div class="card sys-card">
             <h2>💡 Luminosité de la LED</h2>
@@ -71,6 +77,31 @@
     <script src="menu.js"></script>
     <script src="footer.js"></script>
     <script>
+        // --- Analyse avancée (morfAnalytics) : détection optionnelle ---
+        function refreshAnalytics() {
+            const el = document.getElementById('analyticsStatus');
+            if (!el) return;
+            fetch('/api/analytics')
+                .then((r) => r.json())
+                .then((d) => {
+                    if (d && d.available) {
+                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> — morfAnalytics '
+                            + (d.version ? ('v' + d.version + ' ') : '')
+                            + (d.host ? ('sur ' + d.host) : '') + '.';
+                        el.style.color = '#66bb6a';
+                    } else {
+                        el.innerHTML = '⚠️ <strong>Analyse avancée indisponible</strong> — aucun serveur morfAnalytics détecté. '
+                            + 'MeteoHub fonctionne normalement (mesures, historique, graphiques et exports restent disponibles).';
+                        el.style.color = '#888';
+                    }
+                })
+                .catch(() => {
+                    el.textContent = 'Analyse avancée : état indéterminé.';
+                });
+        }
+        refreshAnalytics();
+        setInterval(refreshAnalytics, 20000);
+
         // --- Luminosité LED ---
         const ledRange = document.getElementById('ledRange');
         const ledValue = document.getElementById('ledValue');

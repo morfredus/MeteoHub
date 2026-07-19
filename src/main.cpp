@@ -13,6 +13,7 @@
 #include "managers/sd_manager.h"
 #include "modules/neopixel_status.h"
 #include "modules/sensors.h"
+#include "modules/analytics_beacon.h"
 #include "config.h"
 #if defined(ESP32_S3_OLED)
 #include "modules/oled_display.h"
@@ -29,6 +30,7 @@ ForecastManager forecast;
 WebManager webManager;
 HistoryManager history;
 SdManager sdCard;
+AnalyticsBeacon analytics;
 bool ota_started = false;
 
 void setup() {
@@ -181,10 +183,13 @@ void setup() {
     delay(800);
     
     history.begin(&sdCard); // Injection de la dépendance SD
-    
+
+    // Détection optionnelle de morfAnalytics (écoute passive du beacon LAN).
+    analytics.begin();
+
     // Lancement des modules principaux
     forecast.begin();
-    webManager.begin(history, sdCard, forecast, sensors);
+    webManager.begin(history, sdCard, forecast, sensors, analytics);
 
     ui.begin(*display, wifi, sensors, forecast, history, sdCard);
 }
@@ -205,8 +210,9 @@ void loop() {
     }
 
     forecast.update();
-    history.update(); 
+    history.update();
     ui.update();
+    analytics.update();
     webManager.handle();
 
     // Gestion LED Status (toutes les 500ms)
