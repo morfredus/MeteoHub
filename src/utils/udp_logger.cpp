@@ -20,7 +20,10 @@
 #endif
 
 #define UDP_LOG_LINE_MAX   200   // taille max d'une ligne diffusée
-#define UDP_LOG_QUEUE_LEN  40    // profondeur de la file (les surplus sont ignorés)
+// File volontairement large : elle sert aussi de tampon de démarrage, pour rejouer
+// tous les logs de boot dès que le WiFi est connecté (la vitesse SPI de la carte SD,
+// l'init des capteurs, etc. sont émis bien avant la connexion réseau).
+#define UDP_LOG_QUEUE_LEN  160
 
 struct LogItem { char text[UDP_LOG_LINE_MAX]; };
 
@@ -60,11 +63,19 @@ static void enqueueLine(const char* data, size_t len) {
 }
 
 // Tâche d'émission : seule à toucher le socket UDP -> aucun accès concurrent.
+// Tant que le WiFi n'est pas connecté, les logs restent dans la file (ils ne sont
+// PAS jetés) : à la connexion, tout le tampon de démarrage est rejoué dans l'ordre.
 static void udpSenderTask(void*) {
     LogItem item;
+    bool udpReady = false;
     for (;;) {
-        if (xQueueReceive(s_queue, &item, portMAX_DELAY) == pdTRUE) {
-            if (WiFi.status() != WL_CONNECTED) continue;
+        if (WiFi.status() != WL_CONNECTED) {
+            vTaskDelay(pdMS_TO_TICKS(250)); // on patiente sans vider la file
+            continue;
+        }
+        if (!udpReady) { s_udp.begin(0); udpReady = true; } // socket ouvert une fois connecté
+
+        if (xQueueReceive(s_queue, &item, pdMS_TO_TICKS(500)) == pdTRUE) {
             s_udp.beginPacket(computeDest(), UDP_LOG_PORT);
             s_udp.write(reinterpret_cast<const uint8_t*>(item.text), strlen(item.text));
             s_udp.endPacket();
@@ -94,7 +105,8 @@ void udpLogBegin() {
     s_queue = xQueueCreate(UDP_LOG_QUEUE_LEN, sizeof(LogItem));
     if (!s_queue) return;
 
-    s_udp.begin(0); // port local éphémère (émission uniquement)
+    // Le socket UDP est ouvert par la tâche une fois le WiFi connecté (la pile
+    // réseau n'est pas prête au tout début du boot).
     xTaskCreatePinnedToCore(udpSenderTask, "udpLog", 4096, nullptr, 1, nullptr, 0);
 
     s_started = true;

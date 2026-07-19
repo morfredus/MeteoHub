@@ -88,7 +88,8 @@ MeteoHub peut diffuser ses logs sur le réseau local en UDP, ce qui permet de le
 **4. Points d'attention :**
 - Autoriser le **port UDP** (5005 par défaut) en entrée dans le pare-feu du PC.
 - Le **broadcast** est le plus simple (pas besoin de connaître l'IP du PC) mais nécessite que le réseau laisse passer les paquets broadcast (généralement le cas sur un LAN domestique). En cas de souci, préférer l'envoi direct vers l'IP du PC (`UDP_LOG_HOST`).
-- MeteoHub et le PC doivent être sur le **même réseau local**. L'envoi UDP est automatiquement suspendu tant que le WiFi n'est pas connecté.
+- MeteoHub et le PC doivent être sur le **même réseau local**.
+- **Logs de démarrage** : la capture est active dès le début du `setup()` et les logs de boot sont mis en tampon puis **rejoués dès la connexion WiFi**. Le moniteur UDP reçoit donc l'intégralité des logs (applicatifs et cœur ESP : montage SD et **fréquence SPI retenue**, init capteurs, événements WiFi, erreurs I2C…). Seules les toutes premières lignes du **bootloader ROM** et de l'init du cœur Arduino (émises avant `setup()`) restent visibles uniquement sur le port série physique — c'est une limite matérielle inhérente.
 
 ### Page Système
 Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Statistiques**, **Historique** et **Système**. La page Système regroupe :

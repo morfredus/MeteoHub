@@ -34,6 +34,11 @@ bool ota_started = false;
 void setup() {
     Serial.begin(115200);
 
+    // Monitoring des logs par UDP installé au plus tôt : capture dès le boot les
+    // logs applicatifs ET ceux du cœur ESP (SD, capteurs, WiFi…). Les lignes sont
+    // bufferisées jusqu'à la connexion WiFi, puis rejouées dans l'ordre.
+    udpLogBegin();
+
 #if defined(ESP32_S3_OLED)
     static OledDisplay oled;
     display = &oled;
@@ -135,10 +140,6 @@ void setup() {
         delay(100);
         w++;
     }
-
-    // Monitoring des logs par UDP (sans câble série). Installé une fois ; les
-    // envois sont automatiquement inhibés tant que le WiFi n'est pas connecté.
-    udpLogBegin();
 
     if (wifi.ip() != "0.0.0.0") {
         ArduinoOTA.begin();
