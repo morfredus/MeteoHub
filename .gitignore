@@ -4,6 +4,7 @@
 # Configuration WiFi et secrets embarqués (spécifique ESP32/PlatformIO)
 include/secrets.h
 include/wifi-config.h
+include/web_pages.h
 
 # Fichier de configuration locale (contient mots de passe, jetons, chemins)
 config.json
@@ -25,7 +26,6 @@ id_ed25519*
 
 # Fichiers d'état locaux
 beacon_status.md
-
 
 # =============================================================================
 # 2. CONFIGURATION ET CACHE DES ÉDITEURS / IDE (VS Code, etc.)
