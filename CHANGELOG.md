@@ -1,3 +1,11 @@
+# [1.7.1] – 2026-07-19
+### Added
+- **Page Historique : bascule « Temps réel ».** Une case à cocher (activée par défaut), placée à côté de « Synthèse », permet d'activer/désactiver le rafraîchissement automatique du graphe (`data/longterm.html`, `data/app.js`). Le rafraîchissement automatique reste par ailleurs limité aux périodes relatives ≤ 48 h sans comparaison.
+
+# [1.7.0] – 2026-07-19
+### Added
+- **Page Statistiques : option de mise à jour en temps réel.** Une bascule « Mise à jour en temps réel » (activée par défaut) permet d'activer/désactiver le rafraîchissement automatique des tableaux (`data/stats.html`, `data/app.js`). Un bouton « Actualiser » permet un rafraîchissement manuel quand l'automatique est désactivé, et l'heure de dernière mise à jour est affichée.
+
 # [1.6.3] – 2026-07-18
 ### Fixed
 - **Page Statistiques : minima toujours à 0 (séries de valeurs aberrantes).** Le filtre temporel de `getRecentStats()` ne repérait qu'un pic **d'un seul point** ; or les échecs I2C répétés (avant le correctif 1.6.2) ont pu enregistrer **plusieurs mesures à 0 d'affilée**, que ce filtre laissait passer (le voisin étant aussi à 0). `getRecentStats()` utilise désormais un filtre **robuste médiane/MAD** par grandeur (`robustMetric`, `src/managers/history_manager.cpp`) : le seuil de rejet est piloté par la dispersion réelle des données (médiane ± 5·1,4826·MAD, avec un plancher), ce qui écarte les valeurs aberrantes **même en série** sans toucher aux variations normales. Les mesures enregistrées depuis la 1.6.2 étant déjà propres, les anciens zéros restants disparaissent aussi des statistiques au fil de leur sortie de la fenêtre 24 h.

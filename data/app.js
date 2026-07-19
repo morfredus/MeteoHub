@@ -396,9 +396,31 @@ async function fetchStats() {
             status.textContent = 'En ligne';
             status.style.color = '#0f0';
         }
+
+        const updated = document.getElementById('statsUpdated');
+        if (updated) updated.textContent = 'Mis à jour à ' + new Date().toLocaleTimeString('fr-FR');
     } catch (e) {
         console.error('Erreur stats', e);
     }
+}
+
+// Rafraîchissement automatique de la page Statistiques, activable/désactivable.
+let statsRefreshTimer = null;
+
+function setStatsAutoRefresh(enabled) {
+    if (statsRefreshTimer) { clearInterval(statsRefreshTimer); statsRefreshTimer = null; }
+    if (enabled) statsRefreshTimer = setInterval(fetchStats, STATS_REFRESH_MS);
+}
+
+function initStatsControls() {
+    const toggle = document.getElementById('statsAutoRefresh');
+    const refreshBtn = document.getElementById('statsRefreshNow');
+
+    // Actif par défaut (case cochée dans le HTML).
+    setStatsAutoRefresh(!toggle || toggle.checked);
+    if (toggle) toggle.addEventListener('change', () => setStatsAutoRefresh(toggle.checked));
+    // Le bouton « Actualiser » reste utile quand la mise à jour auto est désactivée.
+    if (refreshBtn) refreshBtn.addEventListener('click', fetchStats);
 }
 
 // Seuils de bruit négligeable par grandeur : en dessous, un écart ponctuel n'est
@@ -810,6 +832,8 @@ const LONGTERM_AUTOREFRESH_MAX_SECONDS = 172800;
 // relative (qui suit « maintenant »), sans comparaison et de courte durée.
 function scheduleLongtermAutoRefresh() {
     if (longtermRefreshTimer) { clearInterval(longtermRefreshTimer); longtermRefreshTimer = null; }
+    const autoToggle = document.getElementById('autoRefreshToggle');
+    if (autoToggle && !autoToggle.checked) return; // mise à jour temps réel désactivée
     const preset = document.getElementById('periodPreset')?.value || '86400';
     const compareMode = document.getElementById('comparePreset')?.value || 'none';
     if (preset === 'custom' || compareMode !== 'none') return;
@@ -855,6 +879,10 @@ function initLongtermControls() {
     const synthToggle = document.getElementById('synthToggle');
     if (synthToggle) synthToggle.addEventListener('change', updateSynthesis);
 
+    // La bascule « Temps réel » (dé)active le rafraîchissement automatique.
+    const autoToggle = document.getElementById('autoRefreshToggle');
+    if (autoToggle) autoToggle.addEventListener('change', scheduleLongtermAutoRefresh);
+
     syncVisibility();
     refreshLongterm();
 }
@@ -891,7 +919,7 @@ window.onload = () => {
 
     if (isStatsPage()) {
         fetchStats();
-        setInterval(fetchStats, STATS_REFRESH_MS);
+        initStatsControls();
     }
 
     setInterval(fetchLive, LIVE_REFRESH_MS);

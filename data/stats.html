@@ -15,6 +15,16 @@
 
         <nav data-shared-menu="true" data-active="/stats.html"></nav>
 
+        <div class="period-bar">
+            <div class="field">
+                <label for="statsAutoRefresh"><input type="checkbox" id="statsAutoRefresh" checked> Mise à jour en temps réel</label>
+            </div>
+            <div class="field">
+                <button type="button" id="statsRefreshNow" class="btn">Actualiser</button>
+                <span id="statsUpdated" class="sys-hint"></span>
+            </div>
+        </div>
+
         <div class="card">
             <h2>Résumé (Période affichée)</h2>
             <table>

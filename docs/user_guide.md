@@ -37,11 +37,13 @@ Pages principales :
   - **Comparaison de deux périodes** : « aucune », « période précédente » (même durée, juste avant la période affichée) ou « autre période… » (début libre, durée identique à la période principale). La période comparée (B) est tracée en pointillés et alignée sur la période principale (A) ; une ligne d’information rappelle les plages exactes.
   - **Échelle** : mode *Fixe* / *Dynamique* / *Mixte*. En mode *Mixte*, le curseur **Zoom** (0 → 100 %) interpole entre l’échelle complète configurée (0 %, courbe quasi plate) et l’amplitude exacte des données (100 %, courbe pleine hauteur).
   - **Synthèse** (option, masquée par défaut) : une ligne au-dessus du graphe résume la période affichée pour chaque grandeur — variation sur la période (flèche ▲/▼/=), minimum, maximum et moyenne — pour une lecture rapide sans analyser les courbes.
+  - **Temps réel** (case à côté de « Synthèse », activée par défaut) : active/désactive le rafraîchissement automatique du graphe (limité aux périodes relatives ≤ 48 h sans comparaison).
 - API : `/api/history`
   - Fenêtre glissante : `window`, `interval`, `points` (utilisée par le tableau de bord).
   - Plage absolue : `from`, `to` (secondes Unix) et `interval` optionnel (utilisée par la page Historique ; lecture SD + RAM, tranches vides renvoyées à `null`).
 - API : `/api/history/summary?from=&to=` — synthèse pré-calculée d'une plage (min/max/moyenne + variation par grandeur) reconstruite à partir des fichiers `.stats` journaliers, sans relire les mesures.
 - Statistiques 24h via `/api/stats` (min, max, moyenne). Ces statistiques sont calculées avec un **filtre robuste (médiane/MAD)** qui écarte les valeurs aberrantes, y compris en série, pour rester représentatives.
+- Page **Statistiques** : une bascule **« Mise à jour en temps réel »** (activée par défaut) active/désactive le rafraîchissement automatique des tableaux ; un bouton **« Actualiser »** permet un rafraîchissement manuel, et l'heure de dernière mise à jour est indiquée.
 
 #### Stockage de l'historique (carte SD)
 - L'historique est stocké au **format binaire compact**, découpé par jour : `/history/AAAA/MM/AAAA-MM-JJ.bin` (enregistrements de 16 octets : horodatage + température/humidité/pression). Ce format est plusieurs fois plus petit que le CSV et permet un accès direct à une mesure sans relire tout le fichier ; une consultation 24 h ne lit qu'un fichier.
