@@ -44,7 +44,7 @@ Si les logs indiquent `SD Mount FAILED` ou `cardType is CARD_NONE` :
 
 3. **Vérifier le câblage**
    - Les fils doivent être les plus courts possible (< 10 cm).
-   - Vérifiez les connexions : CLK (GPIO 21), MISO (GPIO 47), MOSI (GPIO 38), CS (GPIO 39).
+   - Vérifiez les connexions : CLK (GPIO 13), MISO (GPIO 12), MOSI (GPIO 11), CS (GPIO 10).
 
 4. **Tester une autre carte**
    - Certaines cartes anciennes ou de très grande capacité (> 64 Go) peuvent être incompatibles.

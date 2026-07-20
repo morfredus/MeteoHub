@@ -41,10 +41,10 @@ Depuis la v1.2.0, le placement physique des modules sur le boîtier doit respect
 | Encodeur A (TRA)        | 42   | EC11/HW-040                            |
 | Encodeur B (TRB)        | 2    | EC11/HW-040                            |
 | Bouton Encodeur (PSH)   | 41   | EC11/HW-040                            |
-| SD CLK (SCK)            | 21   | SPI SD — routage bas (éloigné alim.)   |
-| SD MISO (DAT0/SO)       | 47   | SPI SD — routage bas (éloigné alim.)   |
-| SD MOSI (CMD/SI)        | 38   | SPI SD — routage bas (éloigné alim.)   |
-| SD CS (DAT3/CS)         | 39   | SPI SD — routage bas (éloigné alim.)   |
+| SD CLK (SCK)            | 13   | SPI SD — routage bas (éloigné alim.)   |
+| SD MISO (DAT0/SO)       | 12   | SPI SD — routage bas (éloigné alim.)   |
+| SD MOSI (CMD/SI)        | 11   | SPI SD — routage bas (éloigné alim.)   |
+| SD CS (DAT3/CS)         | 10   | SPI SD — routage bas (éloigné alim.)   |
 | SD DÉTECTION            | 40   | LOW=présente, HIGH=absente (polarité configurable) |
 
 > D1 et DAT2 du module SD : ne pas câbler (pull-up 10kΩ → 3V3).

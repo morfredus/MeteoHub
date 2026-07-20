@@ -6,6 +6,7 @@ Version minimale valide : 1.9.0
 
 - [Démarrage rapide](getting_started.md)
 - [Câblage matériel](hardware_wiring.md)
+- [Brochage détaillé](pin_mapping.md) — mapping des broches réellement câblées (`board_config.h`).
 - [Configuration](configuration.md)
 - [Guide utilisateur](user_guide.md)
 - [Analyse avancée](analyse_avancee.md) — utiliser un service d'analyse externe (guide débutant).

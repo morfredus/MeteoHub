@@ -1,3 +1,22 @@
+# [Non publié]
+
+### Corrigé
+
+- **Le brochage SPI de la carte SD documenté ne correspondait pas au firmware.**
+  `hardware_wiring.md`, `pin_mapping.md` et `maintenance_and_troubleshooting.md`
+  annonçaient CLK 21 / MISO 47 / MOSI 38 / CS 39, alors que `board_config.h`
+  utilise **13 / 12 / 11 / 10** depuis sa révision du 02/07/2026. Un lecteur qui
+  câblait d'après la documentation obtenait une carte SD non détectée, et le
+  guide de dépannage lui faisait vérifier les mêmes broches erronées. Les trois
+  documents sont alignés sur `board_config.h`, seule source de vérité.
+- `docs/pin_mappnig.md` renommé en `docs/pin_mapping.md` (coquille dans le nom).
+  Ce document de 119 lignes n'était référencé nulle part et absent de
+  `docs/index.md` : le brochage réel de la carte était invisible pour le lecteur.
+  Il est maintenant listé dans l'index.
+- `docs/beginner/faq.md` : chemin des sources corrigé (`src/modules/sensors.*`).
+- `docs/beginner/readme.md`, page d'accueil du dossier sur GitHub, dupliquait
+  `index.md` sans aucun lien : ses entrées sont désormais cliquables.
+
 # [1.12.0] – 2026-07-19
 ### Changed
 - **Le service d'analyse est reconnu à sa CAPACITÉ, plus à son nom.** MeteoHub cherchait un heartbeat dont le champ `app` valait exactement `morfAnalytics`. Or le projet est sous licence GPL : chacun peut renommer son service, et la détection cessait alors de fonctionner. MeteoHub cherche désormais un service annonçant la capacité **`advanced_analysis`** (nouveau champ `capabilities` du protocole morfBeacon, voir morfBeacon 0.2.0) et n'utilise le nom annoncé que comme **libellé** affiché dans le menu et la page Système. Renommer son service n'interrompt plus l'intégration.

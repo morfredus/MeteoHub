@@ -9,7 +9,7 @@ R : Éditez le fichier `include/config.h` puis recompilez.
 R : Dans cette documentation, chaque section propose des extraits détaillés.
 
 **Q : Comment ajouter un module ?**
-R : Inspirez-vous de `modules/sensors.h` et `modules/sensors.cpp`.
+R : Inspirez-vous de `src/modules/sensors.h` et `src/modules/sensors.cpp`.
 
 **Q : Comment flasher le firmware ?**
 R : Utilisez PlatformIO (bouton "Upload").

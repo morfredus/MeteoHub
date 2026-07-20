@@ -1,11 +1,13 @@
 # Documentation débutant MeteoHub
 
-Ce dossier contient des guides pédagogiques pour bien démarrer avec le projet MeteoHub sur ESP32-S3.
+Ce dossier contient des guides pédagogiques pour bien démarrer avec le projet
+MeteoHub sur ESP32-S3.
 
-- Introduction au projet
-- Bases du C++
-- Explications des modules
-- Glossaire
-- FAQ
+- [Présentation du projet](projet.md)
+- [Bases du C++](cpp.md)
+- [Modules du projet](modules.md)
+- [Glossaire](glossaire.md)
+- [FAQ](faq.md)
 
-Pour toute question, consultez les fichiers de ce dossier ou la documentation principale.
+Pour les questions sur le matériel et les fonctionnalités du projet, voir la
+[documentation principale](../index.md).
