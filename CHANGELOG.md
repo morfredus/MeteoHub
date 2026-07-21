@@ -1,5 +1,25 @@
 # [Non publié]
 
+### Ajouté
+
+- **Fichier `VERSION` à la racine, désormais autoritaire.** La version était
+  écrite en dur dans `platformio.ini` (`-D PROJECT_VERSION='"1.12.0"'`), donc à
+  un endroit différent des onze autres projets de l'écosystème, où un fichier
+  `VERSION` fait autorité. Aucun outil ne pouvait établir l'inventaire des
+  versions du parc, puisque deux projets sur quatorze publiaient la leur
+  autrement.
+
+  `scripts/version.py` lit ce fichier et injecte `PROJECT_VERSION` à la
+  compilation. Ajouter le fichier **sans** ce script aurait créé deux sources de
+  vérité pour une même valeur — le défaut que le script existe précisément pour
+  éviter. `platformio.ini` ne porte plus la version, il la lit.
+
+- **`LICENSE`** (GPL-3.0-only), **`CONTRIBUTING.md`** et **`ROADMAP.md`**, qui
+  manquaient alors que le reste de l'écosystème les fournit. `CONTRIBUTING.md`
+  consigne les contraintes propres à la cible ESP32-S3 — mémoire comptée,
+  corruption de carte SD, dérive d'horloge, chutes du bus I2C — qui expliquent
+  des choix du code que rien ne justifiait par écrit.
+
 ### Corrigé
 
 - **Le brochage SPI de la carte SD documenté ne correspondait pas au firmware.**
