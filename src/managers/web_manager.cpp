@@ -10,6 +10,12 @@
 #include "utils/logs.h"
 #include "utils/system_info.h"
 #include "utils/cooperative_yield.h"
+#include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
+
+// Emetteur declare dans main.cpp : /status doit publier le DETAIL de ce que le
+// heartbeat annonce, sans quoi la capacite « web_ui » designerait une interface
+// que personne ne saurait ouvrir.
+extern morfbeacon::Emitter presence;
 #include "modules/neopixel_status.h"
 #include "modules/analytics_beacon.h"
 #include "project_config.h"
@@ -249,6 +255,20 @@ void WebManager::_setupApi() {
         outFs = &LittleFS;
         return true;
     };
+
+    // --- GET /status : compatible morfbeacon/1 -----------------------------
+    // Rend MeteoHub lisible par un observateur du parc EXACTEMENT comme un
+    // service Linux ou Windows : meme protocole, meme document, meme contrat.
+    // C'est ce qui permet de retirer MeteoHub des listes statiques de
+    // morfsystem.json — il se declare lui-meme au lieu d'etre declare ailleurs.
+    _server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+        const String body = morfbeacon::buildStatusJson(
+            presence,
+            "/",                                   // chemin de l'interface
+            "MeteoHub",                            // libelle affiche
+            "Releves, historique et graphiques.");  // description
+        request->send(200, "application/json", body);
+    });
 
     // API Live
     _server.on("/api/live", HTTP_GET, [this](AsyncWebServerRequest *request) {

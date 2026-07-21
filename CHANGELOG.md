@@ -1,6 +1,27 @@
 # [Non publié]
 
+# [1.13.0] – 2026-07-21
+
 ### Ajouté
+
+- **Annonce de présence sur le LAN (protocole `morfbeacon/1`).** MeteoHub
+  *écoutait* déjà ce protocole pour repérer un service d'analyse ; il l'**émet**
+  désormais, et devient donc découvrable par le même mécanisme que les services
+  Linux et Windows du parc.
+
+  Auparavant il n'était trouvé que par sonde TCP, ce qui suppose de connaître son
+  nom mDNS à l'avance — l'inverse d'une découverte, et la raison pour laquelle
+  des listes statiques restaient nécessaires dans `morfsystem.json`.
+
+- **Route `GET /status`** au format `morfbeacon/1`, et déclaration de la capacité
+  `web_ui` : un observateur du parc peut proposer un lien vers l'interface de
+  MeteoHub **sans rien connaître de MeteoHub**. La capacité annonce, `/status`
+  détaille — déclarer l'une sans servir l'autre désignerait une interface que
+  personne ne saurait ouvrir.
+
+  Émetteur vendoré dans `third_party/morf/beacon-arduino/`, copie de
+  `arduino/morfbeacon_emitter.h` du dépôt morfBeacon. Le partage porte sur le
+  **protocole**, pas sur le code : la bibliothèque Qt ne tourne pas sur un ESP32.
 
 - **Fichier `VERSION` à la racine, désormais autoritaire.** La version était
   écrite en dur dans `platformio.ini` (`-D PROJECT_VERSION='"1.12.0"'`), donc à

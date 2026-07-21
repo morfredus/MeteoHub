@@ -14,6 +14,7 @@
 #include "modules/neopixel_status.h"
 #include "modules/sensors.h"
 #include "modules/analytics_beacon.h"
+#include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
 #include "config.h"
 #if defined(ESP32_S3_OLED)
 #include "modules/oled_display.h"
@@ -31,6 +32,14 @@ WebManager webManager;
 HistoryManager history;
 SdManager sdCard;
 AnalyticsBeacon analytics;
+
+// Annonce de presence sur le LAN (protocole morfbeacon/1). MeteoHub ECOUTAIT
+// deja ce protocole pour reperer un service d'analyse ; il l'EMET desormais, et
+// devient donc decouvrable par le meme mecanisme que les services Linux et
+// Windows du parc — sans qu'aucun consommateur ait a connaitre son adresse ni
+// son nom mDNS a l'avance.
+morfbeacon::Emitter presence;
+
 bool ota_started = false;
 
 void setup() {
@@ -187,6 +196,15 @@ void setup() {
     // Détection optionnelle de morfAnalytics (écoute passive du beacon LAN).
     analytics.begin();
 
+    // Annonce de MeteoHub sur le LAN. La capacite « web_ui » est declaree : un
+    // observateur peut alors proposer un lien vers l'interface sans rien
+    // connaitre de MeteoHub. Le detail est servi par GET /status.
+    presence.appName    = PROJECT_NAME;
+    presence.version    = PROJECT_VERSION;
+    presence.statusPort = 80;
+    presence.webUi      = true;
+    presence.begin();
+
     // Lancement des modules principaux
     forecast.begin();
     webManager.begin(history, sdCard, forecast, sensors, analytics);
@@ -213,6 +231,7 @@ void loop() {
     history.update();
     ui.update();
     analytics.update();
+    presence.update();
     webManager.handle();
 
     // Gestion LED Status (toutes les 500ms)
