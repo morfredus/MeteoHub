@@ -16,6 +16,32 @@
 // heartbeat annonce, sans quoi la capacite « web_ui » designerait une interface
 // que personne ne saurait ouvrir.
 extern morfbeacon::Emitter presence;
+
+// -----------------------------------------------------------------------------
+// API que MeteoHub OFFRE au parc, servie dans le champ « api » de /status. C'est
+// la meme declaration que celle des services Linux (SelfDescription.h) : une
+// liste { methode, chemin, resume } que morfMonitor cartographie et qu'un
+// collecteur (morfAnalytics) peut suivre sans connaitre MeteoHub a l'avance.
+//
+// Selection VOLONTAIRE des routes de donnees et de lecture : les endpoints
+// d'ecriture (LED, fichiers, OTA) et les ressources statiques (.html/.js/.css)
+// n'ont pas leur place dans une carte du parc. Les routes de cadre -- /status,
+// /healthz -- ne sont pas listees : un observateur les connait par le protocole.
+//
+// En PROGMEM (flash), pas en RAM : la chaine est constante et l'ESP32 compte sa
+// memoire. Elle n'est lue QUE lorsqu'on interroge /status -- l'appareil n'emet
+// rien de plus sur le reseau, et reste donc pleinement autonome sans recepteur.
+static const char METEOHUB_API_JSON[] PROGMEM =
+    "{\"base\":\"/api\",\"endpoints\":["
+      "{\"method\":\"GET\",\"path\":\"/api/live\",\"summary\":\"releve instantane : temperature, humidite, pression\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/history\",\"summary\":\"historique des releves\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/history/summary\",\"summary\":\"synthese de l'historique\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/history/export.csv\",\"summary\":\"export CSV de l'historique\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/stats\",\"summary\":\"statistiques agregees\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/analytics\",\"summary\":\"analyses meteo embarquees\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/alert\",\"summary\":\"alerte meteo courante\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/system\",\"summary\":\"etat systeme de l'appareil\"}"
+    "]}";
 #include "modules/neopixel_status.h"
 #include "modules/analytics_beacon.h"
 #include "project_config.h"
@@ -264,9 +290,11 @@ void WebManager::_setupApi() {
     _server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
         const String body = morfbeacon::buildStatusJson(
             presence,
-            "/",                                   // chemin de l'interface
-            "MeteoHub",                            // libelle affiche
-            "Releves, historique et graphiques.");  // description
+            "/",                                    // chemin de l'interface
+            "MeteoHub",                             // libelle affiche
+            "Releves, historique et graphiques.",   // description
+            String(),                               // metrics : deja dans le heartbeat
+            FPSTR(METEOHUB_API_JSON));               // api offerte au parc
         request->send(200, "application/json", body);
     });
 

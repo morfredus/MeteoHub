@@ -1,5 +1,23 @@
 # [Non publié]
 
+# [1.13.1] – 2026-07-26
+
+### Ajouté
+
+- **Déclaration de l'API dans `/status`.** MeteoHub annonce désormais, en plus
+  de son interface web, la liste de ses routes de données (`GET /api/live`,
+  `/api/history`, `/api/history/summary`, `/api/history/export.csv`,
+  `/api/stats`, `/api/analytics`, `/api/alert`, `/api/system`) sous la clé `api`,
+  au même format que les services Linux du parc. morfMonitor les cartographie et
+  un collecteur peut les suivre sans connaître MeteoHub à l'avance.
+
+  **Rien ne change pour l'appareil seul.** L'API n'est pas une capacité du
+  heartbeat : elle ne figure que dans le document `/status`, servi uniquement
+  quand on l'interroge. Sans récepteur sur le réseau, MeteoHub mesure, stocke,
+  trace et exporte exactement comme avant — il ne diffuse rien de plus. La liste
+  est en flash (PROGMEM), sans coût mémoire notable. Nécessite morfBeacon 0.5.1
+  (émetteur Arduino, re-vendoré).
+
 # [1.13.0] – 2026-07-21
 
 ### Ajouté
