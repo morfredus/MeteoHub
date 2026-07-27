@@ -19,7 +19,7 @@ apparaissent cassés tant qu'ils ne sont pas déposés ici.
 ### `menu-analyse.png`
 **Où** : n'importe quelle page de MeteoHub, une fois un service d'analyse détecté.
 **Cadrage** : l'en-tête et la barre de menu uniquement, avec les cinq entrées
-visibles — Tableau de bord, Statistiques, Historique, **l'entrée d'analyse**,
+visibles - Tableau de bord, Statistiques, Historique, **l'entrée d'analyse**,
 Système. L'important est de montrer que l'entrée s'insère **avant** « Système ».
 
 ### `retour-meteohub.png`

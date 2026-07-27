@@ -1,4 +1,4 @@
-# PIN MAPPING — ESP32‑S3 DevKitC‑1 N16R8
+# PIN MAPPING - ESP32‑S3 DevKitC‑1 N16R8
 Version basée sur le câblage réel (`include/board_config.h`), révisé après le
 diagnostic SD du 02/07/2026.
 
@@ -34,7 +34,7 @@ Le mapping et le placement des modules respectent désormais deux contraintes ph
 
 ---
 
-## 🟩 I²C — Capteurs AHT20 + BMP280 + OLED SH1106
+## 🟩 I²C - Capteurs AHT20 + BMP280 + OLED SH1106
 *(Routage haut → zone froide, capteur isolé thermiquement)*
 
 | Fonction | GPIO | Notes |
@@ -53,7 +53,7 @@ Bus I²C partagé entre :
 
 | Fonction | GPIO | Notes |
 |---------|------|-------|
-| Boot (natif) | **0**  | INPUT_PULLUP — strapping respecté |
+| Boot (natif) | **0**  | INPUT_PULLUP - strapping respecté |
 | Confirm      | **15** | Routé en haut, vers l'écran |
 | Back         | **1**  | Routé en bas |
 
@@ -77,11 +77,11 @@ Aucun conflit avec les broches de strapping.
 
 | Fonction | GPIO | Notes |
 |---------|------|-------|
-| NeoPixel | **48** | GPIO imposé par l'ESP32‑S3 (DevKitC-1) — source de chaleur, à tenir hors de la zone froide du capteur |
+| NeoPixel | **48** | GPIO imposé par l'ESP32‑S3 (DevKitC-1) - source de chaleur, à tenir hors de la zone froide du capteur |
 
 ---
 
-## 🟦 Module SD — SPI secondaire SAFE
+## 🟦 Module SD - SPI secondaire SAFE
 *(Routage bas → éloigné de l'alimentation)*
 
 | Fonction | GPIO | Rôle SD | Notes |

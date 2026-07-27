@@ -23,7 +23,7 @@ Le menu web a été simplifié à quatre entrées : **Tableau de bord**, **Stati
 Au format **binaire compact**, découpé par jour (`/history/AAAA/MM/AAAA-MM-JJ.bin`), avec un fichier de statistiques `.stats` par jour. Le **CSV** ne sert plus qu'à l'export (page Système). Les anciens fichiers CSV sont convertis automatiquement au premier démarrage après mise à jour.
 
 ## Je vois des erreurs `i2cRead` / des valeurs à zéro. Est-ce grave ?
-MeteoHub valide chaque lecture, réessaie, réinitialise le bus si besoin, et n'enregistre pas les lectures ratées ; les valeurs aberrantes résiduelles sont écartées des graphes et statistiques. Si les erreurs sont fréquentes, la cause est souvent matérielle (pull-ups I2C redondants, câblage, alimentation) — voir [Maintenance et dépannage](maintenance_and_troubleshooting.md).
+MeteoHub valide chaque lecture, réessaie, réinitialise le bus si besoin, et n'enregistre pas les lectures ratées ; les valeurs aberrantes résiduelles sont écartées des graphes et statistiques. Si les erreurs sont fréquentes, la cause est souvent matérielle (pull-ups I2C redondants, câblage, alimentation) - voir [Maintenance et dépannage](maintenance_and_troubleshooting.md).
 
 ## Puis-je exporter mes données ?
 Oui : depuis la page **Système**, export de l'historique en **CSV** (24 h / 7 j / 30 j / tout) et export de la **configuration** en JSON.

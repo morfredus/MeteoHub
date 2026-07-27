@@ -36,12 +36,12 @@ Pages principales :
   - **Sélection de période** : dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd’hui », ou une plage **personnalisée** (champs *du* / *au*). Les périodes au-delà de ~24 h sont reconstituées à partir des fichiers binaires journaliers de la carte SD.
   - **Comparaison de deux périodes** : « aucune », « période précédente » (même durée, juste avant la période affichée) ou « autre période… » (début libre, durée identique à la période principale). La période comparée (B) est tracée en pointillés et alignée sur la période principale (A) ; une ligne d’information rappelle les plages exactes.
   - **Échelle** : mode *Fixe* / *Dynamique* / *Mixte*. En mode *Mixte*, le curseur **Zoom** (0 → 100 %) interpole entre l’échelle complète configurée (0 %, courbe quasi plate) et l’amplitude exacte des données (100 %, courbe pleine hauteur).
-  - **Synthèse** (option, masquée par défaut) : une ligne au-dessus du graphe résume la période affichée pour chaque grandeur — variation sur la période (flèche ▲/▼/=), minimum, maximum et moyenne — pour une lecture rapide sans analyser les courbes.
+  - **Synthèse** (option, masquée par défaut) : une ligne au-dessus du graphe résume la période affichée pour chaque grandeur - variation sur la période (flèche ▲/▼/=), minimum, maximum et moyenne - pour une lecture rapide sans analyser les courbes.
   - **Temps réel** (case à côté de « Synthèse », activée par défaut) : active/désactive le rafraîchissement automatique du graphe (limité aux périodes relatives ≤ 48 h sans comparaison).
 - API : `/api/history`
   - Fenêtre glissante : `window`, `interval`, `points` (utilisée par le tableau de bord).
   - Plage absolue : `from`, `to` (secondes Unix) et `interval` optionnel (utilisée par la page Historique ; lecture SD + RAM, tranches vides renvoyées à `null`).
-- API : `/api/history/summary?from=&to=` — synthèse pré-calculée d'une plage (min/max/moyenne + variation par grandeur) reconstruite à partir des fichiers `.stats` journaliers, sans relire les mesures.
+- API : `/api/history/summary?from=&to=` - synthèse pré-calculée d'une plage (min/max/moyenne + variation par grandeur) reconstruite à partir des fichiers `.stats` journaliers, sans relire les mesures.
 - Statistiques 24h via `/api/stats` (min, max, moyenne). Ces statistiques sont calculées avec un **filtre robuste (médiane/MAD)** qui écarte les valeurs aberrantes, y compris en série, pour rester représentatives.
 - Page **Statistiques** : une bascule **« Mise à jour en temps réel »** (activée par défaut) active/désactive le rafraîchissement automatique des tableaux ; un bouton **« Actualiser »** permet un rafraîchissement manuel, et l'heure de dernière mise à jour est indiquée.
 
@@ -52,7 +52,7 @@ Pages principales :
   - pour les **graphes** (`/api/history`), un filtre de **cohérence temporelle** écarte un pic/creux ponctuel incohérent avec ses deux voisins (pas de seuil fixe), les points valides étant reliés directement ;
   - pour les **statistiques** (`/api/stats`), un filtre **robuste médiane/MAD** écarte les valeurs aberrantes même en série (ex. plusieurs mesures à 0 d'affilée après un incident capteur).
   - Les **mesures brutes restent conservées** dans les fichiers : seule leur exploitation est adaptée.
-- À côté de chaque `.bin`, un fichier `.stats` conserve les statistiques du jour déjà calculées (min/max/moyenne, nombre de mesures, première/dernière mesure), mises à jour au fil des acquisitions — d'où l'affichage quasi instantané de la synthèse.
+- À côté de chaque `.bin`, un fichier `.stats` conserve les statistiques du jour déjà calculées (min/max/moyenne, nombre de mesures, première/dernière mesure), mises à jour au fil des acquisitions - d'où l'affichage quasi instantané de la synthèse.
 - Le **CSV** reste disponible **uniquement comme format d'export** (pour Excel/LibreOffice).
 - Les anciens fichiers CSV présents sur la carte sont **convertis automatiquement au binaire au premier démarrage** (puis renommés en `.csv.bak`).
 - Page Statistiques : tendances détaillées sur 1h, 12h, 24h et 48h (température, humidité, pression), ainsi qu’une tendance générale qui croise la direction de la pression sur ces fenêtres pour dégager une véritable évolution (amélioration/dégradation durable, stable, ou variable). La fenêtre 48h nécessite une carte SD avec l’historique journalier (fichier binaire de J-2) ; elle s’affiche « N/D » si indisponible.
@@ -89,14 +89,14 @@ MeteoHub peut diffuser ses logs sur le réseau local en UDP, ce qui permet de le
 - Autoriser le **port UDP** (5005 par défaut) en entrée dans le pare-feu du PC.
 - Le **broadcast** est le plus simple (pas besoin de connaître l'IP du PC) mais nécessite que le réseau laisse passer les paquets broadcast (généralement le cas sur un LAN domestique). En cas de souci, préférer l'envoi direct vers l'IP du PC (`UDP_LOG_HOST`).
 - MeteoHub et le PC doivent être sur le **même réseau local**.
-- **Logs de démarrage** : la capture est active dès le début du `setup()` et les logs de boot sont mis en tampon puis **rejoués dès la connexion WiFi**. Le moniteur UDP reçoit donc l'intégralité des logs (applicatifs et cœur ESP : montage SD et **fréquence SPI retenue**, init capteurs, événements WiFi, erreurs I2C…). Seules les toutes premières lignes du **bootloader ROM** et de l'init du cœur Arduino (émises avant `setup()`) restent visibles uniquement sur le port série physique — c'est une limite matérielle inhérente.
+- **Logs de démarrage** : la capture est active dès le début du `setup()` et les logs de boot sont mis en tampon puis **rejoués dès la connexion WiFi**. Le moniteur UDP reçoit donc l'intégralité des logs (applicatifs et cœur ESP : montage SD et **fréquence SPI retenue**, init capteurs, événements WiFi, erreurs I2C…). Seules les toutes premières lignes du **bootloader ROM** et de l'init du cœur Arduino (émises avant `setup()`) restent visibles uniquement sur le port série physique - c'est une limite matérielle inhérente.
 
 ### Page Système
 Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Statistiques**, **Historique** et **Système**. La page Système regroupe :
 - **Luminosité de la LED** : réglage de la NeoLED (0-255), appliqué immédiatement et conservé au redémarrage (persisté en NVS). API : `GET`/`POST /api/led`.
 - **Export** :
-  - Historique au format **CSV** (dernières 24 h / 7 j / 30 j / tout), pour Excel/LibreOffice — API `GET /api/history/export.csv?from=&to=` ;
-  - **Configuration** effective au format JSON — API `GET /api/config/export`.
+  - Historique au format **CSV** (dernières 24 h / 7 j / 30 j / tout), pour Excel/LibreOffice - API `GET /api/history/export.csv?from=&to=` ;
+  - **Configuration** effective au format JSON - API `GET /api/config/export`.
 - **Mise à jour du firmware (OTA)** : upload d’un fichier `.bin`, reboot automatique après succès. API : `/api/ota/update`. (L’ancienne URL `/ota.html` redirige vers `/system.html`.)
 - **Outils** : accès au **gestionnaire de fichiers** (`/files.html`) et aux **logs système** (`/logs`), qui ne figurent plus dans le menu principal.
 
@@ -112,15 +112,15 @@ Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Stati
 - MeteoHub reste **entièrement autonome** : mesures, historique, graphiques et exports fonctionnent sans aucun autre composant.
 - Un service d'analyse présent sur le réseau local est détecté **passivement** via son annonce morfBeacon (UDP `45454`). La page **Système** indique alors « Analyse avancée disponible » ; sinon « indisponible », sans que le comportement nominal ne change.
 - **Détection par capacité, jamais par nom.** MeteoHub cherche un service annonçant la capacité `advanced_analysis`, et n'utilise le nom annoncé que comme **libellé** affiché. Le projet étant sous licence GPL, chacun peut renommer son service : une détection fondée sur le nom cesserait de fonctionner au premier renommage.
-- Quand un service est détecté, une entrée portant **son nom annoncé** apparaît dans le menu, juste avant « Système ». Elle s'ouvre dans le **même onglet** — la navigation reste fluide et n'accumule pas d'onglets ; le service propose en retour un lien « Retour à MeteoHub ».
+- Quand un service est détecté, une entrée portant **son nom annoncé** apparaît dans le menu, juste avant « Système ». Elle s'ouvre dans le **même onglet** - la navigation reste fluide et n'accumule pas d'onglets ; le service propose en retour un lien « Retour à MeteoHub ».
 - **Adresse manuelle de secours.** Si la découverte automatique ne passe pas (réseau segmenté, VPN, isolation des clients Wi-Fi), une adresse peut être saisie dans la page **Système**. Elle est persistée en NVS et **prend le pas** sur la découverte. Vider le champ rétablit le mode automatique.
 - API : `GET /api/analytics` (`{available, mode, effective_url, capability, manual_url, detected:{found,name,version,host,status_port,last_seen_s}}`) et `POST /api/analytics/config` (`manual_url`). Réglages dans `include/config.h` (`ANALYTICS_BEACON_*`).
-- Principe : **MeteoHub écrit, morfAnalytics lit — jamais l'inverse**. MeteoHub demeure la source de vérité ; morfAnalytics travaille sur une copie de l'historique et ne renvoie que des résultats synthétiques.
+- Principe : **MeteoHub écrit, morfAnalytics lit - jamais l'inverse**. MeteoHub demeure la source de vérité ; morfAnalytics travaille sur une copie de l'historique et ne renvoie que des résultats synthétiques.
 
 #### Recopie de l'historique par le serveur d'analyse
 - Deux API **en lecture seule** permettent au serveur de recopier l'historique sans jamais rien modifier sur MeteoHub :
-  - `GET /api/history/days` — liste des journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ;
-  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` — mesures brutes de la journée, à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]`.
+  - `GET /api/history/days` - liste des journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ;
+  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` - mesures brutes de la journée, à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]`.
 - Une mesure est repérée par sa **position dans le fichier du jour**, et non par son horodatage. Les fichiers étant écrits en ajout seul, cette position ne change jamais, alors qu'un horodatage peut reculer lors d'un recalage d'horloge ou se répéter lors du passage à l'heure d'hiver. Le serveur d'analyse retient donc le couple (jour, position) et ne redemande que ce qui manque : aucune mesure n'est transférée deux fois.
 - Ces API ne sont utiles qu'à un serveur d'analyse. Pour un export manuel, préférer le CSV (`GET /api/history/export.csv`), directement exploitable dans un tableur.
 

@@ -1,4 +1,4 @@
-# Analyse avancée — guide du débutant
+# Analyse avancée - guide du débutant
 
 Retour à l'[index de la documentation](index.md).
 
@@ -12,7 +12,7 @@ comparer la température du jour à celle des années précédentes dépasse ce 
 peut faire.
 
 C'est le rôle d'un **service d'analyse** installé à côté, sur un ordinateur qui
-reste allumé — typiquement un Raspberry Pi. Le service recopie l'historique de
+reste allumé - typiquement un Raspberry Pi. Le service recopie l'historique de
 MeteoHub et effectue les calculs lourds à sa place.
 
 Trois points à retenir :
@@ -37,7 +37,7 @@ suffit.
 
 ### Ce que MeteoHub reconnaît exactement
 
-MeteoHub ne cherche **pas un nom d'application**, mais une **capacité** — c'est
+MeteoHub ne cherche **pas un nom d'application**, mais une **capacité** - c'est
 à dire ce que le service sait faire, ici « analyses avancées ».
 
 La différence a l'air théorique, elle est très concrète. MeteoHub est un logiciel
@@ -83,7 +83,7 @@ Trois messages possibles :
 | Message | Signification |
 |---|---|
 | ✅ Analyse avancée disponible … détecté automatiquement | Tout va bien, rien à faire |
-| ✅ Analyse avancée disponible — adresse saisie manuellement | Une adresse a été renseignée à la main (voir plus bas) |
+| ✅ Analyse avancée disponible - adresse saisie manuellement | Une adresse a été renseignée à la main (voir plus bas) |
 | ⚠️ Analyse avancée indisponible | Aucun service trouvé ; MeteoHub fonctionne normalement |
 
 Le message d'indisponibilité n'est **pas une erreur**. Il apparaît simplement
@@ -160,10 +160,10 @@ viendra dans une version ultérieure.
 
 ## Pour aller plus loin
 
-- [Guide utilisateur](user_guide.md) — l'ensemble des fonctions de MeteoHub.
+- [Guide utilisateur](user_guide.md) - l'ensemble des fonctions de MeteoHub.
 - [Décisions : intégration d'un service d'analyse](decisions/analytics-integration.md)
-  — les choix arrêtés et, surtout, **pourquoi** : c'est là qu'on trouve le
+  - les choix arrêtés et, surtout, **pourquoi** : c'est là qu'on trouve le
   raisonnement derrière la détection par capacité, la navigation dans le même
   onglet ou l'adresse manuelle.
-- [Architecture du projet](project_architecture.md) — les API et l'organisation
+- [Architecture du projet](project_architecture.md) - les API et l'organisation
   interne.

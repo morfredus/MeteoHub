@@ -44,7 +44,7 @@ des requêtes `GET`.
 
 **Pourquoi.** MeteoHub est la **source de vérité**. Le cache du serveur est une
 copie jetable : on peut l'effacer, il se reconstruit intégralement. L'inverse est
-faux. Cette asymétrie doit être structurelle et non affaire de discipline — d'où
+faux. Cette asymétrie doit être structurelle et non affaire de discipline - d'où
 l'absence de toute route d'écriture, qui rend l'erreur impossible plutôt
 qu'improbable.
 
@@ -150,10 +150,10 @@ Laisser la découverte l'emporter reviendrait à ignorer une décision explicite
 
 Sont **volontairement** absents de cette version :
 
-- **la sélection explicite entre plusieurs services détectés** — en présence de
+- **la sélection explicite entre plusieurs services détectés** - en présence de
   plusieurs, MeteoHub retient le dernier annoncé ; une adresse manuelle permet
   d'en imposer un ;
-- **la personnalisation du nom affiché** — le nom annoncé par le service suffit,
+- **la personnalisation du nom affiché** - le nom annoncé par le service suffit,
   et il est déjà modifiable côté service.
 
 **Pourquoi.** Ces deux fonctions répondent à des besoins spécifiques et
@@ -165,6 +165,6 @@ l'usage les réclame, ce qui reste à démontrer.
 
 ## Suivi
 
-- [Analyse avancée](../analyse_avancee.md) — guide utilisateur.
-- [Guide utilisateur](../user_guide.md) — section « Analyse avancée ».
-- [Architecture du projet](../project_architecture.md) — liste des API.
+- [Analyse avancée](../analyse_avancee.md) - guide utilisateur.
+- [Guide utilisateur](../user_guide.md) - section « Analyse avancée ».
+- [Architecture du projet](../project_architecture.md) - liste des API.

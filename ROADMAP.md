@@ -1,4 +1,4 @@
-# Roadmap — MeteoHub S3
+# Roadmap - MeteoHub S3
 
 MeteoHub S3 est une station météo autonome sur ESP32-S3 : acquisition capteurs,
 historisation locale sur carte SD, tableau de bord OLED et interface Web.
@@ -13,7 +13,7 @@ lourdes, sans jamais écrire en retour.
 - **Exposer la version sur le réseau.** La version vit désormais dans le
   fichier `VERSION` à la racine, injecté à la compilation par
   `scripts/version.py`. Elle est donc lisible par un outil d'inventaire du parc
-  — reste à l'exposer sur une route HTTP dédiée pour qu'elle soit interrogeable
+  - reste à l'exposer sur une route HTTP dédiée pour qu'elle soit interrogeable
   à distance comme celle des services C++.
 
 - **Annonce de présence morfBeacon.** MeteoHub est aujourd'hui découvert par

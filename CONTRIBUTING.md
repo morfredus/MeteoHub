@@ -14,7 +14,7 @@ conserver ou relire ses mesures va à l'encontre de ce principe.
 
 **Une mesure ratée ne s'enregistre pas.** Les lectures I2C sont validées et
 réessayées ; un échec ne produit pas une valeur par défaut. Une case vide se
-relit comme une absence de mesure, un zéro se relit comme une mesure — la
+relit comme une absence de mesure, un zéro se relit comme une mesure - la
 distinction compte au moment d'exploiter l'historique.
 
 **Le format binaire porte un en-tête.** L'historique est stocké en fichiers
