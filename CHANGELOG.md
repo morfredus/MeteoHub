@@ -1,5 +1,12 @@
 # [Non publié]
 
+# [1.13.2] - 2026-07-31
+
+### Modifié
+
+- Le lien **Analyses avancées** ouvre désormais directement l'espace météo de
+  morfAnalytics (`/meteohub`) plutôt que le portail général.
+
 # [1.13.1] - 2026-07-26
 
 ### Ajouté

@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!info || !info.available || !info.effective_url) return;
             const detected_name = info.detected && info.detected.name;
             const entry = {
-                href: info.effective_url,
+                href: info.effective_url.replace(/\/$/, '') + '/meteohub',
                 label: detected_name || 'Analyses avancées'
             };
             // Inséré juste avant « Système », qui doit rester la dernière entrée.
