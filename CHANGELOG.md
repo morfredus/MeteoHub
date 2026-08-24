@@ -1,5 +1,11 @@
 # [Non publié]
 
+### Ajouté
+
+- `docs/interface_web.md` : aperçu illustré des pages web servies par MeteoHub
+  (tableau de bord, statistiques, système), avec des captures utilisant des
+  données d'exemple anonymisées. Ajouté à l'index de la documentation.
+
 # [1.13.3] - 2026-08-20
 
 ### Corrigé

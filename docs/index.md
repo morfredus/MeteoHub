@@ -9,6 +9,7 @@ Version minimale valide : 1.9.0
 - [Brochage détaillé](pin_mapping.md) - mapping des broches réellement câblées (`board_config.h`).
 - [Configuration](configuration.md)
 - [Guide utilisateur](user_guide.md)
+- [Interface web](interface_web.md) - aperçu des pages servies par MeteoHub (captures d'exemple).
 - [Analyse avancée](analyse_avancee.md) - utiliser un service d'analyse externe (guide débutant).
 - [Décisions : intégration d'un service d'analyse](decisions/analytics-integration.md) - les choix arrêtés et leurs raisons.
 - [Maintenance et dépannage](maintenance_and_troubleshooting.md)
