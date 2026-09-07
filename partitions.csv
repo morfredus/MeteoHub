@@ -1,0 +1,19 @@
+# Table de partitions MeteoHub (ESP32-S3 16 Mo) - epinglee explicitement.
+#
+# Pourquoi ce fichier existe : sans board_build.partitions, le schema depend du
+# defaut du board / du framework, qui peut changer d'une version a l'autre. Or
+# l'OTA EXIGE deux slots d'application (ota_0 + ota_1) : si le device se retrouve
+# un jour avec une table sans second slot, Update.begin() echoue (« OTA begin
+# failed ») et il faut reflasher en USB. On fige donc ici le schema, identique a
+# celui deja en flash, avec deux slots app de 6,25 Mo (large : le firmware fait
+# ~1,4 Mo). ATTENTION : changer une table de partitions ne peut PAS se faire par
+# OTA -- il faut un flash USB. Celle-ci reproduit l'existant, donc sans effet de
+# bord au prochain flash.
+#
+# Name,     Type, SubType,  Offset,    Size,     Flags
+nvs,        data, nvs,      0x9000,    0x5000,
+otadata,    data, ota,      0xe000,    0x2000,
+app0,       app,  ota_0,    0x10000,   0x640000,
+app1,       app,  ota_1,    0x650000,  0x640000,
+spiffs,     data, spiffs,   0xc90000,  0x360000,
+coredump,   data, coredump, 0xff0000,  0x10000,

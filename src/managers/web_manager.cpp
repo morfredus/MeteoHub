@@ -923,6 +923,13 @@ void WebManager::_setupApi() {
         if (index == 0) {
             _ota_upload_error = false;
             LOG_INFO("OTA upload start: " + fname_cpp);
+            // Une tentative OTA precedente qui a echoue en cours de route laisse
+            // l'objet Update « en cours » (_size > 0). Sans abandon explicite, tout
+            // Update.begin() suivant renvoie false (« begin failed ») jusqu'au
+            // reboot -- ce qui bloque durablement l'OTA. On repart donc propre.
+            if (Update.isRunning()) {
+                Update.abort();
+            }
             if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
                 _ota_upload_error = true;
                 Update.printError(Serial);
@@ -935,6 +942,7 @@ void WebManager::_setupApi() {
             if (Update.write(data, len) != len) {
                 _ota_upload_error = true;
                 Update.printError(Serial);
+                Update.abort();   // libere la session pour ne pas bloquer les OTA suivantes
                 LOG_ERROR("OTA write failed");
                 return;
             }

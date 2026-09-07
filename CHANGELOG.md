@@ -1,5 +1,19 @@
 # [Non publié]
 
+### Corrigé
+
+- **OTA web : `Update.begin()` échouait et bloquait la mise à jour (retour USB
+  obligatoire).** Deux causes traitées. (1) La table de partitions n'était pas
+  épinglée : le schéma dépendait du défaut du board, et sans deux slots d'app
+  `ota_0`/`ota_1` l'OTA est impossible (« OTA begin failed »). Elle est désormais
+  figée dans `partitions.csv` (`board_build.partitions`), en dual-OTA 6,25 Mo,
+  identique à ce qui est déjà en flash. (2) Une tentative OTA échouée laissait
+  l'objet `Update` « en cours », si bien que toute tentative suivante échouait
+  jusqu'au reboot ; le handler abandonne maintenant une session restée ouverte
+  (`Update.abort()`) avant d'en ouvrir une nouvelle, et sur échec d'écriture.
+  Changer la table de partitions impose un flash USB une fois ; l'OTA repart
+  ensuite normalement.
+
 ### Ajouté
 
 - `docs/interface_web.md` : aperçu illustré des pages web servies par MeteoHub
