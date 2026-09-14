@@ -11,10 +11,10 @@ Version minimale valide : 1.9.0
 
 
 Pages principales :
-- Météo
+- Météo : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT** (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
 - Prévisions
-- Graphes (température, humidité, pression)
-- Réseau
+- Graphes (température IN, humidité IN, pression OUT)
+- Réseau : SSID, IP, **canal Wi-Fi**, RSSI et **MAC STA**. La sonde scanne `MH-NOW` pour le canal ; elle n'a pas besoin de la MAC pour le broadcast.
 - Système
 - Logs
 

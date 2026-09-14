@@ -230,13 +230,21 @@ const LIVE_REFRESH_MS = 5000;
 const ALERT_REFRESH_MS = 15 * 60 * 1000;
 const STATS_REFRESH_MS = 15000;
 
+// Auto-rafraîchissement de la page Historique : calé sur la cadence D'ENREGISTREMENT
+// (une mesure toutes les 5 min), pas sur un intervalle court. La cadence réelle est
+// lue depuis /api/history (champ measurement_interval_s, source unique côté firmware) ;
+// on ajoute une petite marge pour tomber juste après l'écriture d'un nouveau point.
+// Valeur par défaut 5 min avant la première réponse.
+let measurementIntervalMs = 300000;
+const LONGTERM_REFRESH_MARGIN_MS = 20000;
+
 function getPageName() {
     return document.body?.dataset?.page || 'dashboard';
 }
 
 function isHistoryPage() {
-    const page = getPageName();
-    return page === 'dashboard' || page === 'longterm';
+    // Seule la page Historique porte désormais un graphe (l'accueil n'en a plus).
+    return getPageName() === 'longterm';
 }
 
 function isStatsPage() {
@@ -259,18 +267,120 @@ function buildHistoryUrl() {
     return `/api/history?${params.toString()}`;
 }
 
+function setText(id, txt) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+}
+
+// Instant du dernier relevé extérieur, au format « jj/mm - hh:mm:ss ». Le hub
+// ESP32 n'a pas forcément d'horloge fiable, mais il fournit l'âge de la trame
+// (age_ms) ; on reconstruit donc l'heure côté navigateur : maintenant - âge.
+function formatMeasureTime(ageMs) {
+    const d = new Date(Date.now() - (ageMs || 0));
+    const p = (n) => String(n).padStart(2, '0');
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1)
+        + ' - ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+// Met à jour l'affichage station météo à partir des blocs in / out / effective
+// de /api/live. La provenance n'est jamais perdue : une valeur de secours issue
+// de l'intérieur est signalée comme telle, jamais présentée comme extérieure.
+function updateStation(data) {
+    const eff = data.effective || {};
+    const inb = data.in || {};
+    const outb = data.out || {};
+    const et = eff.temp || {};
+    const eh = eff.hum || {};
+
+    // Héros : température/humidité extérieures effectives.
+    setText('heroTemp', et.valid ? Number(et.value).toFixed(1) : '--');
+    setText('heroHum', eh.valid ? Number(eh.value).toFixed(0) : '--');
+
+    const badge = document.getElementById('heroBadge');
+    const state = document.getElementById('heroState');
+    if (badge && state) {
+        const st = et.state;
+        if (!et.valid) {
+            badge.hidden = true;
+            state.textContent = 'Aucune donnée disponible';
+            state.className = 'hero-state warn';
+        } else if (st === 'fallback') {
+            badge.hidden = false;
+            badge.textContent = 'secours intérieur';
+            badge.className = 'hero-badge fallback';
+            state.textContent = 'Extérieur indisponible — valeur intérieure affichée';
+            state.className = 'hero-state warn';
+        } else if (st === 'stale') {
+            badge.hidden = false;
+            badge.textContent = 'donnée ancienne';
+            badge.className = 'hero-badge stale';
+            state.textContent = 'Donnée extérieure ancienne';
+            state.className = 'hero-state stale';
+        } else {
+            badge.hidden = true;
+            state.textContent = 'Donnée extérieure à jour';
+            state.className = 'hero-state ok';
+        }
+    }
+
+    // Bloc OUT (météo extérieure réelle).
+    setText('outTemp', outb.valid ? Number(outb.temp).toFixed(1) : '--');
+    setText('outHum', outb.valid ? Number(outb.hum).toFixed(0) : '--');
+    setText('outPres', (outb.valid && outb.pres > 300) ? Number(outb.pres).toFixed(0) : '--');
+    const fresh = document.getElementById('outFreshness');
+    if (fresh) {
+        if (!outb.valid) {
+            if (outb.awaiting_first) {
+                // Au boot : pas encore de trame reçue. Ce n'est pas une panne, c'est
+                // l'attente de la première transmission (bornée par la cadence).
+                const mins = Math.max(1, Math.round((outb.interval_s || 300) / 60));
+                fresh.textContent = 'en attente du premier relevé après redémarrage (max ' + mins + ' min)';
+                fresh.className = 'freshness';
+            } else {
+                fresh.textContent = 'sonde extérieure absente';
+                fresh.className = 'freshness warn';
+            }
+        } else if (outb.fresh) {
+            fresh.textContent = 'à jour (' + formatMeasureTime(outb.age_ms) + ')';
+            fresh.className = 'freshness ok';
+        } else {
+            const mins = Math.round((outb.age_ms || 0) / 60000);
+            fresh.textContent = 'dernière trame il y a ' + mins
+                + ' min (' + formatMeasureTime(outb.age_ms) + ')';
+            fresh.className = 'freshness stale';
+        }
+    }
+
+    // Batterie de la sonde déportée + alerte pile faible.
+    const batteryRow = document.getElementById('outBatteryRow');
+    const batteryAlert = document.getElementById('outBatteryAlert');
+    if (batteryRow && batteryAlert) {
+        if (outb.has_battery) {
+            batteryRow.hidden = false;
+            setText('outBattery', Number(outb.battery_pct).toFixed(0));
+            if (outb.battery_low) {
+                batteryAlert.hidden = false;
+                batteryAlert.textContent = `Pile de la sonde faible (${Number(outb.battery_pct).toFixed(0)} %) — à remplacer`;
+            } else {
+                batteryAlert.hidden = true;
+            }
+        } else {
+            batteryRow.hidden = true;
+            batteryAlert.hidden = true;
+        }
+    }
+
+    // Bloc IN (confort intérieur).
+    setText('inTemp', inb.valid ? Number(inb.temp).toFixed(1) : '--');
+    setText('inHum', inb.valid ? Number(inb.hum).toFixed(0) : '--');
+}
+
 async function fetchLive() {
     try {
         const res = await fetch('/api/live');
         const data = await res.json();
 
-        const temp = document.getElementById('temp');
-        const hum = document.getElementById('hum');
-        const pres = document.getElementById('pres');
-        if (temp) temp.textContent = data.temp.toFixed(1);
-        if (hum) hum.textContent = data.hum.toFixed(0);
-        if (pres) pres.textContent = data.pres.toFixed(1);
-
+        updateStation(data);
         renderSensorValidityBadge(data.sensor_valid);
 
         const status = document.getElementById('status');
@@ -309,35 +419,54 @@ async function fetchSystem() {
     } catch (e) {}
 }
 
+// Remplit un tableau de résumé (min/moy/max) pour un contexte donné (IN ou OUT).
+// count == 0 => aucune mesure disponible pour ce contexte sur la période.
+function fillStatsTable(tbodyId, data) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    if (!data || !data.count || data.count <= 0 || !data.temp) {
+        tbody.innerHTML = '<tr><td colspan="4">Aucune mesure disponible</td></tr>';
+        return;
+    }
+    // Nombre de mesures derrière la synthèse : rend visible la couverture réelle
+    // de chaque source (l'extérieur peut en avoir beaucoup moins que l'intérieur).
+    tbody.innerHTML = `
+        <tr><td colspan="4" class="stats-count">${data.count} mesure(s)</td></tr>
+        <tr>
+            <td>Température (°C)</td>
+            <td>${data.temp.min.toFixed(1)}</td>
+            <td>${data.temp.avg.toFixed(1)}</td>
+            <td>${data.temp.max.toFixed(1)}</td>
+        </tr>
+        <tr>
+            <td>Humidité (%)</td>
+            <td>${data.hum.min.toFixed(0)}</td>
+            <td>${data.hum.avg.toFixed(0)}</td>
+            <td>${data.hum.max.toFixed(0)}</td>
+        </tr>
+        <tr>
+            <td>Pression (hPa)</td>
+            <td>${data.pres.min.toFixed(0)}</td>
+            <td>${data.pres.avg.toFixed(0)}</td>
+            <td>${data.pres.max.toFixed(0)}</td>
+        </tr>
+    `;
+}
+
 async function fetchStats() {
     if (!isStatsPage()) return;
 
     try {
-        const res = await fetch('/api/stats');
-        const data = await res.json();
-        const tbody = document.getElementById('statsBody');
-        if (!tbody) return;
+        // IN et OUT côte à côte : deux requêtes (défaut = IN, ctx=out = extérieur).
+        const [inData, outData] = await Promise.all([
+            fetch('/api/stats').then((r) => r.json()),
+            fetch('/api/stats?ctx=out').then((r) => r.json())
+        ]);
+        fillStatsTable('statsBodyIn', inData);
+        fillStatsTable('statsBodyOut', outData);
 
-        tbody.innerHTML = `
-            <tr>
-                <td>Température (°C)</td>
-                <td>${data.temp.min.toFixed(1)}</td>
-                <td>${data.temp.avg.toFixed(1)}</td>
-                <td>${data.temp.max.toFixed(1)}</td>
-            </tr>
-            <tr>
-                <td>Humidité (%)</td>
-                <td>${data.hum.min.toFixed(0)}</td>
-                <td>${data.hum.avg.toFixed(0)}</td>
-                <td>${data.hum.max.toFixed(0)}</td>
-            </tr>
-            <tr>
-                <td>Pression (hPa)</td>
-                <td>${data.pres.min.toFixed(0)}</td>
-                <td>${data.pres.avg.toFixed(0)}</td>
-                <td>${data.pres.max.toFixed(0)}</td>
-            </tr>
-        `;
+        // Tendance MÉTÉO = extérieur (OUT) : c'est la source de vérité météo.
+        const data = outData;
 
         const trendBody = document.getElementById('trendBody');
         const trendGlobal = document.getElementById('trendGlobal');
@@ -537,6 +666,19 @@ function initChart() {
                     grid: { drawOnChartArea: false },
                     title: { display: true, text: 'Pres (hPa)', color: '#ff00ff' },
                     ticks: { color: '#ff00ff' }
+                },
+                x: {
+                    // Axe catégoriel (labels = horodatages formatés selon la durée
+                    // choisie, cf. formatTsLabel). autoSkip + maxTicksLimit gardent
+                    // une graduation lisible quelle que soit la période (quelques
+                    // minutes comme 30 jours), sans rotation.
+                    ticks: {
+                        color: '#9aa4b2',
+                        autoSkip: true,
+                        maxTicksLimit: 10,
+                        maxRotation: 0,
+                        minRotation: 0
+                    }
                 }
             }
         }
@@ -555,6 +697,22 @@ function computeInterval(durationSeconds) {
     let interval = Math.floor(durationSeconds / LONGTERM_TARGET_POINTS);
     if (interval < 60) interval = 60; // pas de tranche plus fine qu'une minute
     return interval;
+}
+
+// Formate un horodatage (secondes Unix) pour l'axe X, en adaptant la précision à
+// la DURÉE affichée : heure:minute pour une plage courte (quelques minutes à 24 h),
+// jour/mois + heure pour quelques jours, jour/mois seul pour un mois. L'axe reflète
+// ainsi la période demandée au lieu d'un format fixe.
+function formatTsLabel(tsSeconds, spanSeconds) {
+    const d = new Date(tsSeconds * 1000);
+    const p = (n) => String(n).padStart(2, '0');
+    if (spanSeconds <= 24 * 3600) {
+        return `${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+    if (spanSeconds <= 7 * 24 * 3600) {
+        return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}`;
 }
 
 // Convertit la valeur d'un <input type="datetime-local"> (heure locale) en secondes Unix.
@@ -607,15 +765,83 @@ function getCompareRange(primary) {
     return null;
 }
 
-async function fetchRange(range, interval) {
+// Source sélectionnée sur la page Historique : OUT par défaut (météo extérieure),
+// IN sur bascule. Le paramètre ctx est propagé à toutes les requêtes de plage.
+function getSourceCtx() {
+    return document.getElementById('sourceCtx')?.value || 'out';
+}
+
+function sourceLabel() {
+    return getSourceCtx() === 'out' ? 'Extérieur' : 'Intérieur';
+}
+
+async function fetchRange(range, interval, ctxOverride) {
     const params = new URLSearchParams({
         from: String(range.from),
         to: String(range.to),
-        interval: String(interval)
+        interval: String(interval),
+        ctx: ctxOverride || getSourceCtx()
     });
     const res = await fetch(`/api/history?${params.toString()}`);
     const json = await res.json();
+    // Cadence d'enregistrement annoncée par le firmware : cale l'auto-refresh.
+    if (typeof json.measurement_interval_s === 'number' && json.measurement_interval_s > 0) {
+        measurementIntervalMs = json.measurement_interval_s * 1000;
+    }
     return Array.isArray(json.data) ? json.data : [];
+}
+
+// Vue OUT : comble les tranches sans mesure extérieure par l'intérieur, EN LES
+// MARQUANT (jamais un point IN présenté comme OUT). Modifie outData en place et
+// renvoie, par grandeur, un tableau de drapeaux "comblé" aligné sur les points,
+// plus le nombre de tranches comblées.
+function fillOutWithIn(outData, inData) {
+    const flags = { temp: [], hum: [], pres: [], slices: 0 };
+    const keys = ['temp', 'hum', 'pres'];
+    for (let i = 0; i < outData.length; i++) {
+        const o = outData[i];
+        const inp = inData[i] || {};
+        let filledHere = false;
+        for (const k of keys) {
+            const ov = o[k];
+            const iv = inp[k];
+            if (ov === null || ov === undefined) {
+                if (iv !== null && iv !== undefined) {
+                    o[k] = iv;           // secours intérieur
+                    flags[k].push(true); // marqué comme comblé
+                    filledHere = true;
+                } else {
+                    flags[k].push(false);
+                }
+            } else {
+                flags[k].push(false);
+            }
+        }
+        if (filledHere) flags.slices++;
+    }
+    return flags;
+}
+
+// Couleur des points comblés (IN), cohérente avec le badge "secours intérieur".
+const FILL_COLOR = '#ff9f2e';
+
+// Applique le marquage visuel : les points comblés (IN) ressortent en pastilles
+// oranges ; les points OUT restent une simple ligne (rayon 0). Cas particulier :
+// un point VALIDE ISOLÉ (ses deux voisins sont nuls) doit afficher un marqueur,
+// sinon une ligne ne peut rien tracer et le point est invisible — c'est ce qui
+// arrivait avec une seule mesure (juste après un reset) : graphe vide alors que
+// la donnée existe. On donne donc un petit rayon à ces points isolés.
+function applyFillStyle(dataset, flags) {
+    const data = dataset.data || [];
+    const isNum = (v) => typeof v === 'number' && isFinite(v);
+    const isolated = (i) => isNum(data[i]) && !isNum(data[i - 1]) && !isNum(data[i + 1]);
+    if (!flags) {
+        dataset.pointRadius = data.map((_, i) => (isolated(i) ? 2.5 : 0));
+        dataset.pointBackgroundColor = dataset.borderColor;
+        return;
+    }
+    dataset.pointRadius = data.map((_, i) => (flags[i] ? 3 : (isolated(i) ? 2.5 : 0)));
+    dataset.pointBackgroundColor = flags.map((f) => (f ? FILL_COLOR : dataset.borderColor));
 }
 
 function formatRangeLabel(range) {
@@ -783,20 +1009,29 @@ async function refreshLongterm() {
     }
     const compare = getCompareRange(primary);
     const interval = computeInterval(primary.to - primary.from);
-    const spanOverDay = (primary.to - primary.from) > 86400;
 
     showChartLoading(true);
     try {
-        const dataA = await fetchRange(primary, interval);
-        const dataB = compare ? await fetchRange(compare, interval) : null;
+        const ctx = getSourceCtx();
+        // Requêtes lancées EN PARALLÈLE (période A, période B de comparaison, et en
+        // vue OUT l'intérieur pour combler les trous) : elles sont indépendantes,
+        // les enchaîner en série ralentissait l'affichage.
+        const needIn = (ctx === 'out');
+        const [dataA, dataB, inA] = await Promise.all([
+            fetchRange(primary, interval),
+            compare ? fetchRange(compare, interval) : Promise.resolve(null),
+            needIn ? fetchRange(primary, interval, 'in') : Promise.resolve(null)
+        ]);
 
-        // Axe X : horodatage réel de la période A (les points B sont alignés par index).
-        chart.data.labels = dataA.map((d) => {
-            const dt = new Date(d.t * 1000);
-            return spanOverDay
-                ? dt.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-                : dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-        });
+        // En vue OUT, comble les tranches extérieures manquantes par l'intérieur
+        // (marquées ensuite en orange).
+        let fillFlags = null;
+        if (needIn && inA) fillFlags = fillOutWithIn(dataA, inA);
+
+        // Axe X : horodatage réel de la période A (les points B sont alignés par
+        // index). Le format s'adapte à la durée affichée (cf. formatTsLabel).
+        const spanSeconds = primary.to - primary.from;
+        chart.data.labels = dataA.map((d) => formatTsLabel(d.t, spanSeconds));
         // Filtre les valeurs aberrantes (pics/creux d'un point) pour le tracé et les stats.
         const filteredA = buildFilteredSeries(dataA);
         const filteredB = dataB ? buildFilteredSeries(dataB) : null;
@@ -804,6 +1039,12 @@ async function refreshLongterm() {
         chart.data.datasets[1].data = filteredA.hum;
         chart.data.datasets[2].data = filteredA.pres;
         setComparisonDatasets(filteredB);
+
+        // Marque les points comblés par l'intérieur (vue OUT uniquement).
+        applyFillStyle(chart.data.datasets[0], fillFlags ? fillFlags.temp : null);
+        applyFillStyle(chart.data.datasets[1], fillFlags ? fillFlags.hum : null);
+        applyFillStyle(chart.data.datasets[2], fillFlags ? fillFlags.pres : null);
+
         updateChartScale();
 
         longtermFilteredA = filteredA;
@@ -811,15 +1052,22 @@ async function refreshLongterm() {
         updateSynthesis();
 
         if (info) {
-            info.textContent = compare
-                ? `Période A : ${formatRangeLabel(primary)}   •   Période B : ${formatRangeLabel(compare)}`
-                : `Période : ${formatRangeLabel(primary)}`;
+            const src = `${sourceLabel()} · `;
+            const filledNote = (fillFlags && fillFlags.slices > 0)
+                ? `   •   ${fillFlags.slices} tranche(s) comblée(s) par l'intérieur (en orange)`
+                : '';
+            info.textContent = (compare
+                ? `${src}Période A : ${formatRangeLabel(primary)}   •   Période B : ${formatRangeLabel(compare)}`
+                : `${src}Période : ${formatRangeLabel(primary)}`) + filledNote;
         }
     } catch (e) {
         console.error('Erreur historique', e);
         if (info) info.textContent = 'Erreur lors de la récupération de l’historique.';
     } finally {
         showChartLoading(false);
+        // Re-cale l'auto-refresh sur la cadence apprise via /api/history
+        // (measurement_interval_s), au cas où elle diffère du défaut.
+        scheduleLongtermAutoRefresh();
     }
 }
 
@@ -840,7 +1088,10 @@ function scheduleLongtermAutoRefresh() {
     const primary = getPrimaryRange();
     if (!primary) return;
     if ((primary.to - primary.from) > LONGTERM_AUTOREFRESH_MAX_SECONDS) return;
-    longtermRefreshTimer = setInterval(refreshLongterm, HISTORY_REFRESH_MS);
+    // Rythme = cadence d'enregistrement + marge (au lieu d'un intervalle court) :
+    // les métriques ne changent qu'à chaque nouvelle mesure (~5 min).
+    longtermRefreshTimer = setInterval(refreshLongterm,
+                                       measurementIntervalMs + LONGTERM_REFRESH_MARGIN_MS);
 }
 
 function initLongtermControls() {
@@ -871,6 +1122,8 @@ function initLongtermControls() {
         applyNow();
     });
     if (comparePreset) comparePreset.addEventListener('change', applyNow);
+    const sourceCtx = document.getElementById('sourceCtx');
+    if (sourceCtx) sourceCtx.addEventListener('change', refreshLongterm);
     if (fromInput) fromInput.addEventListener('change', refreshLongterm);
     if (toInput) toInput.addEventListener('change', refreshLongterm);
     if (compareFromInput) compareFromInput.addEventListener('change', refreshLongterm);
@@ -893,11 +1146,10 @@ window.onload = () => {
     fetchLive();
     fetchAlert();
 
-    if (isHistoryPage()) {
+    if (getPageName() === 'longterm') {
         initChart();
 
-        // La valeur par défaut du zoom est portée par l'attribut value du slider,
-        // spécifique à chaque page (90 % sur le tableau de bord, 75 % sur l'historique).
+        // Zoom par défaut porté par l'attribut value du slider de la page.
         const marginSlider = document.getElementById('scaleMargin');
         const marginValue = document.getElementById('scaleMarginValue');
         if (marginSlider) {
@@ -907,14 +1159,8 @@ window.onload = () => {
         const modeSelect = document.getElementById('scaleMode');
         if (modeSelect) modeSelect.value = GRAPH_SCALE_MODE;
 
-        if (getPageName() === 'longterm') {
-            // Page Historique : pilotée par la sélection de période.
-            initLongtermControls();
-        } else {
-            // Tableau de bord : fenêtre glissante de 2 h.
-            fetchHistory();
-            setInterval(fetchHistory, HISTORY_REFRESH_MS);
-        }
+        // Page Historique : pilotée par la sélection de période.
+        initLongtermControls();
     }
 
     if (isStatsPage()) {

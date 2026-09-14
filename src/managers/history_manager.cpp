@@ -1,7 +1,9 @@
 #include "history_manager.h"
 #include <LittleFS.h>
+#include <SD.h>
 #include "../utils/logs.h"
 #include "../utils/cooperative_yield.h" // INCLUSION AJOUTÉE
+#include "../modules/meteo_context.h"
 #include <time.h>
 #include <inttypes.h>
 #include <climits>
@@ -10,7 +12,13 @@
 #include <algorithm>
 #include <Arduino.h>
 
-#define HISTORY_FILE "/history/recent.dat"
+// Arborescence symétrique IN/OUT (voir header) :
+//   SPIFFS : /history/indoor_recent.dat  +  /history/outdoor_recent.dat
+//   SD     : /history/indoor/AAAA/MM/...  +  /history/outdoor/AAAA/MM/...
+#define HISTORY_FILE "/history/indoor_recent.dat"
+// Ancien nom (avant symétrie IN/OUT), supprimé par clearHistory() pour ne pas
+// laisser un orphelin sur la partition SPIFFS après reflash.
+#define HISTORY_FILE_LEGACY "/history/recent.dat"
 #define MAX_RECENT_RECORDS 1440
 #define SD_SAMPLE_TOLERANCE_S 1800 // tolérance de recherche autour de l'horodatage cible (30 min)
 
@@ -229,6 +237,245 @@ const std::vector<HistoryRecord>& HistoryManager::getRecentHistory() const {
     return _recentHistory;
 }
 
+// --- Nouvelles méthodes explicites IN/OUT (ÉTAPE 1) ---
+// Pour l'instant, ces méthodes délèguent aux méthodes existantes (implicitement IN)
+// Cela permet une transition progressive sans casser l'existant
+
+void HistoryManager::addIndoor(const IndoorData& data) {
+    // Décision legacy = IN : l'historique historique EST le flux intérieur.
+    // addIndoor est le point d'entrée explicite ; add() en reste l'écriture
+    // concrète (conservée pour les appels existants et la compatibilité disque).
+    add(data.temperature, data.humidity, data.pressure);
+}
+
+void HistoryManager::addOutdoor(const OutdoorData& data) {
+    // RÈGLE STRICTE : seule une trame OUT réellement REÇUE et VALIDE entre dans
+    // l'historique OUT. Jamais une valeur intérieure, jamais la valeur
+    // « effective » (présentation), jamais une valeur seedée depuis le disque au
+    // boot. L'historique répond à « qu'a réellement mesuré le capteur OUT ? »,
+    // pas à « que montre-t-on maintenant ? » : ce sont deux chemins distincts.
+    // Une trame invalide (implausible / mal formée) ne met à jour NI le live NI
+    // l'historique. Ce garde protège l'invariant même si un futur appelant
+    // oubliait de filtrer en amont.
+    if (!data.valid) {
+        LOG_WARNING("History: Outdoor frame invalid, ignored (no live, no archive)");
+        return;
+    }
+
+    // Trame OUT réelle et valide : elle devient le dernier relevé « live » et
+    // fait référence pour la fraîcheur (contrairement au seed disque, qui reste
+    // volontairement « périmé »). _hasOutdoorRadioMs = « au moins une vraie trame
+    // reçue depuis le boot » : avant lui, l'OUT est en attente de 1re réception.
+    _lastOutdoorLive = data;
+    _hasLiveOutdoor = true;
+    _lastOutdoorRadioMs = millis();
+    _hasOutdoorRadioMs = true;
+
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        LOG_WARNING("History: Time not synced, outdoor live kept, archive skipped");
+        return;
+    }
+
+    OutdoorHistoryRecord record;
+    record.timestamp = time(NULL);
+    record.t = data.temperature;
+    record.h = data.humidity;
+    record.p = data.pressure;
+    
+    // Extensions futures (vent, pluie, UV)
+    record.wind_speed = data.wind_speed;
+    record.wind_gust = data.wind_gust;
+    record.wind_direction_deg = data.wind_direction_deg;
+    record.rain_rate = data.rain_rate;
+    record.rain_accumulated = data.rain_accumulated;
+    record.solar_lux = data.solar_lux;
+    record.uv_index = data.uv_index;
+
+    _outdoorHistory.push_back(record);
+    if (_outdoorHistory.size() > MAX_RECENT_RECORDS) {
+        _outdoorHistory.erase(_outdoorHistory.begin());
+    }
+
+    saveOutdoorRecent(record);
+    updateOutdoorDayStats(record, timeinfo);
+
+    if (_sd && _sd->isAvailable()) {
+        saveOutdoorToSdBinary(record);
+    }
+    
+    LOG_INFO("History: Outdoor data added (T=" + std::to_string(data.temperature) + "°C, H=" + std::to_string(data.humidity) + "%)");
+}
+
+const std::vector<IndoorHistoryRecord>& HistoryManager::getIndoorHistory() const {
+    // legacy = IN : l'historique récent est le flux intérieur. On l'expose sous
+    // le type IndoorHistoryRecord, converti à la volée dans un cache statique.
+    static std::vector<IndoorHistoryRecord> _indoorCache;
+    _indoorCache.clear();
+    for (const auto& rec : _recentHistory) {
+        IndoorHistoryRecord irec;
+        irec.timestamp = rec.timestamp;
+        irec.t = rec.t;
+        irec.h = rec.h;
+        irec.p = rec.p;
+        _indoorCache.push_back(irec);
+    }
+    return _indoorCache;
+}
+
+const std::vector<OutdoorHistoryRecord>& HistoryManager::getOutdoorHistory() const {
+    // ÉTAPE 3: Renvoie l'historique OUT récent
+    return _outdoorHistory;
+}
+
+Stats24h HistoryManager::getIndoorStats() const {
+    // Statistiques IN sur les dernières 24 h (legacy = IN). L'historique RAM peut
+    // couvrir bien plus (chargé depuis LittleFS au boot) : sans cette fenêtre, la
+    // synthèse « 24 h » agrégerait des semaines de mesures et gonflerait les
+    // amplitudes. On borne donc à now-24h dès que l'horloge est fiable.
+    Stats24h stats;
+    stats.count = 0;
+
+    const time_t now = time(NULL);
+    const time_t cutoff = (now > 86400) ? (now - 86400) : 0;
+
+    std::vector<float> temps, hums, pres;
+    for (const auto& rec : _recentHistory) {
+        if (rec.timestamp < cutoff) continue;
+        temps.push_back(rec.t);
+        hums.push_back(rec.h);
+        pres.push_back(rec.p);
+        stats.count++;
+    }
+    
+    // Utilisation du même moteur statistique robuste que pour l'existant
+    // Copie locale de robustMetric pour l'ÉTAPE 4 (sera refactorisée plus tard)
+    auto robustMetricLocal = [](const std::vector<float>& v, float floor, StatMetric& out) {
+        const size_t n = v.size();
+        if (n == 0) return;
+        std::vector<float> tmp(v);
+        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
+        const float median = tmp[n / 2];
+        for (auto& x : tmp) x = fabsf(x - median);
+        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
+        const float mad = tmp[n / 2];
+        const float thr = fmaxf(floor, 5.0f * 1.4826f * mad);
+        for (float x : v) {
+            if (fabsf(x - median) <= thr) out.add(x);
+        }
+    };
+    
+    robustMetricLocal(temps, OUTLIER_FLOOR_T, stats.temp);
+    robustMetricLocal(hums, OUTLIER_FLOOR_H, stats.hum);
+    robustMetricLocal(pres, OUTLIER_FLOOR_P, stats.pres);
+    
+    return stats;
+}
+
+Stats24h HistoryManager::getOutdoorStats() const {
+    // Statistiques OUT sur les dernières 24 h (même fenêtre que l'IN, pour que les
+    // deux résumés soient comparables sur la même période).
+    Stats24h stats;
+    stats.count = 0;
+
+    const time_t now = time(NULL);
+    const time_t cutoff = (now > 86400) ? (now - 86400) : 0;
+
+    std::vector<float> temps, hums, pres;
+    for (const auto& rec : _outdoorHistory) {
+        if (rec.timestamp < cutoff) continue;
+        temps.push_back(rec.t);
+        hums.push_back(rec.h);
+        pres.push_back(rec.p);
+        stats.count++;
+    }
+    
+    // Utilisation du même moteur statistique robuste que pour IN
+    auto robustMetricLocal = [](const std::vector<float>& v, float floor, StatMetric& out) {
+        const size_t n = v.size();
+        if (n == 0) return;
+        std::vector<float> tmp(v);
+        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
+        const float median = tmp[n / 2];
+        for (auto& x : tmp) x = fabsf(x - median);
+        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
+        const float mad = tmp[n / 2];
+        const float thr = fmaxf(floor, 5.0f * 1.4826f * mad);
+        for (float x : v) {
+            if (fabsf(x - median) <= thr) out.add(x);
+        }
+    };
+    
+    robustMetricLocal(temps, OUTLIER_FLOOR_T, stats.temp);
+    robustMetricLocal(hums, OUTLIER_FLOOR_H, stats.hum);
+    robustMetricLocal(pres, OUTLIER_FLOOR_P, stats.pres);
+    
+    return stats;
+}
+
+// Requêtes de plage IN/OUT.
+std::vector<IndoorHistoryPoint> HistoryManager::queryIndoorRange(time_t from, time_t to, long interval_s) const {
+    // legacy = IN : on agrège la plage via queryRange puis on la typifie IN.
+    std::vector<HistoryPoint> points = queryRange(from, to, interval_s);
+    std::vector<IndoorHistoryPoint> indoorPoints;
+    for (const auto& p : points) {
+        IndoorHistoryPoint ip;
+        ip.t = p.t;
+        ip.temp = p.temp;
+        ip.hum = p.hum;
+        ip.pres = p.pres;
+        ip.tvalid = p.tvalid;
+        ip.hvalid = p.hvalid;
+        ip.pvalid = p.pvalid;
+        ip.valid = p.valid;
+        indoorPoints.push_back(ip);
+    }
+    return indoorPoints;
+}
+
+std::vector<OutdoorHistoryPoint> HistoryManager::queryOutdoorRange(time_t from, time_t to, long interval_s) const {
+    // Agrège la plage OUT via le coeur commun (racine /history/outdoor + RAM OUT),
+    // puis typifie le résultat en points OUT.
+    std::vector<HistoryPoint> points = queryRangeImpl(from, to, interval_s, true);
+    std::vector<OutdoorHistoryPoint> outPoints;
+    outPoints.reserve(points.size());
+    for (const auto& p : points) {
+        OutdoorHistoryPoint op;
+        op.t = p.t;
+        op.temp = p.temp;
+        op.hum = p.hum;
+        op.pres = p.pres;
+        op.tvalid = p.tvalid;
+        op.hvalid = p.hvalid;
+        op.pvalid = p.pvalid;
+        op.valid = p.valid;
+        outPoints.push_back(op);
+    }
+    return outPoints;
+}
+
+// Méthodes querySynthesis IN/OUT (placeholder pour ÉTAPE 1)
+RangeSynthesis HistoryManager::queryIndoorSynthesis(time_t from, time_t to) const {
+    // legacy = IN : la synthèse existante est la synthèse intérieure.
+    return querySynthesis(from, to);
+}
+
+RangeSynthesis HistoryManager::queryOutdoorSynthesis(time_t from, time_t to) const {
+    // ÉTAPE 1: Pas encore de synthèse OUT
+    RangeSynthesis empty;
+    return empty;
+}
+
+// Export CSV IN/OUT.
+void HistoryManager::exportIndoorCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const {
+    // legacy = IN : l'export existant est l'export intérieur.
+    exportCsv(from, to, emit);
+}
+
+void HistoryManager::exportOutdoorCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const {
+    exportCsvImpl(from, to, emit, true);
+}
+
 // Statistiques robustes par grandeur : écarte les valeurs aberrantes via la
 // médiane et l'écart absolu médian (MAD). Contrairement au filtre temporel (qui
 // ne repère qu'un pic d'un seul point), cette approche gère aussi les SÉRIES de
@@ -251,27 +498,12 @@ static void robustMetric(const std::vector<float>& v, float floor, StatMetric& o
 }
 
 Stats24h HistoryManager::getRecentStats() const {
-    Stats24h stats;
-    const auto& H = _recentHistory;
-    const size_t n = H.size();
-    stats.count = n;
-    if (n == 0) return stats;
-
-    std::vector<float> vt, vh, vp;
-    vt.reserve(n); vh.reserve(n); vp.reserve(n);
-    size_t it = 0;
-    for (const auto& r : H) {
-        COOPERATIVE_YIELD_EVERY(it, 256); it++;
-        vt.push_back(r.t); vh.push_back(r.h); vp.push_back(r.p);
-    }
-
-    robustMetric(vt, 2.0f, stats.temp);
-    robustMetric(vh, 8.0f, stats.hum);
-    robustMetric(vp, 3.0f, stats.pres);
-    return stats;
+    // Compatibilité : le flux « recent » est le flux IN (legacy = IN).
+    return getIndoorStats();
 }
 
 void HistoryManager::loadRecent() {
+    // Chargement de l'historique IN (existant)
     if (!LittleFS.exists(HISTORY_FILE)) return;
 
     File f = LittleFS.open(HISTORY_FILE, "r");
@@ -283,17 +515,67 @@ void HistoryManager::loadRecent() {
         if (f.read((uint8_t*)&r, sizeof(HistoryRecord)) == sizeof(HistoryRecord)) {
             _recentHistory.push_back(r);
             loaded_records++;
-            COOPERATIVE_YIELD_EVERY(loaded_records, 256);
         }
     }
     f.close();
-    
+
+    // L'historique RAM est un tampon récent (~24 h) ; l'archive longue vit sur la
+    // carte SD. Le fichier LittleFS peut avoir accumulé des semaines de mesures :
+    // on ne garde en RAM que les dernières MAX_RECENT_RECORDS (comme le fait add()
+    // au fil de l'eau), pour ne pas immobiliser des Mo ni ralentir chaque calcul.
     if (_recentHistory.size() > MAX_RECENT_RECORDS) {
-        const size_t overflow = _recentHistory.size() - MAX_RECENT_RECORDS;
-        _recentHistory.erase(_recentHistory.begin(), _recentHistory.begin() + overflow);
+        _recentHistory.erase(_recentHistory.begin(),
+                             _recentHistory.end() - MAX_RECENT_RECORDS);
     }
+
+    LOG_INFO("History: Loaded " + std::to_string(loaded_records)
+             + " IN records (kept " + std::to_string(_recentHistory.size()) + " in RAM)");
     
-    LOG_INFO("History loaded: " + std::to_string(_recentHistory.size()) + " points");
+    // ÉTAPE 4: Chargement de l'historique OUT (CSV simplifié)
+    const char* outdoorHistoryFile = "/history/outdoor_recent.dat";
+    if (LittleFS.exists(outdoorHistoryFile)) {
+        File f_out = LittleFS.open(outdoorHistoryFile, "r");
+        if (f_out) {
+            size_t loaded_outdoor = 0;
+            while (f_out.available()) {
+                String line = f_out.readStringUntil('\n');
+                if (line.length() > 0) {
+                    // Format CSV: timestamp,t,h,p
+                    int comma1 = line.indexOf(',');
+                    int comma2 = line.indexOf(',', comma1 + 1);
+                    int comma3 = line.indexOf(',', comma2 + 1);
+                    
+                    if (comma1 > 0 && comma2 > 0 && comma3 > 0) {
+                        OutdoorHistoryRecord r;
+                        r.timestamp = line.substring(0, comma1).toInt();
+                        r.t = line.substring(comma1 + 1, comma2).toFloat();
+                        r.h = line.substring(comma2 + 1, comma3).toFloat();
+                        r.p = line.substring(comma3 + 1).toFloat();
+                        
+                        // Extensions futures à 0 pour l'instant
+                        r.wind_speed = 0; r.wind_gust = 0; r.wind_direction_deg = 0;
+                        r.rain_rate = 0; r.rain_accumulated = 0;
+                        r.solar_lux = 0; r.uv_index = 0;
+                        
+                        _outdoorHistory.push_back(r);
+                        loaded_outdoor++;
+                    }
+                }
+            }
+            f_out.close();
+            LOG_INFO("History: Loaded " + std::to_string(loaded_outdoor) + " OUT records");
+        }
+    }
+
+    // Reprise d'affichage après reboot : dernier point archivé = dernier OUT connu.
+    if (!_hasLiveOutdoor && !_outdoorHistory.empty()) {
+        const OutdoorHistoryRecord& last = _outdoorHistory.back();
+        _lastOutdoorLive.temperature = last.t;
+        _lastOutdoorLive.humidity = last.h;
+        _lastOutdoorLive.pressure = last.p;
+        _lastOutdoorLive.valid = true;
+        _hasLiveOutdoor = true;
+    }
 }
 
 void HistoryManager::saveRecent(const HistoryRecord& record) {
@@ -309,19 +591,20 @@ void HistoryManager::saveRecent(const HistoryRecord& record) {
 
 void HistoryManager::buildDayPaths(const struct tm& tinfo, char* binPath, char* statsPath, size_t sz) const {
     char date[16];
-    strftime(date, sizeof(date), "%Y-%m-%d", &tinfo);       // AAAA-MM-JJ
-    char dir[24];
-    strftime(dir, sizeof(dir), "/history/%Y/%m", &tinfo);   // /history/AAAA/MM
+    strftime(date, sizeof(date), "%Y-%m-%d", &tinfo);              // AAAA-MM-JJ
+    char dir[32];
+    strftime(dir, sizeof(dir), "/history/indoor/%Y/%m", &tinfo);   // /history/indoor/AAAA/MM
     snprintf(binPath, sz, "%s/%s.bin", dir, date);
     snprintf(statsPath, sz, "%s/%s.stats", dir, date);
 }
 
 bool HistoryManager::ensureDayDirs(const struct tm& tinfo) const {
-    char p[24];
+    char p[32];
     if (!SD.exists("/history") && !SD.mkdir("/history")) return false;
-    strftime(p, sizeof(p), "/history/%Y", &tinfo);
+    if (!SD.exists("/history/indoor") && !SD.mkdir("/history/indoor")) return false;
+    strftime(p, sizeof(p), "/history/indoor/%Y", &tinfo);
     if (!SD.exists(p) && !SD.mkdir(p)) return false;
-    strftime(p, sizeof(p), "/history/%Y/%m", &tinfo);
+    strftime(p, sizeof(p), "/history/indoor/%Y/%m", &tinfo);
     if (!SD.exists(p) && !SD.mkdir(p)) return false;
     return true;
 }
@@ -463,13 +746,15 @@ bool HistoryManager::readDayStats(time_t day_ts, DayStats& out) const {
 
 // Recherche la mesure la plus proche de target_ts dans le .bin du jour, par
 // dichotomie (les enregistrements sont chronologiques et de taille fixe).
-bool HistoryManager::readBinSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out) const {
+bool HistoryManager::readBinSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out,
+                                       bool outdoor) const {
     if (!_sd || !_sd->isAvailable()) return false;
     struct tm tinfo;
     if (!localtime_r(&target_ts, &tinfo)) return false;
 
-    char binPath[48], statsPath[48];
-    buildDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
+    char binPath[64], statsPath[64];
+    if (outdoor) buildOutdoorDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
+    else         buildDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
     if (!SD.exists(binPath)) return false;
 
     File f = SD.open(binPath, FILE_READ);
@@ -506,6 +791,11 @@ bool HistoryManager::readBinSampleNear(time_t target_ts, float& t_out, float& h_
 }
 
 std::vector<HistoryPoint> HistoryManager::queryRange(time_t from, time_t to, long interval_s) const {
+    return queryRangeImpl(from, to, interval_s, false);
+}
+
+std::vector<HistoryPoint> HistoryManager::queryRangeImpl(time_t from, time_t to, long interval_s,
+                                                         bool outdoor) const {
     std::vector<HistoryPoint> out;
     if (to <= from) return out;
     if (interval_s < 1) interval_s = 1;
@@ -582,15 +872,16 @@ std::vector<HistoryPoint> HistoryManager::queryRange(time_t from, time_t to, lon
     //    séquentiellement jusqu'à dépasser to — sans relire tout le fichier.
     //    Repli sur l'ancien CSV plat si un .bin n'existe pas encore.
     if (_sd && _sd->isAvailable()) {
-        char prevBin[48] = {0};
+        char prevBin[64] = {0};
         size_t day_iter = 0;
         for (time_t cursor = from; cursor <= to + 86400; cursor += 86400) {
             COOPERATIVE_YIELD_EVERY(day_iter, 8);
             day_iter++;
             struct tm tinfo;
             if (!localtime_r(&cursor, &tinfo)) continue;
-            char binPath[48], statsPath[48];
-            buildDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
+            char binPath[64], statsPath[64];
+            if (outdoor) buildOutdoorDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
+            else         buildDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
             if (strcmp(binPath, prevBin) == 0) continue; // évite un double parcours (bord DST)
             strncpy(prevBin, binPath, sizeof(prevBin));
             prevBin[sizeof(prevBin) - 1] = '\0';
@@ -620,6 +911,9 @@ std::vector<HistoryPoint> HistoryManager::queryRange(time_t from, time_t to, lon
                 continue;
             }
 
+            // Le repli CSV plat n'existe que pour l'historique IN (legacy).
+            if (outdoor) continue;
+
             // Repli : ancien fichier CSV plat /history/AAAA-MM-JJ.csv
             char csvPath[32];
             strftime(csvPath, sizeof(csvPath), "/history/%Y-%m-%d.csv", &tinfo);
@@ -647,12 +941,22 @@ std::vector<HistoryPoint> HistoryManager::queryRange(time_t from, time_t to, lon
     // 2) Complète avec l'historique RAM pour la portion non encore écrite sur SD
     //    (ou la totalité de la plage si aucune carte SD n'est disponible).
     size_t ram_iteration = 0;
-    for (const auto& r : _recentHistory) {
-        COOPERATIVE_YIELD_EVERY(ram_iteration, 256);
-        ram_iteration++;
-        long ts = static_cast<long>(r.timestamp);
-        if (ts <= lastSdTs) continue;
-        feed(ts, r.t, r.h, r.p);
+    if (outdoor) {
+        for (const auto& r : _outdoorHistory) {
+            COOPERATIVE_YIELD_EVERY(ram_iteration, 256);
+            ram_iteration++;
+            long ts = static_cast<long>(r.timestamp);
+            if (ts <= lastSdTs) continue;
+            feed(ts, r.t, r.h, r.p);
+        }
+    } else {
+        for (const auto& r : _recentHistory) {
+            COOPERATIVE_YIELD_EVERY(ram_iteration, 256);
+            ram_iteration++;
+            long ts = static_cast<long>(r.timestamp);
+            if (ts <= lastSdTs) continue;
+            feed(ts, r.t, r.h, r.p);
+        }
     }
     flushEnd(); // agrège la dernière mesure retenue dans la fenêtre glissante
 
@@ -676,11 +980,15 @@ std::vector<HistoryPoint> HistoryManager::queryRange(time_t from, time_t to, lon
     return out;
 }
 
-bool HistoryManager::readSdSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out) const {
+bool HistoryManager::readSdSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out,
+                                      bool outdoor) const {
     if (!_sd || !_sd->isAvailable()) return false;
 
     // Priorité au format binaire ; repli sur l'ancien CSV plat si absent.
-    if (readBinSampleNear(target_ts, t_out, h_out, p_out)) return true;
+    if (readBinSampleNear(target_ts, t_out, h_out, p_out, outdoor)) return true;
+
+    // Le CSV plat legacy n'existe que pour l'IN ; l'OUT n'a jamais eu ce format.
+    if (outdoor) return false;
 
     struct tm timeinfo;
     if (!localtime_r(&target_ts, &timeinfo)) return false;
@@ -728,13 +1036,14 @@ bool HistoryManager::readSdSampleNear(time_t target_ts, float& t_out, float& h_o
 }
 
 void HistoryManager::createSdStructure() {
-    if (!SD.exists("/history")) {
-        if (SD.mkdir("/history")) {
-            LOG_INFO("Created /history directory on SD card.");
-        } else {
-            LOG_ERROR("Failed to create /history directory on SD card.");
-        }
+    // Arborescence symétrique : /history/indoor et /history/outdoor côte à côte.
+    if (!SD.exists("/history") && !SD.mkdir("/history")) {
+        LOG_ERROR("Failed to create /history directory on SD card.");
+        return;
     }
+    if (!SD.exists("/history/indoor")) SD.mkdir("/history/indoor");
+    if (!SD.exists("/history/outdoor")) SD.mkdir("/history/outdoor");
+    LOG_INFO("SD history structure ready (/history/indoor + /history/outdoor).");
 }
 
 void HistoryManager::removeDirRecursive(const char* path) const {
@@ -760,18 +1069,28 @@ void HistoryManager::removeDirRecursive(const char* path) const {
 }
 
 void HistoryManager::clearHistory() {
+    // Efface TOUT l'historique, IN comme OUT, pour repartir sur des mesures
+    // propres : états RAM, fichiers récents SPIFFS, et toute l'arborescence SD.
     _recentHistory.clear();
+    _outdoorHistory.clear();
     _currentDayKey = 0;
     _currentDayStats = DayStats();
-    LittleFS.remove(HISTORY_FILE);
+    _outdoorDayStats = DayStats();
+
+    // SPIFFS : les deux fichiers récents + l'ancien nom (avant symétrie IN/OUT),
+    // pour ne pas laisser d'orphelin sur la partition qui survit au reflash.
+    LittleFS.remove(HISTORY_FILE);                    // /history/indoor_recent.dat
+    LittleFS.remove("/history/outdoor_recent.dat");
+    LittleFS.remove(HISTORY_FILE_LEGACY);            // /history/recent.dat (ancien)
 
     if (_sd && _sd->isAvailable()) {
         LOG_INFO("Clearing history from SD card...");
-        // Supprime récursivement toute l'arborescence puis la recrée vide.
+        // Supprime récursivement toute l'arborescence puis recrée la structure
+        // symétrique vide (/history/indoor + /history/outdoor).
         removeDirRecursive("/history");
-        SD.mkdir("/history");
+        createSdStructure();
     }
-    LOG_INFO("History cleared");
+    LOG_INFO("History cleared (IN + OUT)");
 }
 
 RangeSynthesis HistoryManager::querySynthesis(time_t from, time_t to) const {
@@ -861,17 +1180,25 @@ static void listEntries(const char* path, bool wantDirs,
 }
 
 std::vector<DayIndexEntry> HistoryManager::listDays() const {
+    return listDaysFromRoot("/history/indoor");
+}
+
+std::vector<DayIndexEntry> HistoryManager::listDaysOutdoor() const {
+    return listDaysFromRoot("/history/outdoor");
+}
+
+std::vector<DayIndexEntry> HistoryManager::listDaysFromRoot(const char* root) const {
     std::vector<DayIndexEntry> out;
     if (!_sd || !_sd->ensureMounted()) return out;
 
-    // /history/AAAA/MM/AAAA-MM-JJ.bin : on aplatit les deux niveaux de
+    // <root>/AAAA/MM/AAAA-MM-JJ.bin : on aplatit les deux niveaux de
     // répertoires avant d'ouvrir le moindre fichier de mesures.
     std::vector<std::string> months; // chemins complets des dossiers de mois
     {
         std::vector<std::string> years;
-        listEntries("/history", true, years);
+        listEntries(root, true, years);
         for (const std::string& y : years) {
-            const std::string yearPath = "/history/" + y;
+            const std::string yearPath = std::string(root) + "/" + y;
             std::vector<std::string> monthNames;
             listEntries(yearPath.c_str(), true, monthNames);
             for (const std::string& m : monthNames)
@@ -939,14 +1266,25 @@ std::vector<DayIndexEntry> HistoryManager::listDays() const {
 
 uint32_t HistoryManager::exportRaw(uint32_t day_key, uint32_t from_index, uint32_t limit,
                                    const std::function<void(const RawRecord&)>& emit) const {
+    return exportRawFromRoot("/history/indoor", day_key, from_index, limit, emit);
+}
+
+uint32_t HistoryManager::exportRawOutdoor(uint32_t day_key, uint32_t from_index, uint32_t limit,
+                                          const std::function<void(const RawRecord&)>& emit) const {
+    return exportRawFromRoot("/history/outdoor", day_key, from_index, limit, emit);
+}
+
+uint32_t HistoryManager::exportRawFromRoot(const char* root, uint32_t day_key, uint32_t from_index,
+                                           uint32_t limit,
+                                           const std::function<void(const RawRecord&)>& emit) const {
     if (!_sd || !_sd->ensureMounted()) return 0;
 
     const unsigned y = day_key / 10000u;
     const unsigned mo = (day_key / 100u) % 100u;
     const unsigned d = day_key % 100u;
 
-    char binPath[48];
-    snprintf(binPath, sizeof(binPath), "/history/%04u/%02u/%04u-%02u-%02u.bin", y, mo, y, mo, d);
+    char binPath[64];
+    snprintf(binPath, sizeof(binPath), "%s/%04u/%02u/%04u-%02u-%02u.bin", root, y, mo, y, mo, d);
 
     File f = SD.open(binPath, FILE_READ);
     if (!f) return 0;
@@ -967,12 +1305,17 @@ uint32_t HistoryManager::exportRaw(uint32_t day_key, uint32_t from_index, uint32
 }
 
 void HistoryManager::exportCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const {
+    exportCsvImpl(from, to, emit, false);
+}
+
+void HistoryManager::exportCsvImpl(time_t from, time_t to,
+                                   const std::function<void(const char*)>& emit, bool outdoor) const {
     emit("Timestamp,Temperature,Humidity,Pressure\n");
     if (to <= from || !_sd || !_sd->isAvailable()) return;
 
     const long from_l = static_cast<long>(from);
     const long to_l = static_cast<long>(to);
-    char prevBin[48] = {0};
+    char prevBin[64] = {0};
     size_t day_iter = 0;
 
     for (time_t cursor = from; cursor <= to + 86400; cursor += 86400) {
@@ -980,8 +1323,9 @@ void HistoryManager::exportCsv(time_t from, time_t to, const std::function<void(
         day_iter++;
         struct tm tinfo;
         if (!localtime_r(&cursor, &tinfo)) continue;
-        char binPath[48], statsPath[48];
-        buildDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
+        char binPath[64], statsPath[64];
+        if (outdoor) buildOutdoorDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
+        else         buildDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
         if (strcmp(binPath, prevBin) == 0) continue;
         strncpy(prevBin, binPath, sizeof(prevBin));
         prevBin[sizeof(prevBin) - 1] = '\0';
@@ -1124,14 +1468,31 @@ void HistoryManager::migrateCsvToBinary() {
     LOG_INFO("History migration complete");
 }
 
-MeteoTrend HistoryManager::getTrend() const {
-    MeteoTrend trend;
-    if (_recentHistory.empty()) return trend;
+MeteoTrend HistoryManager::getTrend() const { return getTrendImpl(false); }
+MeteoTrend HistoryManager::getTrendOutdoor() const { return getTrendImpl(true); }
 
-    const time_t now = _recentHistory.back().timestamp;
-    float t_now = _recentHistory.back().t;
-    float h_now = _recentHistory.back().h;
-    float p_now = _recentHistory.back().p;
+MeteoTrend HistoryManager::getTrendImpl(bool outdoor) const {
+    MeteoTrend trend;
+
+    // Source RAM selon le contexte : IN = _recentHistory (~24h à 1/min),
+    // OUT = _outdoorHistory (~12h à 1/30s). On copie (ts,t,h,p) dans une vue
+    // uniforme pour partager la même logique quelle que soit la source.
+    std::vector<RawRecord> ram;
+    if (outdoor) {
+        ram.reserve(_outdoorHistory.size());
+        for (const auto& r : _outdoorHistory)
+            ram.push_back(RawRecord{static_cast<uint32_t>(r.timestamp), r.t, r.h, r.p});
+    } else {
+        ram.reserve(_recentHistory.size());
+        for (const auto& r : _recentHistory)
+            ram.push_back(RawRecord{static_cast<uint32_t>(r.timestamp), r.t, r.h, r.p});
+    }
+    if (ram.empty()) return trend;
+
+    const time_t now = static_cast<time_t>(ram.back().ts);
+    float t_now = ram.back().t;
+    float h_now = ram.back().h;
+    float p_now = ram.back().p;
 
     float t_1h = t_now, h_1h = h_now, p_1h = p_now;
     float t_12h = t_now, h_12h = h_now, p_12h = p_now;
@@ -1139,36 +1500,37 @@ MeteoTrend HistoryManager::getTrend() const {
     bool found_1h = false, found_12h = false, found_24h = false;
     size_t trend_iteration = 0;
 
-    // L'historique RAM (_recentHistory) couvre au maximum 24h (échantillonnage ~1 min).
-    for (auto it = _recentHistory.rbegin(); it != _recentHistory.rend(); ++it) {
+    for (auto it = ram.rbegin(); it != ram.rend(); ++it) {
         COOPERATIVE_YIELD_EVERY(trend_iteration, 256);
         trend_iteration++;
 
-        time_t dt = now - it->timestamp;
+        time_t dt = now - static_cast<time_t>(it->ts);
         if (!found_1h && dt >= 3600) {
-            t_1h = it->t;
-            h_1h = it->h;
-            p_1h = it->p;
-            found_1h = true;
+            t_1h = it->t; h_1h = it->h; p_1h = it->p; found_1h = true;
         }
         if (!found_12h && dt >= 43200) {
-            t_12h = it->t;
-            h_12h = it->h;
-            p_12h = it->p;
-            found_12h = true;
+            t_12h = it->t; h_12h = it->h; p_12h = it->p; found_12h = true;
         }
         if (!found_24h && dt >= 86400) {
-            t_24h = it->t;
-            h_24h = it->h;
-            p_24h = it->p;
-            found_24h = true;
+            t_24h = it->t; h_24h = it->h; p_24h = it->p; found_24h = true;
             break;
         }
     }
 
-    // Le point à J-48h n'existe plus en RAM : on va le chercher dans le CSV journalier sur SD, si disponible.
+    // Points hors de portée de la RAM (l'OUT ne couvre que ~12h) : on les cherche
+    // sur la carte SD, dans l'arborescence du bon contexte. Aucun repli entre
+    // contextes : une tendance OUT n'emprunte jamais de point IN.
+    float tmp_t, tmp_h, tmp_p;
+    if (!found_12h && readSdSampleNear(now - 43200, tmp_t, tmp_h, tmp_p, outdoor)) {
+        t_12h = tmp_t; h_12h = tmp_h; p_12h = tmp_p; found_12h = true;
+    }
+    if (!found_24h && readSdSampleNear(now - 86400, tmp_t, tmp_h, tmp_p, outdoor)) {
+        t_24h = tmp_t; h_24h = tmp_h; p_24h = tmp_p; found_24h = true;
+    }
+
+    // Point à J-48h : jamais en RAM, lu sur SD si disponible.
     float t_48h = t_now, h_48h = h_now, p_48h = p_now;
-    trend.available_48h = readSdSampleNear(now - 172800, t_48h, h_48h, p_48h);
+    trend.available_48h = readSdSampleNear(now - 172800, t_48h, h_48h, p_48h, outdoor);
 
     trend.temp.delta_1h = t_now - t_1h;
     trend.temp.delta_12h = t_now - t_12h;
@@ -1202,4 +1564,160 @@ MeteoTrend HistoryManager::getTrend() const {
     trend.pres.direction_48h = trend.available_48h ? dir(trend.pres.delta_48h) : "indisponible";
 
     return trend;
+}
+
+// --- Méthodes privées de stockage OUT ---
+// (Le stockage IN passe par les méthodes legacy : saveRecent, saveToSdBinary,
+//  updateDayStats... — décision legacy = IN, pas de chemin indoor parallèle.)
+void HistoryManager::saveOutdoorRecent(const OutdoorHistoryRecord& record) {
+    // Sauvegarde des données OUT récentes dans LittleFS
+    // Similaire à saveRecent mais pour OUT
+    char path[64];
+    snprintf(path, sizeof(path), "/history/outdoor_recent.dat");
+    
+    File f = LittleFS.open(path, "a");
+    if (!f) {
+        LOG_WARNING("History: Failed to open outdoor recent file");
+        return;
+    }
+    
+    // Format : timestamp,t,h,p (pour l'instant format simple)
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%lu,%.2f,%.2f,%.2f\n", 
+             (unsigned long)record.timestamp, record.t, record.h, record.p);
+    f.write((const uint8_t*)buf, strlen(buf));
+    f.close();
+}
+
+void HistoryManager::saveOutdoorToSdBinary(const OutdoorHistoryRecord& record) {
+    // ÉTAPE 3: Stockage OUT sur SD dans /history/outdoor/AAAA/MM/AAAA-MM-JD.bin
+    // Pour l'instant, utilise le même format binaire que IN (extensions futures à prévoir)
+    
+    time_t ts = record.timestamp;
+    struct tm tinfo;
+    if (!localtime_r(&ts, &tinfo)) {
+        LOG_WARNING("Bin Save OUT: localtime failed");
+        return;
+    }
+
+    if (!ensureOutdoorDayDirs(tinfo) && _sd && _sd->ensureMounted()) {
+        ensureOutdoorDayDirs(tinfo);
+    }
+    
+    char binPath[64], statsPath[64];
+    buildOutdoorDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
+    
+    // Pour l'ÉTAPE 3, on utilise temporairement le même format que IN
+    // Conversion vers HistoryRecord pour réutiliser la logique existante
+    HistoryRecord legacy;
+    legacy.timestamp = record.timestamp;
+    legacy.t = record.t;
+    legacy.h = record.h;
+    legacy.p = record.p;
+    
+    // Logique simplifiée pour l'ÉTAPE 3 : ouverture, écriture, fermeture
+    File f = SD.open(binPath, FILE_APPEND);
+    if (!f) {
+        LOG_WARNING("Bin Save OUT: Failed to open " + std::string(binPath));
+        return;
+    }
+    
+    BinRecord bin;
+    bin.ts = record.timestamp;
+    bin.t = record.t;
+    bin.h = record.h;
+    bin.p = record.p;
+    
+    if (f.write((const uint8_t*)&bin, sizeof(bin)) != sizeof(bin)) {
+        LOG_WARNING("Bin Save OUT: Write failed");
+    }
+    f.close();
+    
+    LOG_INFO("History: Outdoor data saved to SD");
+}
+
+bool HistoryManager::ensureOutdoorDayDirs(const struct tm& tinfo) const {
+    // ÉTAPE 3: Création des répertoires pour /history/outdoor/AAAA/MM/
+    // Utilisation directe de SD (pas via SdManager qui n'a pas exists/mkdir)
+    if (!SD.exists("/history") && !SD.mkdir("/history")) {
+        LOG_WARNING("History: Failed to create /history for outdoor");
+        return false;
+    }
+    if (!SD.exists("/history/outdoor") && !SD.mkdir("/history/outdoor")) {
+        LOG_WARNING("History: Failed to create outdoor root directory");
+        return false;
+    }
+    char dirPath[64];
+    snprintf(dirPath, sizeof(dirPath), "/history/outdoor/%04d", tinfo.tm_year + 1900);
+    if (!SD.exists(dirPath)) {
+        if (!SD.mkdir(dirPath)) {
+            LOG_WARNING("History: Failed to create outdoor year directory");
+            return false;
+        }
+    }
+    
+    snprintf(dirPath, sizeof(dirPath), "/history/outdoor/%04d/%02d", tinfo.tm_year + 1900, tinfo.tm_mon + 1);
+    if (!SD.exists(dirPath)) {
+        if (!SD.mkdir(dirPath)) {
+            LOG_WARNING("History: Failed to create outdoor month directory");
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+void HistoryManager::buildOutdoorDayPaths(const struct tm& tinfo, char* binPath, char* statsPath, size_t sz) const {
+    // ÉTAPE 3: Chemins pour /history/outdoor/AAAA/MM/AAAA-MM-JD.bin
+    snprintf(binPath, sz, "/history/outdoor/%04d/%02d/%04d-%02d-%02d.bin",
+             tinfo.tm_year + 1900, tinfo.tm_mon + 1,
+             tinfo.tm_year + 1900, tinfo.tm_mon + 1, tinfo.tm_mday);
+    snprintf(statsPath, sz, "/history/outdoor/%04d/%02d/%04d-%02d-%02d.stats",
+             tinfo.tm_year + 1900, tinfo.tm_mon + 1,
+             tinfo.tm_year + 1900, tinfo.tm_mon + 1, tinfo.tm_mday);
+}
+
+void HistoryManager::updateOutdoorDayStats(const OutdoorHistoryRecord& record, const struct tm& tinfo) {
+    // ÉTAPE 3: Mise à jour des statistiques OUT du jour courant
+    // Pour l'instant, utilise la même logique que IN mais pour OUT
+    uint32_t dayKey = (tinfo.tm_year + 1900) * 10000 + (tinfo.tm_mon + 1) * 100 + tinfo.tm_mday;
+    
+    if (_currentDayKey != dayKey) {
+        // Nouveau jour : sauvegarder les stats précédentes et réinitialiser
+        // Pour l'ÉTAPE 3, on réinitialise simplement
+        _outdoorDayStats.magic = BIN_STATS_MAGIC;
+        _outdoorDayStats.count = 0;
+        _outdoorDayStats.first_ts = record.timestamp;
+        _outdoorDayStats.last_ts = record.timestamp;
+        _outdoorDayStats.t_min = record.t; _outdoorDayStats.t_max = record.t; _outdoorDayStats.t_sum = record.t;
+        _outdoorDayStats.h_min = record.h; _outdoorDayStats.h_max = record.h; _outdoorDayStats.h_sum = record.h;
+        _outdoorDayStats.p_min = record.p; _outdoorDayStats.p_max = record.p; _outdoorDayStats.p_sum = record.p;
+        _outdoorDayStats.t_first = record.t; _outdoorDayStats.h_first = record.h; _outdoorDayStats.p_first = record.p;
+        _outdoorDayStats.t_last = record.t; _outdoorDayStats.h_last = record.h; _outdoorDayStats.p_last = record.p;
+        _currentDayKey = dayKey;
+    } else {
+        // Mise à jour des stats existantes
+        _outdoorDayStats.count++;
+        _outdoorDayStats.last_ts = record.timestamp;
+        
+        if (record.t < _outdoorDayStats.t_min) _outdoorDayStats.t_min = record.t;
+        if (record.t > _outdoorDayStats.t_max) _outdoorDayStats.t_max = record.t;
+        _outdoorDayStats.t_sum += record.t;
+        _outdoorDayStats.t_last = record.t;
+        
+        if (record.h < _outdoorDayStats.h_min) _outdoorDayStats.h_min = record.h;
+        if (record.h > _outdoorDayStats.h_max) _outdoorDayStats.h_max = record.h;
+        _outdoorDayStats.h_sum += record.h;
+        _outdoorDayStats.h_last = record.h;
+        
+        if (record.p < _outdoorDayStats.p_min) _outdoorDayStats.p_min = record.p;
+        if (record.p > _outdoorDayStats.p_max) _outdoorDayStats.p_max = record.p;
+        _outdoorDayStats.p_sum += record.p;
+        _outdoorDayStats.p_last = record.p;
+    }
+}
+
+bool HistoryManager::readOutdoorDayStats(time_t day_ts, DayStats& out) const {
+    // ÉTAPE 1: Pas encore de stats OUT
+    return false;
 }

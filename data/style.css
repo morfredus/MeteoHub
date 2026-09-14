@@ -38,6 +38,38 @@ h1 { margin: 0; font-size: 1.5rem; }
 .card h2 { margin: 0 0 10px 0; font-size: 1rem; color: #aaa; }
 .value { font-size: 2rem; font-weight: bold; color: var(--accent); }
 .unit { font-size: 1rem; color: #888; }
+
+/* --- Station météo : héros extérieur + blocs OUT/IN --- */
+.hero { background: linear-gradient(160deg, #22303c, #1c2a33); border-radius: 16px; padding: 22px 24px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.35); }
+.hero-head { display: flex; align-items: center; gap: 12px; }
+.hero-title { font-size: 1rem; letter-spacing: 0.08em; text-transform: uppercase; color: #9fb3c8; }
+.hero-badge { font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+.hero-badge.fallback { background: #4a2f13; color: #ffb04d; border: 1px solid #ff9f2e; }
+.hero-badge.stale { background: #40391a; color: #ffe066; border: 1px solid #e6c229; }
+.hero-values { display: flex; align-items: baseline; gap: 28px; margin: 6px 0 4px; }
+.hero-temp span:first-child { font-size: 3.4rem; font-weight: 800; color: var(--accent); line-height: 1; }
+.hero-hum span:first-child { font-size: 2rem; font-weight: 700; color: #00ff88; }
+.hero-state { font-size: 0.85rem; margin-top: 6px; }
+.hero-state.ok { color: #6fcf97; }
+.hero-state.stale { color: #ffe066; }
+.hero-state.warn { color: #ffb04d; }
+
+.station-grid { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.card.station { text-align: left; border-top: 3px solid transparent; }
+.card.station.out { border-top-color: var(--accent); }
+.card.station.in { border-top-color: #00ff88; }
+.card.station h2 { text-align: left; }
+.card.station .metric { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #3a3a3a; }
+.card.station .metric:last-of-type { border-bottom: none; }
+.card.station .metric span { color: #aaa; font-size: 0.92rem; }
+.card.station .metric b { font-size: 1.15rem; color: var(--text); font-weight: 700; }
+.freshness { margin-top: 10px; font-size: 0.8rem; }
+.freshness.ok { color: #6fcf97; }
+.freshness.stale { color: #ffe066; }
+.freshness.warn { color: #ffb04d; }
+
+.chart-title { text-align: center; color: #9fb3c8; font-size: 0.9rem; margin-bottom: 10px; }
+.stats-count { color: #888; font-size: 0.8rem; font-style: italic; }
 /* L'attribut hidden doit primer sur les display: flex/grid des règles ci-dessous */
 [hidden] { display: none !important; }
 

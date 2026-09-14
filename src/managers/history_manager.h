@@ -4,12 +4,40 @@
 #include <functional>
 #include <Arduino.h>
 #include "sd_manager.h"
+#include "../modules/meteo_context.h"
  
+// HistoryRecord devient explicitement IN (mesures intérieures)
+// Maintenu pour compatibilité avec l'historique existant
 struct HistoryRecord {
     time_t timestamp;
     float t; // Température
     float h; // Humidité
     float p; // Pression
+};
+
+// Version explicite pour mesures intérieures (IN)
+struct IndoorHistoryRecord {
+    time_t timestamp;
+    float t; // Température
+    float h; // Humidité
+    float p; // Pression
+};
+
+// Version explicite pour mesures extérieures (OUT)
+struct OutdoorHistoryRecord {
+    time_t timestamp;
+    float t; // Température
+    float h; // Humidité
+    float p; // Pression
+    
+    // Extensions futures (vent, pluie, UV)
+    float wind_speed;
+    float wind_gust;
+    uint16_t wind_direction_deg;
+    float rain_rate;
+    float rain_accumulated;
+    float solar_lux;
+    float uv_index;
 };
 
 // Point agrégé renvoyé par une requête sur une plage arbitraire (queryRange).
@@ -25,6 +53,39 @@ struct HistoryPoint {
     bool hvalid = false; // certaines grandeurs et vide pour d'autres, p. ex. si une
     bool pvalid = false; // mesure aberrante a été écartée)
     bool valid = false;  // vrai si au moins une grandeur est valide
+};
+
+// Version explicite pour points IN (intérieur)
+struct IndoorHistoryPoint {
+    time_t t;
+    float temp;
+    float hum;
+    float pres;
+    bool tvalid = false;
+    bool hvalid = false;
+    bool pvalid = false;
+    bool valid = false;
+};
+
+// Version explicite pour points OUT (extérieur)
+struct OutdoorHistoryPoint {
+    time_t t;
+    float temp;
+    float hum;
+    float pres;
+    bool tvalid = false;
+    bool hvalid = false;
+    bool pvalid = false;
+    bool valid = false;
+    
+    // Extensions futures (vent, pluie, UV)
+    float wind_speed;
+    float wind_gust;
+    uint16_t wind_direction_deg;
+    float rain_rate;
+    float rain_accumulated;
+    float solar_lux;
+    float uv_index;
 };
 
 // Une journée disponible dans l'historique binaire, telle que la voit un
@@ -115,11 +176,40 @@ class HistoryManager {
 public:
     void begin(SdManager* sd = nullptr);
     void update();
-    void add(float t, float h, float p);
     
-    // Récupère l'historique récent (RAM)
+    // Méthodes existantes (maintenues pour compatibilité, traitées comme IN)
+    void add(float t, float h, float p);
     const std::vector<HistoryRecord>& getRecentHistory() const;
     Stats24h getRecentStats() const;
+    
+    // Nouvelles méthodes explicites IN/OUT
+    void addIndoor(const IndoorData& data);
+    void addOutdoor(const OutdoorData& data);
+
+    // Dernier relevé OUT vu (RAM), même si l'archivage a été sauté (NTP absent).
+    bool hasLiveOutdoor() const { return _hasLiveOutdoor; }
+    const OutdoorData& lastOutdoorLive() const { return _lastOutdoorLive; }
+
+    // Vrai dès qu'au moins UNE vraie trame OUT a été reçue par radio depuis le
+    // boot (jamais vrai pour une valeur seedée depuis le disque). Tant qu'il est
+    // faux, l'OUT est « en attente de première réception » : rien n'est archivé
+    // côté OUT, et l'affichage bascule sur l'absence (fallback IN de présentation).
+    bool hasReceivedOutdoorSinceBoot() const { return _hasOutdoorRadioMs; }
+
+    // Âge (ms) de la dernière trame OUT REÇUE par radio. Sert au résolveur de
+    // lecture effective (fraîcheur/fallback). Renvoie une valeur volontairement
+    // énorme si aucune trame n'a encore été reçue depuis le boot (une valeur
+    // seedée depuis l'historique disque n'est donc jamais considérée fraîche).
+    unsigned long outdoorAgeMs() const {
+        if (!_hasOutdoorRadioMs) return 0xFFFFFFFFUL;
+        return millis() - _lastOutdoorRadioMs;
+    }
+    
+    const std::vector<IndoorHistoryRecord>& getIndoorHistory() const;
+    const std::vector<OutdoorHistoryRecord>& getOutdoorHistory() const;
+    
+    Stats24h getIndoorStats() const;
+    Stats24h getOutdoorStats() const;
 
     // Agrège les mesures sur une plage temporelle absolue [from, to] (secondes Unix),
     // en tranches de interval_s secondes. Les données sont lues en priorité depuis les
@@ -127,17 +217,29 @@ public:
     // complétées par l'historique RAM pour la portion la plus récente non encore écrite
     // sur SD (ou l'intégralité si aucune carte SD n'est disponible).
     std::vector<HistoryPoint> queryRange(time_t from, time_t to, long interval_s) const;
+    
+    // Versions explicites IN/OUT de queryRange
+    std::vector<IndoorHistoryPoint> queryIndoorRange(time_t from, time_t to, long interval_s) const;
+    std::vector<OutdoorHistoryPoint> queryOutdoorRange(time_t from, time_t to, long interval_s) const;
 
     // Synthèse pré-calculée d'une plage [from, to], agrégée depuis les fichiers
     // .stats journaliers (aucune relecture des mesures). Renvoie valid=false si
     // aucun .stats n'est disponible pour la plage.
     RangeSynthesis querySynthesis(time_t from, time_t to) const;
+    
+    // Versions explicites IN/OUT de querySynthesis
+    RangeSynthesis queryIndoorSynthesis(time_t from, time_t to) const;
+    RangeSynthesis queryOutdoorSynthesis(time_t from, time_t to) const;
 
     // Export CSV en flux : émet une ligne CSV par mesure de la plage [from, to]
     // (en-tête inclus), lues depuis les fichiers binaires journaliers. Le callback
     // reçoit chaque ligne prête à écrire (permet un streaming HTTP sans tout garder
     // en mémoire). Le CSV reste ainsi le format d'export, adapté à Excel/LibreOffice.
     void exportCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const;
+    
+    // Versions explicites IN/OUT de exportCsv
+    void exportIndoorCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const;
+    void exportOutdoorCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const;
 
     // --- Collecte incrémentale externe (morfAnalytics) -----------------------
     // Les fichiers journaliers sont écrits en AJOUT SEUL : l'index d'un
@@ -148,37 +250,82 @@ public:
     // que les enregistrements suivants — jamais de doublon, jamais de trou.
 
     // Journées présentes sur la carte SD, triées par date croissante.
+    // Version par défaut = flux IN (legacy) ; version OUT = flux extérieur.
     std::vector<DayIndexEntry> listDays() const;
+    std::vector<DayIndexEntry> listDaysOutdoor() const;
 
     // Émet les enregistrements [from_index, from_index + limit) du jour donné
     // (AAAAMMJJ). Renvoie le nombre total d'enregistrements du jour, ce qui
     // permet à l'appelant de savoir s'il reste des données à lire.
+    // Version par défaut = IN (legacy) ; version OUT = flux extérieur.
     uint32_t exportRaw(uint32_t day_key, uint32_t from_index, uint32_t limit,
                        const std::function<void(const RawRecord&)>& emit) const;
+    uint32_t exportRawOutdoor(uint32_t day_key, uint32_t from_index, uint32_t limit,
+                              const std::function<void(const RawRecord&)>& emit) const;
 
     // Gestion LittleFS
     void clearHistory();
+    // Tendance IN (confort) et OUT (météo). La tendance météo doit s'appuyer sur
+    // l'extérieur : getTrendOutdoor() en est la source dédiée.
     MeteoTrend getTrend() const;
+    MeteoTrend getTrendOutdoor() const;
 private:
-    std::vector<HistoryRecord> _recentHistory;
+    // Historiques séparés IN et OUT
+    std::vector<HistoryRecord> _recentHistory; // legacy = flux IN (intérieur)
+    std::vector<OutdoorHistoryRecord> _outdoorHistory;
+    OutdoorData _lastOutdoorLive;
+    bool _hasLiveOutdoor = false;
+    unsigned long _lastOutdoorRadioMs = 0; // millis() de la dernière trame OUT reçue
+    bool _hasOutdoorRadioMs = false;       // true dès la 1re trame radio (pas le seed disque)
+    
     SdManager* _sd = nullptr;
     unsigned long _lastSave = 0;
 
     // Cache RAM des statistiques du jour courant (évite de relire le .stats à
     // chaque acquisition). _currentDayKey vaut AAAAMMJJ (0 = non initialisé).
-    DayStats _currentDayStats;
+    DayStats _currentDayStats; // = jour courant IN (legacy)
+    DayStats _outdoorDayStats;
     uint32_t _currentDayKey = 0;
 
     void loadRecent();
     void saveRecent(const HistoryRecord& record);
+    void saveOutdoorRecent(const OutdoorHistoryRecord& record);
 
-    // Stockage binaire journalier (/history/AAAA/MM/AAAA-MM-JJ.bin + .stats)
+    // Stockage binaire journalier, arborescence SYMÉTRIQUE IN/OUT :
+    // IN  : /history/indoor/AAAA/MM/AAAA-MM-JJ.bin + .stats
+    // OUT : /history/outdoor/AAAA/MM/AAAA-MM-JJ.bin + .stats
     void saveToSdBinary(const HistoryRecord& record);
+    void saveOutdoorToSdBinary(const OutdoorHistoryRecord& record);
     bool ensureDayDirs(const struct tm& tinfo) const;
+    bool ensureOutdoorDayDirs(const struct tm& tinfo) const;
     void buildDayPaths(const struct tm& tinfo, char* binPath, char* statsPath, size_t sz) const;
+    void buildOutdoorDayPaths(const struct tm& tinfo, char* binPath, char* statsPath, size_t sz) const;
     void updateDayStats(const HistoryRecord& record, const struct tm& tinfo);
+    void updateOutdoorDayStats(const OutdoorHistoryRecord& record, const struct tm& tinfo);
     bool readDayStats(time_t day_ts, DayStats& out) const;
-    bool readBinSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out) const;
+    bool readOutdoorDayStats(time_t day_ts, DayStats& out) const;
+    bool readBinSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out,
+                           bool outdoor = false) const;
+    // Cœur commun de tendance, paramétré IN (confort) / OUT (météo).
+    MeteoTrend getTrendImpl(bool outdoor) const;
+
+    // Coeur commun des routes de collecte, paramétré par la racine de stockage
+    // ("/history/indoor" pour IN, "/history/outdoor" pour OUT). Les deux racines
+    // sont désormais des sœurs sous /history : arborescences identiques, aucun
+    // recouvrement possible entre les deux flux.
+    std::vector<DayIndexEntry> listDaysFromRoot(const char* root) const;
+
+    // Coeur commun de queryRange, paramétré IN (legacy) / OUT. Agrège les .bin
+    // journaliers de la racine correspondante + l'historique RAM du même contexte.
+    std::vector<HistoryPoint> queryRangeImpl(time_t from, time_t to, long interval_s,
+                                             bool outdoor) const;
+
+    // Coeur commun d'export CSV, paramétré IN (legacy) / OUT.
+    void exportCsvImpl(time_t from, time_t to,
+                       const std::function<void(const char*)>& emit, bool outdoor) const;
+    uint32_t exportRawFromRoot(const char* root, uint32_t day_key, uint32_t from_index,
+                               uint32_t limit,
+                               const std::function<void(const RawRecord&)>& emit) const;
 
     // Migration unique des anciens CSV plats (/history/AAAA-MM-JJ.csv) au démarrage.
     void migrateCsvToBinary();
@@ -186,5 +333,6 @@ private:
 
     // Helpers SD (legacy CSV, conservés en repli de lecture)
     void createSdStructure();
-    bool readSdSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out) const;
+    bool readSdSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out,
+                          bool outdoor = false) const;
 };

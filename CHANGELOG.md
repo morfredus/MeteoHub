@@ -1,26 +1,424 @@
+# [1.31.0] - 2026-09-14
+
+### Changed
+
+- **Outdoor card wording right after a reboot.** Before the first frame is
+  received, the card said "sonde extérieure absente" (which reads as a failure),
+  when the truth is the hub is simply waiting for the sensor's first transmission.
+  `/api/live` now reports `out.awaiting_first` (no frame received since boot) and
+  `out.interval_s`; the card then shows "en attente du premier relevé après
+  redémarrage (max N min)" instead of the absence warning. Genuine loss after the
+  sensor had been seen still shows "sonde extérieure absente". (The OLED already
+  distinguished this case with its radio-debug line.)
+
+# [1.30.0] - 2026-09-14
+
+### Removed
+
+- **Home page history graph.** It showed indoor (IN) data, which is not what a
+  weather home should highlight. History lives on the History page, with period
+  selection. Chart.js is no longer loaded on the home page (faster load).
+
+### Changed
+
+- **History chart X axis follows the selected period.** Tick labels now adapt to
+  the span (HH:MM for up to 24 h, DD/MM HH:MM up to a week, DD/MM beyond) with a
+  clean tick density, instead of a fixed format. The category axis is kept so the
+  period-vs-period comparison (aligned by index) still works.
+- **History chart loads faster.** The period-A, comparison-B and indoor-fill
+  requests are now fetched in parallel instead of sequentially.
+
+# [1.29.0] - 2026-09-14
+
+### Changed
+
+- **History page auto-refresh now follows the recording cadence.** It refreshed
+  every 15 s even though a new sample is only recorded every ~5 min. `/api/history`
+  now reports `measurement_interval_s` (single source: `INDOOR_MEASUREMENT_INTERVAL_SECONDS`)
+  and the page schedules its auto-refresh at that interval plus a small margin.
+  Manual "Actualiser" is unchanged.
+
+### Fixed
+
+- **History chart no longer looks empty with a single measurement.** An isolated
+  valid point (both neighbours null, e.g. the first sample right after a reset)
+  now shows a marker; a line alone cannot draw a single point, so the chart looked
+  empty while Statistics showed the value.
+
+# [1.28.1] - 2026-09-14
+
+### Changed
+
+- **Outdoor history is written only from a real, valid received frame.**
+  Hardened `addOutdoor()` to reject an invalid frame outright (no live update, no
+  archive) instead of relying on the caller to filter. Confirms and locks the
+  invariant: an OUT record only ever comes from a physically received ESP-NOW
+  frame, never from the indoor fallback, the "effective" display value, or a
+  value seeded from disk at boot. After a reboot, OUT stays "awaiting first
+  reception" (no OUT history) until the sensor's first frame; indoor archival
+  continues normally in the meantime. New accessor
+  `hasReceivedOutdoorSinceBoot()` exposes that state.
+
+# [1.28.0] - 2026-09-14
+
+### Added
+
+- **Clear history from the web UI.** New `POST /api/history/clear` route (calls
+  `clearHistory()`) and a "Vider tout l'historique" button in the System page,
+  behind a double confirmation. Erasing the history no longer requires the on-device
+  OLED menu.
+
+# [1.27.0] - 2026-09-14
+
+### Changed
+
+- **Symmetric IN/OUT history layout.** Indoor storage was flat under `/history`
+  while outdoor lived under `/history/outdoor`; the two trees are now identical:
+  - SPIFFS: `/history/indoor_recent.dat` and `/history/outdoor_recent.dat`.
+  - SD: `/history/indoor/AAAA/MM/AAAA-MM-JJ.bin (+.stats)` and
+    `/history/outdoor/AAAA/MM/...`.
+  All indoor paths (recent file, daily bin/stats, day listing, raw export for the
+  morfAnalytics collector) moved from `/history/...` to `/history/indoor/...`.
+
+### Fixed
+
+- **`clearHistory()` now wipes everything** for a clean restart: both RAM series
+  (IN + OUT), both SPIFFS recent files (plus the pre-symmetry `recent.dat`), and
+  the whole SD `/history` tree, then recreates the empty symmetric structure.
+  Previously it left the outdoor recent file and OUT RAM state behind.
+
+# [1.26.0] - 2026-09-14
+
+### Added
+
+- Outdoor card: the exact time of the last reading is now shown next to the
+  freshness label, as `jj/mm - hh:mm:ss` (e.g. "à jour (14/09 - 15:23:41)"). The
+  hub has no reliable clock, so the browser reconstructs it from the frame age
+  (`age_ms`) reported by `/api/live`: now minus age. Shown for both fresh and
+  stale outdoor readings.
+
+# [1.25.2] - 2026-09-14
+
+### Changed
+
+- Indoor (IN) display is live again: `/api/live` and the OLED weather page read
+  the local indoor sensor in real time on each refresh (the sensor is local and
+  cheap to read), while archival keeps the 5-min cadence. Only the outdoor value
+  stays "last frame received" (it arrives by radio). Reverts the 1.25.0 cached-IN
+  behaviour; a live read never creates a history entry.
+
+# [1.25.1] - 2026-09-14
+
+### Fixed
+
+- Outdoor freshness thresholds realigned to the 5-min sensor cadence:
+  `OUTDOOR_FRESH_MAX_MS` 90 s → 7 min and `OUTDOOR_UNAVAILABLE_MS` 10 → 20 min.
+  With the new cadence the old 90 s window marked OUT as stale between every
+  frame (the sensor now sends every ~5 min).
+
+# [1.25.0] - 2026-09-14
+
+### Changed
+
+- Indoor (IN) measurement cadence is now configurable via
+  `INDOOR_MEASUREMENT_INTERVAL_SECONDS` (config.h), **default 300 s (5 min)**,
+  aligned with the outdoor sensor so the IN and OUT history series are
+  homogeneous for morfAnalytics (was a hard-coded 60 s).
+- The measurement cadence and the UI refresh are now cleanly separated. The web
+  dashboard (`/api/live`) and the OLED weather page return the **last known
+  measurement** (`SensorManager::last()`) instead of triggering a fresh
+  acquisition on every refresh: the UI stays quasi-instant without creating a new
+  measurement or history entry. A reading at boot primes the cache.
+
+# [1.24.1] - 2026-09-13
+
+### Fixed
+
+- Statistics page "24 h" summaries actually cover 24 h now. `getIndoorStats` /
+  `getOutdoorStats` aggregated the whole RAM history instead of a 24 h window: the
+  indoor cache, loaded uncapped from LittleFS at boot, could hold weeks of data
+  (tens of thousands of records), inflating the indoor ranges so they looked like
+  outdoor weather. Stats are now bounded to the last 24 h, and `loadRecent` keeps
+  only the last `MAX_RECENT_RECORDS` in RAM (the long archive lives on SD).
+
+# [1.24.0] - 2026-09-13
+
+### Added
+
+- Low-battery alert for the remote (outdoor) sensor. The battery level carried in
+  the ESP-NOW packet (dropped until now) reaches OutdoorData, `/api/live` (out
+  block: `battery_pct`/`battery_v`/`battery_low`), the web dashboard (battery row
+  + a warning under the OUT card) and the OLED weather page (a "PILE SONDE xx% !"
+  line that takes priority). Threshold `OUTDOOR_BATTERY_LOW_PCT` (20 %).
+- Outdoor barometric trend engine: `getTrendOutdoor()` (shared root-parameterized
+  core), reading the OUT RAM history and OUT SD samples, with no cross-context
+  fallback (an OUT trend never borrows an IN point).
+
+### Fixed
+
+- Statistics page: the weather trend was computed from indoor data while labelled
+  as weather. It now uses the outdoor stream (`/api/stats?ctx=out` returns the OUT
+  trend); the indoor and outdoor summaries stay clearly separated.
+
+# [1.23.0] - 2026-09-13
+
+### Added
+
+- History page: in the OUT view, time slices with no outdoor measurement are
+  filled from the indoor series and marked (orange dots on the curve, with a
+  "N slices filled from indoor" note). The fallback stays explicit — an indoor
+  point is never shown as a real outdoor measurement.
+- Statistics page: each summary now shows its sample count, so outdoor vs indoor
+  coverage is visible at a glance.
+
+# [1.22.0] - 2026-09-13
+
+### Added
+
+- Outdoor history is now fully served: real `queryOutdoorRange` and
+  `exportOutdoorCsv` (shared root-parameterized core), plus `getOutdoorStats`.
+  `/api/history`, `/api/stats` and `/api/history/export.csv` accept `ctx=out|in`
+  (default `in`, legacy-compatible; responses echo `ctx`).
+- Statistics page shows indoor AND outdoor summaries side by side (trend stays
+  indoor-only for now, no outdoor trend engine yet).
+- History page gains an OUT/IN source selector (defaults to OUT). Period and
+  comparison filters apply to whichever source is selected.
+
+# [1.21.0] - 2026-09-13
+
+### Changed
+
+- Web dashboard redesigned as a weather station. A hero shows the effective
+  outdoor temperature/humidity (OUT when available, otherwise a clearly labelled
+  indoor fallback), an OUT card (temperature, humidity, pressure + freshness) and
+  an IN comfort card, consuming the `in`/`out`/`effective` blocks of `/api/live`.
+  Indoor fallback and stale outdoor data are always shown with their provenance,
+  never presented as a real outdoor measurement. The 2 h chart is labelled as
+  indoor history.
+
+# [1.20.0] - 2026-09-13
+
+### Added
+
+- OLED now has the full set of six history graph pages: IN and OUT each for
+  temperature, humidity and pressure (was only IN temp, IN hum, OUT pres).
+
+### Changed
+
+- OLED weather page marks indoor fallback discreetly: when OUT is unavailable
+  and the indoor sensor is valid, the OUT row shows the indoor value prefixed
+  with an "I" (e.g. `I18.5C`), so a fallback reading is never mistaken for a
+  real outdoor measurement. Pressure stays outdoor-only on screen (the indoor
+  pressure fallback remains available in the data layer, /api/live effective).
+
+# [1.19.0] - 2026-09-13
+
+### Changed
+
+- OLED weather page is now freshness-aware. OUT shows its last value only while
+  a recent radio frame exists: fresh shows the weather description, stale shows
+  `OUT~` plus the age (`OUT perime ~Nmin`), and once unavailable OUT reads `--`
+  with `OUT absent -> IN` (the indoor line above is then the current reference).
+  A `live` value seeded from disk at boot counts as unavailable, so old data is
+  never shown as current.
+
+# [1.18.0] - 2026-09-13
+
+### Added
+
+- `GET /api/live` now exposes provenance-aware readings: an `in` block (local
+  sensors), an `out` block (last ESP-NOW frame, with `age_ms` and `fresh`), and
+  an `effective` block that resolves each metric to the value to display while
+  keeping its source (OUT fresh / OUT stale / IN fallback / unavailable) via the
+  meteo_context resolver. The legacy flat `temp`/`hum`/`pres` fields are kept, so
+  the current dashboard is unaffected.
+
+# [1.17.0] - 2026-09-13
+
+### Added
+
+- Collection routes are now context-aware: `/api/history/days?ctx=out|in` and
+  `/api/history/raw?ctx=out|in` serve the outdoor or indoor stream. The default
+  stays `in` (legacy), so an existing collector that omits `ctx` is unaffected.
+  Responses echo `"ctx"`. Outdoor days/records read from `/history/outdoor`.
+- `HistoryManager::listDaysOutdoor()` / `exportRawOutdoor()` (shared core
+  parameterized by storage root), so morfAnalytics can collect the OUT stream
+  (the real weather) in addition to IN.
+
+# [1.16.0] - 2026-09-13
+
+### Added
+
+- Effective-reading model (`meteo_context.h`): resolves, per metric, the value
+  to display while keeping its provenance (OUT fresh / OUT stale / IN fallback /
+  unavailable). Groundwork so the OLED and web can show OUT with an explicit IN
+  fallback, without ever faking an outdoor measurement.
+- Outdoor freshness tracking: `HistoryManager::outdoorAgeMs()` from the last
+  received radio frame, with thresholds `OUTDOOR_FRESH_MAX_MS` and
+  `OUTDOOR_UNAVAILABLE_MS` in `config.h`.
+
+### Changed
+
+- Indoor archival now goes through an explicit `addIndoor(IndoorData)` entry
+  point (the legacy history is the IN stream: decision "legacy = IN").
+
+### Removed
+
+- Dead parallel "indoor" storage helpers (`_indoorHistory`, and the
+  save/ensure/build/update/read `*Indoor*` day methods) made redundant by the
+  legacy = IN decision. The outdoor storage path is unchanged.
+
+# [1.15.6] - 2026-09-13
+
+### Changed
+
+- ESP-NOW RX cleaned: STA broadcast peer, no 1 Mbps / open-AP / join hacks.
+- SoftAP `MH-NOW` is a WPA2 channel beacon; the probe does not associate.
+
+# [1.15.5] - 2026-09-13
+
+### Fixed
+
+- `MH-NOW` is an open SoftAP (C3 WPA2 AUTH_EXPIRE on S3 AP).
+- ESP-NOW listen on STA interface at 1 Mbps so an unassociated C3 is heard.
+
+# [1.15.4] - 2026-09-13
+
+### Fixed
+
+- SoftAP `MH-NOW` forced to WPA2-PSK after `softAP()` so C3 STA can complete
+  the 4-way handshake (was AUTH_EXPIRE).
+
+# [1.15.3] - 2026-09-13
+
+### Changed
+
+- ESP-NOW status log includes last source MAC and SoftAP station count so a
+  C3 probe that never reaches `recv_cb` is obvious (`rx=0`).
+
 # [Non publié]
 
-### Corrigé
+# [1.15.1] - 2026-09-12
 
-- **OTA web : `Update.begin()` échouait et bloquait la mise à jour (retour USB
-  obligatoire).** Deux causes traitées. (1) La table de partitions n'était pas
-  épinglée : le schéma dépendait du défaut du board, et sans deux slots d'app
-  `ota_0`/`ota_1` l'OTA est impossible (« OTA begin failed »). Elle est désormais
-  figée dans `partitions.csv` (`board_build.partitions`), en dual-OTA 6,25 Mo,
-  identique à ce qui est déjà en flash. (2) Une tentative OTA échouée laissait
-  l'objet `Update` « en cours », si bien que toute tentative suivante échouait
-  jusqu'au reboot ; le handler abandonne maintenant une session restée ouverte
-  (`Update.abort()`) avant d'en ouvrir une nouvelle, et sur échec d'écriture.
-  Changer la table de partitions impose un flash USB une fois ; l'OTA repart
-  ensuite normalement.
+### Changed
 
-### Ajouté
+- Reverted to classic ESP-NOW mode with AP-based communication.
+- Sensor connects to MH-NOW AP for reliable ESP-NOW broadcast.
+- Receiver uses AP interface for broadcast reception.
 
-- `docs/interface_web.md` : aperçu illustré des pages web servies par MeteoHub
-  (tableau de bord, statistiques, système), avec des captures utilisant des
-  données d'exemple anonymisées. Ajouté à l'index de la documentation.
+# [1.15.0] - 2026-09-12
+
+### Changed
+
+- Simplified ESP-NOW receiver to use unicast direct mode instead of broadcast.
+- Changed peer registration to use specific MeteoHubSensor MAC (F0:F5:BD:FB:5E:88) on STA interface.
+- Added OLED display support for outdoor data (pressure from OUT if available).
+- Improved ESP-NOW interface selection for better communication reliability.
+
+# [1.14.9] - 2026-09-12
+
+### Fixed
+
+- SoftAP `MH-NOW` now starts at boot on channel 6 (do not wait for Livebox).
+  Recreate the AP once after STA join so the handshake does not kill it.
+  Probe `apsta=0` meant the AP was missing, not that ESP-NOW was "fine".
+
+# [1.14.8] - 2026-09-12
+
+### Changed
+
+- Hub AP `MH-NOW` is visible (WPA2) on the STA channel so the C3 probe can
+  associate. Status log includes `apsta=` (connected probes). Flash the hub
+  before the probe.
+
+# [1.14.7] - 2026-09-12
+
+### Fixed
+
+- ESP-NOW RX stayed at 0 while the probe sent on ch 6. Hub now uses AP+STA
+  with a hidden AP on the STA channel so ESP-NOW is received on the AP
+  interface. OLED OUT stays `--` until `rx` increments.
+
+# [1.14.6] - 2026-09-12
+
+### Added
+
+- ESP-NOW status log includes HT40 secondary (`sec=none|above|below`) next to
+  the primary channel.
+
+# [1.14.5] - 2026-09-12
+
+### Fixed
+
+- After association, refuse a 5 GHz STA channel (same Orange SSID, band
+  steering): the C3 probe only transmits on 2.4 GHz. The Net. page shows
+  `5GHz!` when that happens. ESP-NOW recv no longer logs from the Wi-Fi task.
+
+# [1.14.4] - 2026-09-12
+
+### Added
+
+- Log every raw ESP-NOW RX length so a silent OLED can be told apart from CRC
+  rejects (`NOW chX rxY okZ` on the weather page).
+
+# [1.14.3] - 2026-09-12
+
+### Fixed
+
+- STA is forced to 2.4 GHz (11b/g/n) so the S3 does not join the same SSID on
+  5 GHz, which made ESP-NOW from the C3 probe invisible.
+
+# [1.14.2] - 2026-09-12
+
+### Added
+
+- OLED **Net.** page shows the STA Wi-Fi channel and MAC address, so the outdoor
+  probe can be checked against the radio the hub actually listens on.
+
+# [1.14.1] - 2026-09-12
+
+### Fixed
+
+- **OLED OUT stayed at `--` even when the probe showed `NOW: OK`.** Three causes.
+  (1) STA modem sleep: the S3 radio sleeps between AP beacons and misses
+  ESP-NOW; broadcast TX still reports success on the probe. Modem sleep is now
+  forced off (`WiFi.setSleep(false)` / `WIFI_PS_NONE`). (2) Broadcast peer was
+  not registered on `WIFI_IF_STA`. (3) ESP-NOW is re-initialized after STA
+  association so it follows the AP channel. The weather page shows `NOW chX rxY
+  okZ` until a valid OUT frame arrives.
+
+# [1.14.0] - 2026-09-12
+
+### Added
+
+- **Outdoor ESP-NOW ingest on the station.** Valid `MeteoPacket` frames from the
+  remote probe are queued in the Wi-Fi task and decoded in `loop()`, then stored
+  as OUT history. Live OUT values stay available for the OLED even if NTP is
+  not synced yet (archive waits for a reliable clock).
+
+- **OLED weather page: IN + OUT columns.** Indoor T/H stay on the first line.
+  Outdoor T/H share the same temperature and humidity columns. Atmospheric
+  pressure is the OUT probe value only (never the indoor BMP280). The pressure
+  graph page follows the same rule.
+
+- `docs/interface_web.md`: illustrated overview of the web pages served by
+  MeteoHub (dashboard, statistics, system), with anonymized sample captures.
+  Added to the documentation index.
+
+### Fixed
+
+- **Web OTA: `Update.begin()` failed and blocked further updates (USB flash
+  required).** Two causes. (1) The partition table was not pinned: the layout
+  followed the board default, and without two app slots `ota_0`/`ota_1` OTA is
+  impossible ("OTA begin failed"). It is now fixed in `partitions.csv`
+  (`board_build.partitions`), dual-OTA 6.25 MB, matching what is already in
+  flash. (2) A failed OTA left the `Update` object "in progress", so the next
+  attempt failed until reboot; the handler now aborts a leftover session
+  (`Update.abort()`) before opening a new one, and on write failure. Changing
+  the partition table requires one USB flash; OTA then works again.
 
 # [1.13.3] - 2026-08-20
+
 
 ### Corrigé
 

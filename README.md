@@ -2,7 +2,7 @@
 
 *Read in another language: **English** (this document) · [Français](README.fr.md).*
 
-[![Version](https://img.shields.io/badge/version-1.13.3-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.31.0-blue)](CHANGELOG.md)
 
 > **Minimum supported version: 1.9.0**
 
@@ -16,7 +16,7 @@
 
 ## Overview
 
-MeteoHub S3 is a PlatformIO project for ESP32-S3 centered around an OLED dashboard (SH1106/SSD1306 using U8g2). It displays local sensor data, weather forecasts, system logs, and device status through both the OLED interface and the integrated web dashboard.
+MeteoHub S3 is a PlatformIO project for ESP32-S3 centered around an OLED dashboard (SH1106/SSD1306 using U8g2). It displays indoor sensor data, outdoor metrics received over ESP-NOW from the remote probe, weather forecasts, system logs, and device status through both the OLED interface and the integrated web dashboard.
 
 ## Hardware Requirements
 

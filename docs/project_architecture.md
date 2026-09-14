@@ -4,7 +4,7 @@
 
 Version minimale valide : 1.9.0
 
-- `src/modules/` : modules matériels et affichage OLED (`sensors`, `oled_display`, `neopixel_status`, `encoder`, `pages_oled`…)
+- `src/modules/` : modules matériels et affichage OLED (`sensors`, `oled_display`, `neopixel_status`, `encoder`, `pages_oled`, `espnow_receiver`…)
 - `src/managers/` : gestionnaires fonctionnels et orchestration (`web_manager`, `history_manager`, `sd_manager`, `wifi_manager`, `forecast_manager`, `ui_manager`)
 - `src/utils/` : utilitaires réutilisables (logs, infos système, yield coopératif)
 - `include/` : en-têtes de configuration protégés
@@ -20,7 +20,8 @@ Version minimale valide : 1.9.0
 
 ## Acquisition et qualité des données
 
-- `SensorManager` (AHT20 + BMP280 sur I2C) : lecture validée (succès I2C + plausibilité), réessais, récupération du bus après échecs, conservation de la dernière valeur valide.
+- `SensorManager` (AHT20 + BMP280 sur I2C) : lecture validée (succès I2C + plausibilité), réessais, récupération du bus après échecs, conservation de la dernière valeur valide. Ces mesures sont le contexte **IN** (intérieur).
+- `EspNowReceiver` : réception des trames `MeteoPacket` de la sonde extérieure (ESP-NOW). Décodage et archivage dans `loop()`, pas dans le callback radio. Ces mesures sont le contexte **OUT**. La pression affichée sur l'OLED est toujours OUT.
 - Filtrage des valeurs aberrantes à l'exploitation, par grandeur : cohérence temporelle pour les graphes (`queryRange`), filtre robuste médiane/MAD pour les statistiques (`getRecentStats`). Les données brutes ne sont pas modifiées.
 
 ## Interface web

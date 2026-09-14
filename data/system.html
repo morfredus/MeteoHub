@@ -88,6 +88,21 @@
             </div>
         </div>
 
+        <!-- Remise à zéro de l'historique (action destructive) -->
+        <div class="card sys-card">
+            <h2>🗑️ Historique</h2>
+            <p class="sys-hint" style="margin:.2rem 0 .8rem;">
+                Efface définitivement toutes les mesures enregistrées, intérieures (IN)
+                et extérieures (OUT), en mémoire interne et sur la carte SD. À utiliser
+                pour repartir sur des mesures propres. Cette action est irréversible.
+            </p>
+            <div class="sys-row">
+                <button type="button" id="clearHistoryBtn" class="btn"
+                        style="background:#7f1d1d;border-color:#b91c1c;">Vider tout l'historique</button>
+            </div>
+            <div id="clearHistoryResult" class="sys-hint"></div>
+        </div>
+
         <footer></footer>
     </div>
 
@@ -282,6 +297,37 @@
 
             xhr.send(formData);
         });
+
+        // --- Vider l'historique (action destructive, double confirmation) ---
+        (function setupClearHistory() {
+            const btn = document.getElementById('clearHistoryBtn');
+            const out = document.getElementById('clearHistoryResult');
+            if (!btn || !out) return;
+            btn.addEventListener('click', () => {
+                if (!confirm("Effacer DÉFINITIVEMENT tout l'historique (IN + OUT), "
+                    + 'mémoire interne et carte SD ?')) return;
+                if (!confirm('Dernière confirmation : cette action est irréversible. Continuer ?')) return;
+                btn.disabled = true;
+                out.textContent = 'Effacement en cours…';
+                out.style.color = '';
+                fetch('/api/history/clear', { method: 'POST' })
+                    .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+                    .then((res) => {
+                        if (res.ok && res.d.ok) {
+                            out.textContent = res.d.message || 'Historique effacé.';
+                            out.style.color = '#66bb6a';
+                        } else {
+                            out.textContent = 'Échec : ' + ((res.d && res.d.error) || 'erreur');
+                            out.style.color = '#ef5350';
+                        }
+                    })
+                    .catch(() => {
+                        out.textContent = 'Échec : requête impossible.';
+                        out.style.color = '#ef5350';
+                    })
+                    .finally(() => { btn.disabled = false; });
+            });
+        })();
     </script>
 </body>
 </html>

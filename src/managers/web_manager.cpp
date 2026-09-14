@@ -37,6 +37,7 @@ static const char METEOHUB_API_JSON[] PROGMEM =
       "{\"method\":\"GET\",\"path\":\"/api/history\",\"summary\":\"historique des releves\"},"
       "{\"method\":\"GET\",\"path\":\"/api/history/summary\",\"summary\":\"synthese de l'historique\"},"
       "{\"method\":\"GET\",\"path\":\"/api/history/export.csv\",\"summary\":\"export CSV de l'historique\"},"
+      "{\"method\":\"POST\",\"path\":\"/api/history/clear\",\"summary\":\"efface tout l'historique (IN + OUT)\"},"
       "{\"method\":\"GET\",\"path\":\"/api/stats\",\"summary\":\"statistiques agregees\"},"
       "{\"method\":\"GET\",\"path\":\"/api/analytics\",\"summary\":\"analyses meteo embarquees\"},"
       "{\"method\":\"GET\",\"path\":\"/api/alert\",\"summary\":\"alerte meteo courante\"},"
@@ -301,19 +302,77 @@ void WebManager::_setupApi() {
     // API Live
     _server.on("/api/live", HTTP_GET, [this](AsyncWebServerRequest *request) {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
-        DynamicJsonDocument doc(768);
+        DynamicJsonDocument doc(2048);
 
+        // IN en DIRECT : le capteur intérieur est local au hub, on le lit à chaque
+        // requête (lecture I2C peu coûteuse), sans créer d'entrée d'historique.
+        // Seul l'archivage suit la cadence de mesure ; l'affichage reste temps réel.
         SensorData live_data = {0.0f, 0.0f, 0.0f, false};
         if (_sensors) {
             live_data = _sensors->read();
         }
 
+        // Champs historiques (intérieur brut) : conservés tels quels pour ne pas
+        // casser le tableau de bord web actuel qui les lit encore directement.
         doc["temp"] = live_data.temperature;
         doc["hum"] = live_data.humidity;
         doc["pres"] = live_data.pressure;
         doc["sensor_valid"] = live_data.valid;
         doc["wifi_rssi"] = WiFi.RSSI();
         doc["uptime"] = millis() / 1000;
+
+        // --- Blocs IN / OUT / effective (provenance explicite) --------------
+        // IN = capteurs locaux (confort). OUT = dernière trame ESP-NOW.
+        // effective = valeur à afficher, OUT si frais, sinon repli IN marqué.
+        const bool outHas = _history && _history->hasLiveOutdoor();
+        OutdoorData outData = outHas ? _history->lastOutdoorLive() : OutdoorData();
+        const unsigned long outAge = _history ? _history->outdoorAgeMs() : 0xFFFFFFFFUL;
+
+        JsonObject in = doc.createNestedObject("in");
+        in["temp"] = live_data.temperature;
+        in["hum"] = live_data.humidity;
+        in["pres"] = live_data.pressure;
+        in["valid"] = live_data.valid;
+
+        JsonObject out = doc.createNestedObject("out");
+        out["temp"] = outData.temperature;
+        out["hum"] = outData.humidity;
+        out["pres"] = outData.pressure;
+        out["valid"] = outHas && outData.valid;
+        out["age_ms"] = (double)outAge;
+        out["fresh"] = (outHas && outData.valid && outAge <= OUTDOOR_FRESH_MAX_MS);
+        // Au boot, aucune trame OUT n'a encore été reçue : ce n'est pas une panne
+        // du capteur mais une ATTENTE de la première transmission. On l'expose pour
+        // que l'UI dise « en attente du premier relevé » plutôt que « absent ».
+        out["awaiting_first"] = _history && !_history->hasReceivedOutdoorSinceBoot();
+        // Cadence de transmission (source unique) : borne le délai d'attente affiché.
+        out["interval_s"] = (int)INDOOR_MEASUREMENT_INTERVAL_SECONDS;
+        // Batterie de la sonde déportée + alerte pile faible.
+        out["has_battery"] = outData.has_battery;
+        if (outData.has_battery) {
+            out["battery_pct"] = outData.battery_percent;
+            out["battery_v"] = outData.battery_voltage;
+            out["battery_low"] = (outData.battery_percent <= OUTDOOR_BATTERY_LOW_PCT);
+        }
+
+        // Résout chaque grandeur en gardant la provenance (OUT frais / OUT
+        // périmé / secours IN / indisponible). Point unique de décision, partagé
+        // plus tard avec l'OLED.
+        JsonObject eff = doc.createNestedObject("effective");
+        auto addEff = [&](const char* key, bool ov, float outv, bool iv, float inv) {
+            EffectiveReading e = resolveEffective(ov, outv, outAge, iv, inv,
+                                                  OUTDOOR_FRESH_MAX_MS, OUTDOOR_UNAVAILABLE_MS);
+            JsonObject o = eff.createNestedObject(key);
+            o["value"] = e.value;
+            o["source"] = meteoSourceLabel(e.source);
+            o["state"] = meteoStateLabel(e.state);
+            o["valid"] = e.valid;
+            o["fallback"] = (e.valid && e.source == MeteoContext::IN);
+        };
+        const bool outValid = outHas && outData.valid;
+        addEff("temp", outValid, outData.temperature, live_data.valid, live_data.temperature);
+        addEff("hum",  outValid, outData.humidity,    live_data.valid, live_data.humidity);
+        addEff("pres", outValid, outData.pressure,    live_data.valid, live_data.pressure);
 
         if (_forecast) {
             doc["alert_active"] = _forecast->alert_active;
@@ -407,7 +466,12 @@ void WebManager::_setupApi() {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(4096);
 
-        Stats24h stats = _history->getRecentStats();
+        // ctx=out -> statistiques extérieures ; défaut in (legacy).
+        const bool outdoor = request->hasParam("ctx")
+            && request->getParam("ctx")->value() == "out";
+        doc["ctx"] = outdoor ? "out" : "in";
+
+        Stats24h stats = outdoor ? _history->getOutdoorStats() : _history->getRecentStats();
         if (stats.count > 0) {
             doc["temp"]["min"] = stats.temp.min;
             doc["temp"]["max"] = stats.temp.max;
@@ -425,7 +489,9 @@ void WebManager::_setupApi() {
         }
         doc["count"] = stats.count;
 
-        MeteoTrend trend = _history->getTrend();
+        // Tendance : OUT pour la météo (source de vérité extérieure), IN pour le
+        // confort. Chaque contexte lit sa propre série (aucun repli croisé).
+        MeteoTrend trend = outdoor ? _history->getTrendOutdoor() : _history->getTrend();
         doc["trend"]["global_label_fr"] = computeGlobalTrendLabelFr(trend).c_str();
         doc["trend"]["available_48h"] = trend.available_48h;
         doc["trend"]["temp"]["delta_1h"] = trend.temp.delta_1h;
@@ -524,6 +590,19 @@ void WebManager::_setupApi() {
         request->send(200, "application/json", buf);
     });
 
+    // API History Clear : efface TOUT l'historique (IN + OUT), SPIFFS + SD, pour
+    // repartir sur des mesures propres. Action destructive et irreversible :
+    // l'UI web demande confirmation avant d'appeler cette route (POST).
+    _server.on("/api/history/clear", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (!_history) {
+            request->send(503, "application/json", "{\"ok\":false,\"error\":\"history indisponible\"}");
+            return;
+        }
+        _history->clearHistory();
+        request->send(200, "application/json",
+                      "{\"ok\":true,\"message\":\"Historique efface (IN + OUT).\"}");
+    });
+
     // API LED : lecture / réglage de la luminosité de la NeoLED (0-255, persistée).
     _server.on("/api/led", HTTP_GET, [](AsyncWebServerRequest *request) {
         char buf[48];
@@ -577,10 +656,16 @@ void WebManager::_setupApi() {
         if (to_s <= 0) to_s = (long)time(NULL);
         if (from_s < 0) from_s = 0;
 
+        const bool outdoor = request->hasParam("ctx")
+            && request->getParam("ctx")->value() == "out";
+
         AsyncResponseStream *response = request->beginResponseStream("text/csv");
-        response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-history.csv\"");
-        _history->exportCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s),
-            [response](const char* line) { response->print(line); });
+        response->addHeader("Content-Disposition", outdoor
+            ? "attachment; filename=\"meteohub-history-out.csv\""
+            : "attachment; filename=\"meteohub-history-in.csv\"");
+        auto emit = [response](const char* line) { response->print(line); };
+        if (outdoor) _history->exportOutdoorCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s), emit);
+        else         _history->exportCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s), emit);
         request->send(response);
     });
 
@@ -594,10 +679,15 @@ void WebManager::_setupApi() {
     // MeteoHub reste la source de vérité : ces routes sont en lecture seule.
 
     _server.on("/api/history/days", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        std::vector<DayIndexEntry> days = _history->listDays();
+        // ctx=out sélectionne le flux extérieur ; défaut = in (legacy),
+        // rétro-compatible avec un collecteur qui ignore le paramètre.
+        const bool outdoor = request->hasParam("ctx")
+            && request->getParam("ctx")->value() == "out";
+        std::vector<DayIndexEntry> days = outdoor ? _history->listDaysOutdoor()
+                                                   : _history->listDays();
 
         AsyncResponseStream *response = request->beginResponseStream("application/json");
-        response->print("{\"days\":[");
+        response->print(outdoor ? "{\"ctx\":\"out\",\"days\":[" : "{\"ctx\":\"in\",\"days\":[");
         bool first = true;
         for (const auto& d : days) {
             if (!first) response->print(",");
@@ -618,6 +708,8 @@ void WebManager::_setupApi() {
             request->send(400, "application/json", "{\"error\":\"missing day\"}");
             return;
         }
+        const bool outdoor = request->hasParam("ctx")
+            && request->getParam("ctx")->value() == "out";
         const uint32_t day_key = (uint32_t)request->getParam("day")->value().toInt();
         const uint32_t index = request->hasParam("index")
             ? (uint32_t)request->getParam("index")->value().toInt() : 0;
@@ -633,7 +725,7 @@ void WebManager::_setupApi() {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
         // L'en-tête est émis avant la lecture : `total` est écrit après coup, donc
         // on ouvre le tableau d'abord et on referme l'objet avec les compteurs.
-        response->print("{\"day\":");
+        response->print(outdoor ? "{\"ctx\":\"out\",\"day\":" : "{\"ctx\":\"in\",\"day\":");
         response->print(day_key);
         response->print(",\"index\":");
         response->print(index);
@@ -643,7 +735,19 @@ void WebManager::_setupApi() {
         bool first = true;
         // Format compact [ts,t,h,p] : ~30 octets par mesure au lieu de ~55 en
         // objet nommé, soit un import complet nettement plus léger pour l'ESP32.
-        const uint32_t total = _history->exportRaw(day_key, index, limit,
+        const uint32_t total = (outdoor
+                ? _history->exportRawOutdoor(day_key, index, limit,
+            [&](const RawRecord& r) {
+                if (!first) response->print(",");
+                first = false;
+                char buf[64];
+                snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
+                         (unsigned long)r.ts, r.t, r.h, r.p);
+                response->print(buf);
+                COOPERATIVE_YIELD_EVERY(count, 32);
+                count++;
+            })
+                : _history->exportRaw(day_key, index, limit,
             [&](const RawRecord& r) {
                 if (!first) response->print(",");
                 first = false;
@@ -656,7 +760,7 @@ void WebManager::_setupApi() {
                 // réponse ne s'écoule jamais.
                 COOPERATIVE_YIELD_EVERY(count, 32);
                 count++;
-            });
+            }));
 
         char tail[64];
         snprintf(tail, sizeof(tail), "],\"count\":%lu,\"total\":%lu}",
@@ -686,11 +790,35 @@ void WebManager::_setupApi() {
                     if (interval_s < 60) interval_s = 60;
                 }
 
-                std::vector<HistoryPoint> points = _history->queryRange(
-                    static_cast<time_t>(from_s), static_cast<time_t>(to_s), interval_s);
+                // ctx=out -> flux extérieur ; défaut in (legacy), rétro-compatible.
+                const bool outdoor = request->hasParam("ctx")
+                    && request->getParam("ctx")->value() == "out";
+                std::vector<HistoryPoint> points;
+                if (outdoor) {
+                    auto op = _history->queryOutdoorRange(
+                        static_cast<time_t>(from_s), static_cast<time_t>(to_s), interval_s);
+                    points.reserve(op.size());
+                    for (const auto& o : op) {
+                        HistoryPoint p;
+                        p.t = o.t; p.temp = o.temp; p.hum = o.hum; p.pres = o.pres;
+                        p.tvalid = o.tvalid; p.hvalid = o.hvalid; p.pvalid = o.pvalid; p.valid = o.valid;
+                        points.push_back(p);
+                    }
+                } else {
+                    points = _history->queryRange(
+                        static_cast<time_t>(from_s), static_cast<time_t>(to_s), interval_s);
+                }
 
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
-                response->print("{\"data\":[");
+                // measurement_interval_s : cadence d'enregistrement (source unique
+                // INDOOR_MEASUREMENT_INTERVAL_SECONDS). La page Historique l'utilise
+                // pour caler son auto-rafraîchissement sur le rythme des mesures
+                // (inutile de recharger toutes les 15 s pour un point toutes les 5 min).
+                char histHead[80];
+                snprintf(histHead, sizeof(histHead),
+                         "{\"ctx\":\"%s\",\"measurement_interval_s\":%d,\"data\":[",
+                         outdoor ? "out" : "in", (int)INDOOR_MEASUREMENT_INTERVAL_SECONDS);
+                response->print(histHead);
                 bool first = true;
                 size_t point_index = 0;
                 for (const auto& pt : points) {

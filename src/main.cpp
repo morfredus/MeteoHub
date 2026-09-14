@@ -14,8 +14,10 @@
 #include "modules/neopixel_status.h"
 #include "modules/sensors.h"
 #include "modules/analytics_beacon.h"
+#include "modules/espnow_receiver.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
 #include "config.h"
+#include "../include/meteo_packet.h"
 #if defined(ESP32_S3_OLED)
 #include "modules/oled_display.h"
 #include "modules/pages_oled.h"
@@ -32,6 +34,7 @@ WebManager webManager;
 HistoryManager history;
 SdManager sdCard;
 AnalyticsBeacon analytics;
+EspNowReceiver espNowReceiver;
 
 // Annonce de presence sur le LAN (protocole morfbeacon/1). MeteoHub ECOUTAIT
 // deja ce protocole pour reperer un service d'analyse ; il l'EMET desormais, et
@@ -195,6 +198,19 @@ void setup() {
 
     // Détection optionnelle de morfAnalytics (écoute passive du beacon LAN).
     analytics.begin();
+    
+    // Récepteur ESP-NOW : le callback est enregistré avant begin() pour que
+    // les retries dans loop() n'oublient pas d'injecter les trames OUT.
+    espNowReceiver.setOutdoorDataCallback([&](const OutdoorData& outdoor) {
+        if (outdoor.valid) {
+            history.addOutdoor(outdoor);
+        }
+    });
+    if (espNowReceiver.begin()) {
+        LOG_INFO("ESP-NOW receiver initialized");
+    } else {
+        LOG_WARNING("ESP-NOW receiver init deferred (will retry)");
+    }
 
     // Annonce de MeteoHub sur le LAN. La capacite « web_ui » est declaree : un
     // observateur peut alors proposer un lien vers l'interface sans rien
@@ -231,6 +247,7 @@ void loop() {
     history.update();
     ui.update();
     analytics.update();
+    espNowReceiver.update();
     presence.update();
     webManager.handle();
 
@@ -250,8 +267,10 @@ void loop() {
         }
     }
 
-    // Enregistrement historique toutes les minutes
-    if (millis() - lastHistoryUpdate >= 60000) {
+    // Cycle de mesure intérieure : acquisition + enregistrement à l'historique,
+    // à la cadence configurée (INDOOR_MEASUREMENT_INTERVAL_SECONDS). C'est le SEUL
+    // endroit qui acquiert ; l'UI, elle, lit la dernière mesure (sensors.last()).
+    if (millis() - lastHistoryUpdate >= (INDOOR_MEASUREMENT_INTERVAL_SECONDS * 1000UL)) {
         lastHistoryUpdate = millis();
         SensorData data = sensors.read();
         if (data.valid) {
@@ -262,7 +281,15 @@ void loop() {
             if (data.pressure < 800.0f || data.pressure > 1200.0f) valuesOk = false;
 
             if (valuesOk) {
-                history.add(data.temperature, data.humidity, data.pressure);
+                // Chemin IN explicite : les capteurs locaux sont la source
+                // intérieure (confort). addIndoor écrit dans l'historique legacy,
+                // qui EST le flux IN (décision legacy = IN).
+                IndoorData indoor;
+                indoor.temperature = data.temperature;
+                indoor.humidity = data.humidity;
+                indoor.pressure = data.pressure;
+                indoor.valid = true;
+                history.addIndoor(indoor);
             } else {
                 LOG_WARNING("Valeurs capteurs hors limites ignorees");
             }

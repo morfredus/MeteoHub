@@ -344,11 +344,14 @@ void UiManager::drawPage() {
     int pCount = PAGE_COUNT;
 #if defined(ESP32_S3_OLED)
     switch(page) {
-        case PAGE_WEATHER: pageWeather_oled(*d, *sensors, *forecast, page + 1, pCount); break;
+        case PAGE_WEATHER: pageWeather_oled(*d, *sensors, *forecast, *history, page + 1, pCount); break;
         case PAGE_FORECAST: pageForecast_oled(*d, *forecast, forecastViewIndex, page + 1, pCount); break;
-        case PAGE_GRAPH_TEMP: pageGraph_oled(*d, *history, 0, page + 1, pCount); break;
-        case PAGE_GRAPH_HUM: pageGraph_oled(*d, *history, 1, page + 1, pCount); break;
-        case PAGE_GRAPH_PRES: pageGraph_oled(*d, *history, 2, page + 1, pCount); break;
+        case PAGE_GRAPH_IN_TEMP:  pageGraph_oled(*d, *history, 0, page + 1, pCount, false); break;
+        case PAGE_GRAPH_IN_HUM:   pageGraph_oled(*d, *history, 1, page + 1, pCount, false); break;
+        case PAGE_GRAPH_IN_PRES:  pageGraph_oled(*d, *history, 2, page + 1, pCount, false); break;
+        case PAGE_GRAPH_OUT_TEMP: pageGraph_oled(*d, *history, 0, page + 1, pCount, true); break;
+        case PAGE_GRAPH_OUT_HUM:  pageGraph_oled(*d, *history, 1, page + 1, pCount, true); break;
+        case PAGE_GRAPH_OUT_PRES: pageGraph_oled(*d, *history, 2, page + 1, pCount, true); break;
         case PAGE_NETWORK: pageNetwork_oled(*d, *wifi, page + 1, pCount); break;
         case PAGE_LOGS: pageLogs_oled(*d, page + 1, pCount, logScrollLine); break;
         case PAGE_SYSTEM: pageSystem_oled(*d, page + 1, pCount); break;

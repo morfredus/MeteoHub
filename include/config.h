@@ -32,11 +32,49 @@
 #define WIFI_RETRY_DELAY_MS      5000
 #define ENABLE_PING_TEST         1
 
+// SoftAP local : balise de canal pour la sonde (scan SSID, pas d'association).
+// WPA2 : ce n'est pas un LAN, juste pour ne pas laisser un AP ouvert.
+#define ESPNOW_SOFTAP_SSID       "MH-NOW"
+#define ESPNOW_SOFTAP_PASS       "mhnowesp"
+#define ESPNOW_WIFI_CHANNEL      6  // Repli tant que le STA Livebox n'a pas le canal
+
 // ===============
 // Paramètres système
 // ===============
 #define DASHBOARD_REFRESH_MS     1000
 #define BUTTON_GUARD_MS          200
+
+// ===============
+// Cadence de MESURE intérieure (IN) -> historique
+// ===============
+// Cadence à laquelle MeteoHub ACQUIERT une mesure intérieure et l'enregistre à
+// l'historique. À aligner sur la cadence de la sonde extérieure
+// (SENSOR_MEASUREMENT_INTERVAL_SECONDS côté MeteoHubSensor) pour que les séries
+// IN et OUT soient homogènes. La météo évolue lentement : 5 min par défaut.
+// À NE PAS confondre avec le rafraîchissement de l'UI (DASHBOARD_REFRESH_MS) :
+// l'interface lit la dernière mesure connue sans provoquer d'acquisition.
+// Tests : 30 / 120 / 300 / 600 (30 s / 2 / 5 / 10 min).
+#define INDOOR_MEASUREMENT_INTERVAL_SECONDS 300
+
+// ===============
+// Fraîcheur des données extérieures (OUT / ESP-NOW)
+// ===============
+// La sonde MeteoHubSensor émet une trame toutes les ~30 s. On qualifie donc la
+// dernière valeur OUT reçue :
+//   - FRAÎCHE   tant que son âge <= OUTDOOR_FRESH_MAX_MS ;
+//   - PÉRIMÉE   au-delà (on affiche encore la dernière connue, signalée périmée) ;
+//   - INDISPO.  au-delà de OUTDOOR_UNAVAILABLE_MS -> repli possible sur IN.
+// Ces seuils servent au résolveur de lecture effective (meteo_context.h), pas à
+// l'archivage : une valeur périmée reste une vraie mesure extérieure historisée.
+// Seuils calés sur la cadence de la sonde (5 min par défaut, cf.
+// SENSOR_MEASUREMENT_INTERVAL_SECONDS côté MeteoHubSensor). Frais = au plus une
+// trame de retard + gigue ; indisponible = plusieurs trames manquées.
+#define OUTDOOR_FRESH_MAX_MS       420000UL   // 7 min : une trame (5 min) + marge
+#define OUTDOOR_UNAVAILABLE_MS     1200000UL  // 20 min : ~4 trames manquées -> absente
+
+// Seuil d'alerte batterie de la sonde extérieure (déportée, sur pile/accu).
+// En dessous, l'OLED et l'interface web signalent une pile faible.
+#define OUTDOOR_BATTERY_LOW_PCT    20
 
 // ===============
 // Monitoring réseau (logs par UDP)

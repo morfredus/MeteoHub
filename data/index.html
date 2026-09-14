@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MeteoHub S3</title>
+    <title>MeteoHub</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Chart.js depuis CDN pour l'exemple (à télécharger localement pour usage hors ligne strict) -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Injection des valeurs min/max pour les graphiques -->
+    <!-- L'accueil n'a plus de graphe : Chart.js n'est chargé que sur la page
+         Historique. Injection des min/max conservée (utilisée ailleurs). -->
     <script src="graph_config.js"></script>
 </head>
 <body data-page="dashboard">
     <div class="container">
         <header>
-            <h1>MeteoHub S3</h1>
+            <h1>MeteoHub</h1>
             <div class="header-right">
                 <span id="sensorInvalidBadge" class="sensor-badge" hidden>Capteur invalide</span>
                 <div id="status">Connexion...</div>
@@ -22,18 +21,36 @@
 
         <nav data-shared-menu="true" data-active="/"></nav>
 
-        <div class="grid">
-            <div class="card">
-                <h2>Température</h2>
-                <div><span id="temp" class="value">--</span> <span class="unit">°C</span></div>
+        <!-- Station météo : la valeur extérieure "utile" (OUT si disponible, sinon
+             secours intérieur clairement signalé). C'est la réponse à "quel temps
+             fait-il dehors ?". -->
+        <section class="hero" id="hero">
+            <div class="hero-head">
+                <span class="hero-title">Extérieur</span>
+                <span id="heroBadge" class="hero-badge" hidden></span>
             </div>
-            <div class="card">
-                <h2>Humidité</h2>
-                <div><span id="hum" class="value">--</span> <span class="unit">%</span></div>
+            <div class="hero-values">
+                <div class="hero-temp"><span id="heroTemp">--</span><span class="unit">°C</span></div>
+                <div class="hero-hum"><span id="heroHum">--</span><span class="unit">%</span></div>
             </div>
-            <div class="card">
-                <h2>Pression</h2>
-                <div><span id="pres" class="value">--</span> <span class="unit">hPa</span></div>
+            <div id="heroState" class="hero-state"></div>
+        </section>
+
+        <!-- Détail OUT (météo extérieure) et IN (confort intérieur). -->
+        <div class="grid station-grid">
+            <div class="card station out">
+                <h2>Extérieur — OUT</h2>
+                <div class="metric"><span>Température</span><b><span id="outTemp">--</span> °C</b></div>
+                <div class="metric"><span>Humidité</span><b><span id="outHum">--</span> %</b></div>
+                <div class="metric"><span>Pression</span><b><span id="outPres">--</span> hPa</b></div>
+                <div class="metric" id="outBatteryRow" hidden><span>Batterie sonde</span><b><span id="outBattery">--</span> %</b></div>
+                <div id="outBatteryAlert" class="freshness warn" hidden></div>
+                <div id="outFreshness" class="freshness"></div>
+            </div>
+            <div class="card station in">
+                <h2>Intérieur — confort</h2>
+                <div class="metric"><span>Température</span><b><span id="inTemp">--</span> °C</b></div>
+                <div class="metric"><span>Humidité</span><b><span id="inHum">--</span> %</b></div>
             </div>
         </div>
 
@@ -52,22 +69,9 @@
             </div>
         </div>
 
-        <div class="chart-container">
-            <canvas id="historyChart"></canvas>
-            <div class="graph-controls" style="margin-top:10px; display:flex; flex-direction:column; align-items:center;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <label for="scaleMode">Échelle :</label>
-                    <select id="scaleMode" onchange="setGraphScaleMode(Number(this.value))">
-                        <option value="0">Fixe</option>
-                        <option value="1">Dynamique</option>
-                        <option value="2" selected>Mixte</option>
-                    </select>
-                    <label for="scaleMargin" style="margin-left:10px;">Zoom (%) :</label>
-                    <input type="range" id="scaleMargin" min="0" max="100" value="90" step="1" style="vertical-align:middle;" oninput="setGraphScaleMarginPct(Number(this.value))">
-                    <span id="scaleMarginValue">90</span>%
-                </div>
-            </div>
-        </div>
+        <!-- L'accueil ne porte plus de graphe d'historique : il montrait l'intérieur
+             (peu pertinent en page d'accueil météo). L'historique, avec sélection de
+             période et échelle de temps adaptée, vit sur la page Historique. -->
 
         <footer>
         </footer>
