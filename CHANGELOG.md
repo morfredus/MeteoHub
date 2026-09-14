@@ -1,3 +1,29 @@
+# [1.34.1] - 2026-09-15
+
+### Fixed
+
+- **OLED history graphs were empty.** Two single-sensor leftovers: the graph read
+  RAM only (`getRecentHistory`/`getOutdoorHistory`), nearly empty after an erase or
+  reboot while the full history is on SD; and the line was cut whenever two points
+  were more than 90 s apart, a threshold from the old 1/min cadence that, at the
+  current 5 min cadence, skipped *every* segment (nothing drawn). The OLED graph now
+  reads SD+RAM over a 24 h window (same source as the web, cached 30 s to avoid
+  hammering the card at the 1 Hz refresh), keeps only valid slices (no holes), and
+  connects them with a `max(2.5 slices, 20 min)` threshold like the web and
+  morfAnalytics. Time axis relabelled -24h.
+- **Browser served the old UI after a reflash.** The embedded pages and `app.js`
+  carried no cache headers, so browsers reused a stale `app.js` (empty/frozen
+  charts until a manual hard-refresh). Every response now sends
+  `Cache-Control: no-cache`, forcing revalidation.
+
+### Removed
+
+- **Dead single-sensor history code** in `app.js` (`fetchHistory`, `updateChart`,
+  `buildHistoryUrl`, `getHistoryWindowSeconds`, `getHistoryIntervalSeconds`,
+  `HISTORY_WINDOWS_SECONDS`, `HISTORY_REFRESH_MS`): a leftover path that hit the
+  `ctx`-less window-mode endpoint. The live History page uses the ctx-aware
+  `refreshLongterm`; these were never called.
+
 # [1.34.0] - 2026-09-15
 
 ### Fixed

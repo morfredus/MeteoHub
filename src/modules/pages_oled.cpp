@@ -300,30 +300,57 @@ void pageGraph_oled(DisplayInterface& d, HistoryManager& history, int type, int 
     
     d.text(0, OLED_HEADER_Y, getHeader(title, pageIndex, pageCount));
 
+    // Données : lues sur SD + RAM (comme la page web), et NON la RAM seule. Les
+    // anciens buffers `getRecentHistory()` / `getOutdoorHistory()` ne contenaient
+    // que le récent (quasi vide après un effacement ou un redémarrage) : l'OLED
+    // paraissait vide alors que la carte SD a tout l'historique. On agrège ici la
+    // même source que la page web sur une fenêtre de 24 h.
+    //
+    // Une seule requête sert les 3 grandeurs (T/H/P) ; on la met en cache car
+    // l'OLED se rafraîchit à 1 Hz et relire la carte à chaque tick la martèlerait.
+    struct GPoint { long ts; float t, h, p; bool tv, hv, pv; };
+    static std::vector<GPoint> s_gCacheIn, s_gCacheOut;
+    static uint32_t s_gCacheInMs = 0, s_gCacheOutMs = 0;
+    constexpr uint32_t kGraphCacheTtlMs = 30000;      // 30 s
+    constexpr long OLED_GRAPH_WINDOW_S = 24L * 3600L; // 24 h affichées
+    const long gInterval = OLED_GRAPH_WINDOW_S / OLED_GRAPH_W; // ~960 s / tranche
+
+    std::vector<GPoint>& cache = outdoor ? s_gCacheOut : s_gCacheIn;
+    uint32_t& cacheMs = outdoor ? s_gCacheOutMs : s_gCacheInMs;
+    const uint32_t nowMs = millis();
+    if (cache.empty() || (nowMs - cacheMs) > kGraphCacheTtlMs) {
+        cache.clear();
+        const time_t now = time(NULL);
+        const time_t from = now - OLED_GRAPH_WINDOW_S;
+        if (outdoor) {
+            auto pts = history.queryOutdoorRange(from, now, gInterval);
+            for (const auto& p : pts)
+                cache.push_back({(long)p.t, p.temp, p.hum, p.pres, p.tvalid, p.hvalid, p.pvalid});
+        } else {
+            auto pts = history.queryRange(from, now, gInterval);
+            for (const auto& p : pts)
+                cache.push_back({(long)p.t, p.temp, p.hum, p.pres, p.tvalid, p.hvalid, p.pvalid});
+        }
+        cacheMs = nowMs;
+    }
+
+    // Ne garde que les tranches valides pour la grandeur affichée : les tranches
+    // vides sont absentes du tracé (pas de trou), on relie les points restants et
+    // on ne coupe le trait que sur un vrai silence capteur (seuil plus bas).
     std::vector<HistoryRecord> records;
-    if (outdoor) {
-        const auto& outdoorRecords = history.getOutdoorHistory();
-        records.reserve(outdoorRecords.size());
-        for (const auto& rec : outdoorRecords) {
-            HistoryRecord h;
-            h.timestamp = rec.timestamp;
-            h.t = rec.t;
-            h.h = rec.h;
-            h.p = rec.p;
-            records.push_back(h);
-        }
-        if (records.empty()) {
-            d.center(OLED_LINE_3_Y, "OUT: pas de donnees");
-            d.show();
-            return;
-        }
-    } else {
-        records = history.getRecentHistory();
-        if (records.empty()) {
-            d.center(OLED_LINE_3_Y, "IN: pas de donnees");
-            d.show();
-            return;
-        }
+    records.reserve(cache.size());
+    for (const auto& g : cache) {
+        const bool ok = (type == 0) ? g.tv : (type == 1) ? g.hv : g.pv;
+        if (!ok) continue;
+        HistoryRecord h;
+        h.timestamp = g.ts;
+        h.t = g.t; h.h = g.h; h.p = g.p;
+        records.push_back(h);
+    }
+    if (records.empty()) {
+        d.center(OLED_LINE_3_Y, outdoor ? "OUT: pas de donnees" : "IN: pas de donnees");
+        d.show();
+        return;
     }
 
     int count = static_cast<int>(records.size());
@@ -409,14 +436,19 @@ void pageGraph_oled(DisplayInterface& d, HistoryManager& history, int type, int 
     d.text(OLED_VALUE_COL_X, graphY, maxLabel);
     d.text(OLED_VALUE_COL_X, bottomY - 8, minLabel);
 
-    // Affichage Echelle Temps (Bas)
-    d.text(OLED_GRAPH_X, OLED_TIME_BOTTOM_Y, "-2h");
+    // Affichage Echelle Temps (Bas) : la fenetre est desormais 24 h.
+    d.text(OLED_GRAPH_X, OLED_TIME_BOTTOM_Y, "-24h");
     d.text(70, OLED_TIME_BOTTOM_Y, "now");
-    
+
+    // Seuil de coupure du trait : on relie les points par-dessus les tranches
+    // vides et on ne coupe QUE sur un vrai silence capteur. max(2,5 tranches,
+    // 20 min), meme principe que la page web et morfAnalytics. L'ancien seuil fixe
+    // de 90 s etait un relicat de la cadence 1/min : a 5 min, il coupait TOUT.
+    const long gapThresh = std::max((long)(2.5 * gInterval), 20L * 60L);
+
     // Drawing loop with gap detection
     for (int i = startIndex + 1; i < count; i++) {
-        // If gap is > 90 seconds, don't draw the connecting line
-        if (records[i].timestamp - records[i-1].timestamp > 90) {
+        if (records[i].timestamp - records[i-1].timestamp > gapThresh) {
             continue;
         }
 

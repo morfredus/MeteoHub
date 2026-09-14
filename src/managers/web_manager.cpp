@@ -192,6 +192,14 @@ void WebManager::begin(HistoryManager& history, SdManager& sd, ForecastManager& 
         LOG_ERROR("Erreur demarrage mDNS");
     }
 
+    // Pas de mise en cache navigateur des reponses : les pages et surtout app.js
+    // sont embarquees dans le firmware. Sans en-tete, le navigateur les gardait
+    // en cache heuristique et continuait de servir l'ANCIENNE version apres un
+    // reflash (symptome : graphes vides / UI figee tant qu'on ne force pas un
+    // rechargement). "no-cache" impose une revalidation a chaque chargement ;
+    // sur un appareil LAN aux fichiers legers, le cout est negligeable.
+    DefaultHeaders::Instance().addHeader("Cache-Control", "no-cache");
+
     _setupRoutes();
     _setupApi();
 

@@ -220,12 +220,6 @@ async function fetchAlert() {
 }
 let chart;
 
-const HISTORY_WINDOWS_SECONDS = {
-    short: 2 * 60 * 60,
-    long: 24 * 60 * 60
-};
-
-const HISTORY_REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 5000;
 const ALERT_REFRESH_MS = 15 * 60 * 1000;
 const STATS_REFRESH_MS = 15000;
@@ -249,22 +243,6 @@ function isHistoryPage() {
 
 function isStatsPage() {
     return getPageName() === 'stats';
-}
-
-function getHistoryWindowSeconds() {
-    return getPageName() === 'longterm' ? HISTORY_WINDOWS_SECONDS.long : HISTORY_WINDOWS_SECONDS.short;
-}
-
-function getHistoryIntervalSeconds() {
-    return getPageName() === 'longterm' ? 30 * 60 : 5 * 60;
-}
-
-function buildHistoryUrl() {
-    const params = new URLSearchParams({
-        window: String(getHistoryWindowSeconds()),
-        interval: String(getHistoryIntervalSeconds())
-    });
-    return `/api/history?${params.toString()}`;
 }
 
 function setText(id, txt) {
@@ -412,18 +390,6 @@ async function fetchLive() {
             status.textContent = 'Déconnecté';
             status.style.color = '#f00';
         }
-    }
-}
-
-async function fetchHistory() {
-    if (!chart || !isHistoryPage()) return;
-
-    try {
-        const res = await fetch(buildHistoryUrl());
-        const json = await res.json();
-        updateChart(Array.isArray(json.data) ? json.data : []);
-    } catch (e) {
-        console.error('Erreur historique', e);
     }
 }
 
@@ -596,15 +562,6 @@ function filterOutliers(values, floor) {
         }
     }
     return out;
-}
-
-function updateChart(data) {
-    if (!chart) return;
-    chart.data.labels = data.map((d) => new Date(d.t * 1000).toLocaleTimeString());
-    chart.data.datasets[0].data = filterOutliers(data.map((d) => d.temp), OUTLIER_FLOOR.temp);
-    chart.data.datasets[1].data = filterOutliers(data.map((d) => d.hum), OUTLIER_FLOOR.hum);
-    chart.data.datasets[2].data = filterOutliers(data.map((d) => d.pres), OUTLIER_FLOOR.pres);
-    updateChartScale();
 }
 
 function initChart() {
