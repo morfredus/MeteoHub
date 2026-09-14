@@ -726,7 +726,7 @@ void HistoryManager::updateDayStats(const HistoryRecord& record, const struct tm
 }
 
 bool HistoryManager::readDayStats(time_t day_ts, DayStats& out) const {
-    if (!_sd || !_sd->isAvailable()) return false;
+    if (!_sd || !_sd->ensureMounted()) return false; // lecture : ne pas sonder cardType()
     struct tm tinfo;
     if (!localtime_r(&day_ts, &tinfo)) return false;
 
@@ -748,7 +748,7 @@ bool HistoryManager::readDayStats(time_t day_ts, DayStats& out) const {
 // dichotomie (les enregistrements sont chronologiques et de taille fixe).
 bool HistoryManager::readBinSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out,
                                        bool outdoor) const {
-    if (!_sd || !_sd->isAvailable()) return false;
+    if (!_sd || !_sd->ensureMounted()) return false; // lecture : ne pas sonder cardType()
     struct tm tinfo;
     if (!localtime_r(&target_ts, &tinfo)) return false;
 
@@ -871,7 +871,14 @@ std::vector<HistoryPoint> HistoryManager::queryRangeImpl(time_t from, time_t to,
     //    directement (dichotomie) au premier enregistrement >= from, puis on lit
     //    séquentiellement jusqu'à dépasser to — sans relire tout le fichier.
     //    Repli sur l'ancien CSV plat si un .bin n'existe pas encore.
-    if (_sd && _sd->isAvailable()) {
+    //
+    // On monte via ensureMounted() (comme /api/history/raw et /days) et NON via
+    // isAvailable() : cette dernière sonde SD.cardType() et, sur un faux CARD_NONE
+    // transitoire (fréquent sous charge web), démonte la carte et reste en cooldown
+    // de reconnexion. La lecture retombait alors sur la RAM seule -> historique IN
+    // vide et OUT réduit à quelques trames récentes, alors que la donnée est bien
+    // sur la carte (l'export brut, lui, la lit sans souci).
+    if (_sd && _sd->ensureMounted()) {
         char prevBin[64] = {0};
         size_t day_iter = 0;
         for (time_t cursor = from; cursor <= to + 86400; cursor += 86400) {
@@ -982,7 +989,7 @@ std::vector<HistoryPoint> HistoryManager::queryRangeImpl(time_t from, time_t to,
 
 bool HistoryManager::readSdSampleNear(time_t target_ts, float& t_out, float& h_out, float& p_out,
                                       bool outdoor) const {
-    if (!_sd || !_sd->isAvailable()) return false;
+    if (!_sd || !_sd->ensureMounted()) return false; // lecture : ne pas sonder cardType()
 
     // Priorité au format binaire ; repli sur l'ancien CSV plat si absent.
     if (readBinSampleNear(target_ts, t_out, h_out, p_out, outdoor)) return true;
@@ -1095,7 +1102,7 @@ void HistoryManager::clearHistory() {
 
 RangeSynthesis HistoryManager::querySynthesis(time_t from, time_t to) const {
     RangeSynthesis r;
-    if (to <= from || !_sd || !_sd->isAvailable()) return r;
+    if (to <= from || !_sd || !_sd->ensureMounted()) return r; // lecture : ne pas sonder cardType()
 
     double t_sum = 0, h_sum = 0, p_sum = 0;
     char prevBin[48] = {0};
@@ -1386,7 +1393,7 @@ void HistoryManager::exportCsv(time_t from, time_t to, const std::function<void(
 void HistoryManager::exportCsvImpl(time_t from, time_t to,
                                    const std::function<void(const char*)>& emit, bool outdoor) const {
     emit("Timestamp,Temperature,Humidity,Pressure\n");
-    if (to <= from || !_sd || !_sd->isAvailable()) return;
+    if (to <= from || !_sd || !_sd->ensureMounted()) return; // lecture : ne pas sonder cardType()
 
     const long from_l = static_cast<long>(from);
     const long to_l = static_cast<long>(to);

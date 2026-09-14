@@ -1,3 +1,33 @@
+# [1.34.0] - 2026-09-15
+
+### Fixed
+
+- **History graphs were empty (IN) or nearly empty (OUT).** The History page reads
+  through `queryRange`, which gated SD access on `isAvailable()`. That call probes
+  `SD.cardType()` and, on a transient `CARD_NONE` glitch (common under web load),
+  tore down the mount and entered a reconnect cooldown, so the query silently fell
+  back to RAM only: indoor history looked empty and outdoor showed just the few
+  recent frames, while the data was safely on the card (the raw export used by
+  morfAnalytics reads via `ensureMounted()` and stayed full). All history read
+  paths (`queryRange`, `querySynthesis`, the sample-near lookups, CSV export) now
+  use `ensureMounted()` like the raw/days endpoints; write and card-removal paths
+  keep `isAvailable()`.
+
+### Added
+
+- **Remote sensor battery voltage shown, not just the percentage.** The dashboard
+  Outdoor card now reads `3.98 V (72 %)` and the OLED System page carries a
+  `Sonde: 3.98V 72%` line, visible at all times (previously the battery only
+  appeared on the OLED as a low-battery alert). Data already came in the ESP-NOW
+  frame and `/api/live`.
+
+### Changed
+
+- **Clear-history control is now harder to reach.** The System page "Historique"
+  card is collapsed by default (a `<details>`): it must be expanded before the
+  destructive "Vider tout l'historique" button appears, so a distracted click
+  cannot wipe the history. The existing double confirmation is unchanged.
+
 # [1.33.3] - 2026-09-14
 
 ### Fixed

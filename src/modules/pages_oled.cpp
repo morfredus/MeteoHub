@@ -133,7 +133,7 @@ void pageNetwork_oled(DisplayInterface& d, WifiManager& wifi, int pageIndex, int
 }
 
 // 5. Page système : affiche infos mémoire et version
-void pageSystem_oled(DisplayInterface& d, int pageIndex, int pageCount) {
+void pageSystem_oled(DisplayInterface& d, HistoryManager& history, int pageIndex, int pageCount) {
 	SystemInfo s = getSystemInfo();
 
 	d.clear();
@@ -143,6 +143,19 @@ void pageSystem_oled(DisplayInterface& d, int pageIndex, int pageCount) {
 	d.text(0, OLED_LINE_2_Y, std::string("PSRAM: ") + std::to_string(s.psramFree / 1024) + " KB");
 	d.text(0, OLED_LINE_3_Y, std::string("Flash: ") + std::to_string(s.flashSize / 1024 / 1024) + " MB");
 	d.text(0, OLED_LINE_4_Y, std::string("Ver:   ") + std::string(PROJECT_VERSION));
+
+	// Ligne 5 : batterie de la sonde deportee (tension + %) quand une trame l'a
+	// rapportee. C'est l'etat "materiel" du capteur exterieur, sa place logique
+	// est ici avec l'etat systeme, visible en permanence (pas seulement en alerte).
+	if (history.hasLiveOutdoor()) {
+		const OutdoorData& live = history.lastOutdoorLive();
+		if (live.has_battery) {
+			char batLine[24];
+			snprintf(batLine, sizeof(batLine), "Sonde: %.2fV %u%%",
+			         live.battery_voltage, (unsigned)live.battery_percent);
+			d.text(0, OLED_LINE_5_Y, batLine);
+		}
+	}
 
 	d.show();
 }

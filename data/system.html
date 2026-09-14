@@ -88,10 +88,15 @@
             </div>
         </div>
 
-        <!-- Remise à zéro de l'historique (action destructive) -->
-        <div class="card sys-card">
-            <h2>🗑️ Historique</h2>
-            <p class="sys-hint" style="margin:.2rem 0 .8rem;">
+        <!-- Remise à zéro de l'historique (action destructive). Repliée par
+             défaut : il faut dérouler le cartouche pour atteindre le bouton, afin
+             qu'un clic distrait ne puisse pas effacer l'historique. -->
+        <details class="card sys-card" id="clearHistoryCard">
+            <summary style="cursor:pointer;">
+                <h2 style="display:inline;">🗑️ Historique</h2>
+                <span class="sys-hint"> (dérouler pour effacer)</span>
+            </summary>
+            <p class="sys-hint" style="margin:.8rem 0 .8rem;">
                 Efface définitivement toutes les mesures enregistrées, intérieures (IN)
                 et extérieures (OUT), en mémoire interne et sur la carte SD. À utiliser
                 pour repartir sur des mesures propres. Cette action est irréversible.
@@ -101,7 +106,7 @@
                         style="background:#7f1d1d;border-color:#b91c1c;">Vider tout l'historique</button>
             </div>
             <div id="clearHistoryResult" class="sys-hint"></div>
-        </div>
+        </details>
 
         <footer></footer>
     </div>

@@ -371,6 +371,10 @@ function updateStation(data) {
         if (outb.has_battery) {
             batteryRow.hidden = false;
             setText('outBattery', Number(outb.battery_pct).toFixed(0));
+            // Tension de la cellule (V) en plus du pourcentage : c'est la valeur
+            // que Fred lit au multimètre pour caler la sonde.
+            setText('outBatteryV', (typeof outb.battery_v === 'number')
+                ? Number(outb.battery_v).toFixed(2) : '--');
             if (outb.battery_low) {
                 batteryAlert.hidden = false;
                 batteryAlert.textContent = `Pile de la sonde faible (${Number(outb.battery_pct).toFixed(0)} %) : à remplacer`;

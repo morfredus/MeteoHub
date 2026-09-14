@@ -6,7 +6,7 @@
 #include "../managers/history_manager.h"
 
 void pageNetwork_oled(DisplayInterface& d, WifiManager& wifi, int pageIndex, int pageCount);
-void pageSystem_oled(DisplayInterface& d, int pageIndex, int pageCount);
+void pageSystem_oled(DisplayInterface& d, HistoryManager& history, int pageIndex, int pageCount);
 void pageLogs_oled(DisplayInterface& d, int pageIndex, int pageCount, int scrollOffset = 0);
 void pageWeather_oled(DisplayInterface& d, SensorManager& sensors, ForecastManager& forecast, HistoryManager& history, int pageIndex, int pageCount);
 void pageGraph_oled(DisplayInterface& d, HistoryManager& history, int type, int pageIndex, int pageCount, bool outdoor = false);
