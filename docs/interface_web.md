@@ -10,17 +10,30 @@ réseau. Aucune application à installer.
 
 ## Tableau de bord
 
-Vue d'accueil : mesures instantanées (température, humidité, pression), cartouche
-d'alerte météo et graphique des dernières 24 heures.
+Vue d'accueil, centrée sur la météo extérieure : une valeur « effective » en grand
+(température/humidité extérieures, avec repli intérieur signalé si la sonde est
+absente), puis deux cartouches distincts **Extérieur (OUT)** et **Intérieur
+(confort)**, l'état de la pile de la sonde, et le cartouche d'alerte météo. Au
+redémarrage, tant qu'aucune trame de la sonde n'est arrivée, la carte extérieure
+indique « en attente du premier relevé » plutôt qu'une fausse valeur. (Le graphe
+d'historique n'est plus sur l'accueil : il vit sur la page Historique.)
 
 ![Tableau de bord MeteoHub (données d'exemple)](pictures/interface-tableau-de-bord.png)
 
 ## Statistiques
 
-Résumé min / moyenne / max sur la période affichée, et tendances à 1 h, 12 h,
-24 h et 48 h.
+Résumé min / moyenne / max sur les dernières 24 h, pour l'extérieur ET l'intérieur,
+et tendance météo (extérieur) à 1 h, 12 h, 24 h et 48 h.
 
 ![Page Statistiques (données d'exemple)](pictures/interface-statistiques.png)
+
+## Historique
+
+Le graphe d'historique, avec deux réglages seulement : la **Source** (Extérieur,
+Intérieur, ou **Intérieur + Extérieur** tracés ensemble pour comparer) et la
+**Période** (24 h, 48 h, 7 j, 30 j, aujourd'hui, ou une plage personnalisée).
+L'échelle de temps s'adapte à la période choisie. L'analyse approfondie, elle,
+est le rôle de morfAnalytics.
 
 ## Système
 

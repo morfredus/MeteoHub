@@ -2,7 +2,7 @@
 
 *Lire dans une autre langue : [English](README.md) · **Français** (ce document).*
 
-[![Version](https://img.shields.io/badge/version-1.33.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.33.2-blue)](CHANGELOG.md)
 
 > **Version minimale valide : 1.9.0**
 
@@ -29,9 +29,9 @@ MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bor
 - Upload : `platformio run --target upload`
 
 ## Fonctionnalités principales (Nouveautés v1.9.x)
-- **Stockage binaire compact de l'historique (v1.4.0+)** : fichiers binaires par jour (`/history/AAAA/MM/AAAA-MM-JJ.bin`) avec en-tête de fichier (compatibilité ascendante) et fichiers `.stats` journaliers. Accès direct aux mesures, bien plus compact que le CSV. Le CSV ne sert plus qu'à l'export ; les anciens CSV sont migrés automatiquement au premier démarrage.
+- **Stockage binaire compact de l'historique** : arborescence symétrique intérieur/extérieur, fichiers binaires par jour sous `/history/indoor/AAAA/MM/…` et `/history/outdoor/AAAA/MM/…`, avec en-tête de fichier (compatibilité ascendante) et fichiers `.stats` journaliers. Accès direct aux mesures, bien plus compact que le CSV. Le CSV ne sert qu'à l'export. Un effacement complet est disponible depuis la page Système (`POST /api/history/clear`).
 - **Affichage de l'historique accéléré (v1.8.0)** : lecture séquentielle par blocs (sans seek par mesure) et cascade de fréquence SPI de la carte SD (20/10/4/1 MHz, validée par un test écriture + relecture) accélèrent nettement le chargement, avec repli fiable.
-- **Page Historique : sélection et comparaison de périodes** : fenêtre 24 h / 48 h / 7 j / 30 j / aujourd'hui / plage personnalisée, comparaison de deux périodes, ligne de synthèse optionnelle par grandeur, curseur d'échelle « Zoom » inversé et bascule « Temps réel ».
+- **Page Historique (visualisation seule)** : source (Extérieur / Intérieur / **les deux** sur un même axe de temps) et période (24 h / 48 h / 7 j / 30 j / aujourd'hui / plage personnalisée) ; l'axe de temps s'adapte à la période choisie. Ligne de synthèse optionnelle par grandeur, curseur d'échelle « Zoom » inversé et bascule « Temps réel ». L'analyse approfondie vit dans morfAnalytics.
 - **Page Système (hub)** : mise à jour OTA, luminosité de la NeoLED (persistée en NVS), exports CSV/configuration, accès au gestionnaire de fichiers et aux logs. Menu principal réduit à quatre entrées : Tableau de bord, Statistiques, Historique, Système.
 - **Qualité des données et robustesse capteur (v1.6.x)** : lectures I2C validées, réessayées, avec récupération automatique du bus après échecs ; les lectures ratées ne sont pas enregistrées. Les valeurs aberrantes sont écartées des graphes (cohérence temporelle) et des statistiques (médiane/MAD robuste), les données brutes restant conservées.
 - **Monitoring des logs par UDP (v1.9.0)** : les logs applicatifs et ceux du cœur ESP (WiFi, I2C, watchdog…) sont diffusés en UDP pour un suivi à distance sans fil (ex. dans Tabby), sans câble série. Configurable dans `config.h`.

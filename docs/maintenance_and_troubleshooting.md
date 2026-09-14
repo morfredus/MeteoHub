@@ -22,7 +22,7 @@ Côté logiciel, MeteoHub encaisse déjà ces incidents : chaque lecture est val
 
 ## Historique et stockage
 
-- L'historique interne est stocké au **format binaire** (`/history/AAAA/MM/AAAA-MM-JJ.bin` + fichiers `.stats`). Le CSV n'est utilisé que pour l'export (page Système).
+- L'historique interne est stocké au **format binaire**, arborescence symétrique intérieur/extérieur (`/history/indoor/AAAA/MM/AAAA-MM-JJ.bin` et `/history/outdoor/AAAA/MM/…` + fichiers `.stats`). Le CSV n'est utilisé que pour l'export (page Système). Pour repartir de zéro : « Vider tout l'historique » dans la page Système.
 - Les anciens fichiers `.csv` sont **convertis automatiquement** au binaire au premier démarrage après mise à jour (puis renommés `.csv.bak`) ; surveiller les lignes `History migration…` dans le moniteur série.
 - Sauvegarder le dossier `/history` de la carte SD avant une mise à jour majeure du firmware, par prudence.
 

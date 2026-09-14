@@ -1,3 +1,14 @@
+# [1.33.2] - 2026-09-14
+
+### Documentation
+
+- **Docs realigned with the current firmware.** README (en+fr) and the docs
+  guides now describe the symmetric history layout (`/history/indoor/…` and
+  `/history/outdoor/…`) instead of the old flat `/history/YYYY/MM/…`, the
+  view-only History page (Source Outdoor/Indoor/both + Period, comparison
+  removed), the remote wipe (`POST /api/history/clear`), the 5 min outdoor
+  cadence and the forecast archive. No behaviour change.
+
 # [1.33.1] - 2026-09-14
 
 ### Fixed

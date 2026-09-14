@@ -27,7 +27,7 @@ et constitue sa propre copie. MeteoHub n'est pas client morfSync.
 
 **Pourquoi.** L'enveloppe de synchronisation morfSync (UUID, révision, origine,
 horodatages) pèse plus lourd que la mesure elle-même, qui tient en 16 octets et
-est écrite chaque minute. Faire de l'ESP32 un client morfSync aurait demandé un
+est écrite à chaque mesure. Faire de l'ESP32 un client morfSync aurait demandé un
 générateur d'UUID, une file d'attente hors ligne et un client HTTP de
 synchronisation, pour transporter une charge utile écrasée par ses propres
 métadonnées.

@@ -2,7 +2,7 @@
 
 *Read in another language: **English** (this document) · [Français](README.fr.md).*
 
-[![Version](https://img.shields.io/badge/version-1.33.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.33.2-blue)](CHANGELOG.md)
 
 > **Minimum supported version: 1.9.0**
 
@@ -44,14 +44,14 @@ platformio run --target upload
 
 ## Key Features (v1.9.x Highlights)
 
-* **Compact binary history storage (v1.4.0+)**
-  Per-day binary files (`/history/YYYY/MM/YYYY-MM-DD.bin`) with a file header for forward compatibility, plus daily `.stats` files. Direct record access, far smaller than CSV. CSV is now export-only; legacy CSV files are migrated automatically on first boot.
+* **Compact binary history storage**
+  Symmetric indoor/outdoor layout: per-day binary files under `/history/indoor/YYYY/MM/…` and `/history/outdoor/YYYY/MM/…`, with a file header for forward compatibility, plus daily `.stats` files. Direct record access, far smaller than CSV. CSV is export-only. A full wipe is available from the System page (`POST /api/history/clear`).
 
 * **Fast history display (v1.8.0)**
   Sequential block reads (no per-record seek) and an SD SPI frequency ladder (20/10/4/1 MHz, verified by a write+read-back test) dramatically speed up history loading, with a safe fallback.
 
-* **History page: period selection & comparison**
-  Pick a window (24h / 48h / 7d / 30d / today / custom range), compare two periods, optional per-metric synthesis line, an inverted "Zoom" scale control, and a real-time toggle.
+* **History page (view-only)**
+  Source (Outdoor / Indoor / **both** on one time axis) and period (24h / 48h / 7d / 30d / today / custom range); the time axis adapts to the chosen period. Optional per-metric synthesis line, an inverted "Zoom" scale control, and a real-time toggle. Deep analysis lives in morfAnalytics.
 
 * **System page (hub)**
   OTA firmware update, NeoLED brightness (persisted in NVS), CSV/config exports, and access to the File manager and Logs. The main menu is streamlined to four entries: Dashboard, Statistics, History, System.

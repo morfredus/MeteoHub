@@ -20,7 +20,7 @@ Le titre de page reste sur la ligne haute (zone jaune), tandis que la zone de co
 Le menu web a été simplifié à quatre entrées : **Tableau de bord**, **Statistiques**, **Historique**, **Système**. La mise à jour OTA, la luminosité de la LED, les exports (CSV / configuration) et les accès aux Fichiers et Logs sont regroupés sur la page **Système**. L'ancienne URL `/ota.html` redirige vers `/system.html`.
 
 ## Sous quel format l'historique est-il stocké ?
-Au format **binaire compact**, découpé par jour (`/history/AAAA/MM/AAAA-MM-JJ.bin`), avec un fichier de statistiques `.stats` par jour. Le **CSV** ne sert plus qu'à l'export (page Système). Les anciens fichiers CSV sont convertis automatiquement au premier démarrage après mise à jour.
+Au format **binaire compact**, découpé par contexte puis par jour, avec la **même arborescence** pour l'intérieur et l'extérieur : `/history/indoor/AAAA/MM/AAAA-MM-JJ.bin` et `/history/outdoor/AAAA/MM/AAAA-MM-JJ.bin`, plus un fichier `.stats` par jour. Le **CSV** ne sert qu'à l'export (page Système).
 
 ## Je vois des erreurs `i2cRead` / des valeurs à zéro. Est-ce grave ?
 MeteoHub valide chaque lecture, réessaie, réinitialise le bus si besoin, et n'enregistre pas les lectures ratées ; les valeurs aberrantes résiduelles sont écartées des graphes et statistiques. Si les erreurs sont fréquentes, la cause est souvent matérielle (pull-ups I2C redondants, câblage, alimentation) - voir [Maintenance et dépannage](maintenance_and_troubleshooting.md).

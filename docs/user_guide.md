@@ -13,7 +13,7 @@ Version minimale valide : 1.9.0
 Pages principales :
 - Météo : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT** (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
 - Prévisions
-- Graphes (température IN, humidité IN, pression OUT)
+- Graphes : pages de courbes pour l'intérieur et l'extérieur (température, humidité, pression)
 - Réseau : SSID, IP, **canal Wi-Fi**, RSSI et **MAC STA**. La sonde scanne `MH-NOW` pour le canal ; elle n'a pas besoin de la MAC pour le broadcast.
 - Système
 - Logs
@@ -32,21 +32,21 @@ Pages principales :
 - API : `/api/files/list`, `/api/files/download`, `/api/files/delete`, `/api/files/upload` (paramètre `fs=sd` ou `fs=littlefs`).
 
 ### Historique et statistiques
-- Page **Historique** : visualisation graphique de l’historique (température `°C`, humidité `Hu%`, pression `hPa`).
-  - **Sélection de période** : dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd’hui », ou une plage **personnalisée** (champs *du* / *au*). Les périodes au-delà de ~24 h sont reconstituées à partir des fichiers binaires journaliers de la carte SD.
-  - **Comparaison de deux périodes** : « aucune », « période précédente » (même durée, juste avant la période affichée) ou « autre période… » (début libre, durée identique à la période principale). La période comparée (B) est tracée en pointillés et alignée sur la période principale (A) ; une ligne d’information rappelle les plages exactes.
+- Page **Historique** : visualisation graphique de l’historique (température `°C`, humidité `Hu%`, pression `hPa`). Elle est volontairement simple - **voir** les données ; l'analyse approfondie est le rôle de morfAnalytics.
+  - **Source** : *Extérieur (OUT)*, *Intérieur (IN)*, ou *Intérieur + Extérieur* (les deux tracés ensemble, sur le même axe de temps, pour comparer d'un coup d'œil).
+  - **Sélection de période** : dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd’hui », ou une plage **personnalisée** (champs *du* / *au*). L'échelle de temps horizontale s'adapte à la période choisie. Les périodes longues sont reconstituées à partir des fichiers binaires journaliers de la carte SD.
   - **Échelle** : mode *Fixe* / *Dynamique* / *Mixte*. En mode *Mixte*, le curseur **Zoom** (0 → 100 %) interpole entre l’échelle complète configurée (0 %, courbe quasi plate) et l’amplitude exacte des données (100 %, courbe pleine hauteur).
-  - **Synthèse** (option, masquée par défaut) : une ligne au-dessus du graphe résume la période affichée pour chaque grandeur - variation sur la période (flèche ▲/▼/=), minimum, maximum et moyenne - pour une lecture rapide sans analyser les courbes.
-  - **Temps réel** (case à côté de « Synthèse », activée par défaut) : active/désactive le rafraîchissement automatique du graphe (limité aux périodes relatives ≤ 48 h sans comparaison).
+  - **Synthèse** (option, masquée par défaut) : une ligne au-dessus du graphe résume la période affichée pour chaque grandeur - variation (flèche ▲/▼/=), minimum, maximum et moyenne (en vue Intérieur + Extérieur, l'écart moyen OUT − IN est aussi rappelé).
+  - **Temps réel** (case à côté de « Synthèse », activée par défaut) : active/désactive le rafraîchissement automatique, calé sur la cadence d'enregistrement (~5 min), pas sur un intervalle court.
 - API : `/api/history`
-  - Fenêtre glissante : `window`, `interval`, `points` (utilisée par le tableau de bord).
-  - Plage absolue : `from`, `to` (secondes Unix) et `interval` optionnel (utilisée par la page Historique ; lecture SD + RAM, tranches vides renvoyées à `null`).
+  - Fenêtre glissante : `window`, `interval`, `points`.
+  - Plage absolue : `from`, `to` (secondes Unix) et `interval` optionnel, plus `ctx=in|out` pour choisir la source (utilisée par la page Historique ; lecture SD + RAM, tranches vides renvoyées à `null`). La réponse indique aussi `measurement_interval_s` (cadence d'enregistrement).
 - API : `/api/history/summary?from=&to=` - synthèse pré-calculée d'une plage (min/max/moyenne + variation par grandeur) reconstruite à partir des fichiers `.stats` journaliers, sans relire les mesures.
 - Statistiques 24h via `/api/stats` (min, max, moyenne). Ces statistiques sont calculées avec un **filtre robuste (médiane/MAD)** qui écarte les valeurs aberrantes, y compris en série, pour rester représentatives.
 - Page **Statistiques** : une bascule **« Mise à jour en temps réel »** (activée par défaut) active/désactive le rafraîchissement automatique des tableaux ; un bouton **« Actualiser »** permet un rafraîchissement manuel, et l'heure de dernière mise à jour est indiquée.
 
 #### Stockage de l'historique (carte SD)
-- L'historique est stocké au **format binaire compact**, découpé par jour : `/history/AAAA/MM/AAAA-MM-JJ.bin` (enregistrements de 16 octets : horodatage + température/humidité/pression). Ce format est plusieurs fois plus petit que le CSV et permet un accès direct à une mesure sans relire tout le fichier ; une consultation 24 h ne lit qu'un fichier.
+- L'historique est stocké au **format binaire compact**, découpé par contexte puis par jour, l'intérieur et l'extérieur ayant la **même arborescence** : `/history/indoor/AAAA/MM/AAAA-MM-JJ.bin` et `/history/outdoor/AAAA/MM/AAAA-MM-JJ.bin` (horodatage + température/humidité/pression). Ce format est plusieurs fois plus petit que le CSV et permet un accès direct à une mesure sans relire tout le fichier.
 - Chaque `.bin` débute par un **en-tête** (magic `MTHB`, version de format, tailles, capteurs présents, nombre de mesures, premier/dernier relevé). Cet en-tête rend le format **pérenne** : de futurs capteurs pourront agrandir l'enregistrement sans imposer de convertir les anciens fichiers (compatibilité ascendante).
 - **Qualité des données** : à l'exploitation (côté serveur, sur les mesures brutes avant agrégation), les valeurs manifestement aberrantes sont automatiquement **écartées des graphiques et des statistiques**, par grandeur (température, humidité et pression traitées indépendamment) :
   - pour les **graphes** (`/api/history`), un filtre de **cohérence temporelle** écarte un pic/creux ponctuel incohérent avec ses deux voisins (pas de seuil fixe), les points valides étant reliés directement ;
@@ -98,10 +98,11 @@ Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Stati
   - Historique au format **CSV** (dernières 24 h / 7 j / 30 j / tout), pour Excel/LibreOffice - API `GET /api/history/export.csv?from=&to=` ;
   - **Configuration** effective au format JSON - API `GET /api/config/export`.
 - **Mise à jour du firmware (OTA)** : upload d’un fichier `.bin`, reboot automatique après succès. API : `/api/ota/update`. (L’ancienne URL `/ota.html` redirige vers `/system.html`.)
+- **Historique** : bouton « Vider tout l'historique » (double confirmation) qui efface toutes les mesures enregistrées, intérieures et extérieures, en mémoire interne et sur la carte SD, pour repartir sur des mesures propres. API : `POST /api/history/clear`.
 - **Outils** : accès au **gestionnaire de fichiers** (`/files.html`) et aux **logs système** (`/logs`), qui ne figurent plus dans le menu principal.
 
 ### Acquisition capteur (AHT20 + BMP280, bus I2C)
-- Une mesure est enregistrée toutes les minutes. Chaque lecture est **vérifiée** (succès de la communication I2C + plausibilité) : en cas d'échec, la minute est **sautée** plutôt que d'enregistrer une valeur erronée.
+- Une mesure est enregistrée à la **cadence configurée** (5 minutes par défaut, `INDOOR_MEASUREMENT_INTERVAL_SECONDS` dans `include/config.h`), la même pour l'intérieur et l'extérieur pour des séries homogènes. L'**affichage** reste en temps réel (il relit la dernière mesure sans créer d'entrée d'historique). Chaque lecture est **vérifiée** (succès de la communication I2C + plausibilité) : en cas d'échec, le cycle est **sauté** plutôt que d'enregistrer une valeur erronée.
 - **Robustesse** : jusqu'à 3 tentatives par lecture (les erreurs I2C sont souvent transitoires) et **récupération automatique du bus I2C** après plusieurs échecs consécutifs. En temps réel, la dernière valeur valide est affichée si une lecture échoue.
 - Un badge signale une lecture capteur invalide sur le tableau de bord.
 - En cas d'erreurs I2C fréquentes (`i2cRead returned Error -1` dans les logs), voir la section correspondante de [Maintenance et dépannage](maintenance_and_troubleshooting.md).
@@ -119,8 +120,9 @@ Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Stati
 
 #### Recopie de l'historique par le serveur d'analyse
 - Deux API **en lecture seule** permettent au serveur de recopier l'historique sans jamais rien modifier sur MeteoHub :
-  - `GET /api/history/days` - liste des journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ;
-  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` - mesures brutes de la journée, à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]`.
+  - `GET /api/history/days` - liste des journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ; accepte `ctx=in|out` (intérieur par défaut) ;
+  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` - mesures brutes de la journée, à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]` ; accepte aussi `ctx=in|out` ;
+  - `GET /api/forecast/history` - prévisions « du lendemain » archivées (une par jour cible), pour l'analyse « prévu vs observé » de morfAnalytics.
 - Une mesure est repérée par sa **position dans le fichier du jour**, et non par son horodatage. Les fichiers étant écrits en ajout seul, cette position ne change jamais, alors qu'un horodatage peut reculer lors d'un recalage d'horloge ou se répéter lors du passage à l'heure d'hiver. Le serveur d'analyse retient donc le couple (jour, position) et ne redemande que ce qui manque : aucune mesure n'est transférée deux fois.
 - Ces API ne sont utiles qu'à un serveur d'analyse. Pour un export manuel, préférer le CSV (`GET /api/history/export.csv`), directement exploitable dans un tableur.
 
