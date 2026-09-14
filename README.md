@@ -2,7 +2,7 @@
 
 *Read in another language: **English** (this document) · [Français](README.fr.md).*
 
-[![Version](https://img.shields.io/badge/version-1.33.2-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.33.3-blue)](CHANGELOG.md)
 
 > **Minimum supported version: 1.9.0**
 

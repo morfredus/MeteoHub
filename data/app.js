@@ -791,57 +791,18 @@ async function fetchRange(range, interval, ctxOverride) {
     return Array.isArray(json.data) ? json.data : [];
 }
 
-// Vue OUT : comble les tranches sans mesure extérieure par l'intérieur, EN LES
-// MARQUANT (jamais un point IN présenté comme OUT). Modifie outData en place et
-// renvoie, par grandeur, un tableau de drapeaux "comblé" aligné sur les points,
-// plus le nombre de tranches comblées.
-function fillOutWithIn(outData, inData) {
-    const flags = { temp: [], hum: [], pres: [], slices: 0 };
-    const keys = ['temp', 'hum', 'pres'];
-    for (let i = 0; i < outData.length; i++) {
-        const o = outData[i];
-        const inp = inData[i] || {};
-        let filledHere = false;
-        for (const k of keys) {
-            const ov = o[k];
-            const iv = inp[k];
-            if (ov === null || ov === undefined) {
-                if (iv !== null && iv !== undefined) {
-                    o[k] = iv;           // secours intérieur
-                    flags[k].push(true); // marqué comme comblé
-                    filledHere = true;
-                } else {
-                    flags[k].push(false);
-                }
-            } else {
-                flags[k].push(false);
-            }
-        }
-        if (filledHere) flags.slices++;
-    }
-    return flags;
-}
-
-// Couleur des points comblés (IN), cohérente avec le badge "secours intérieur".
-const FILL_COLOR = '#ff9f2e';
-
-// Applique le marquage visuel : les points comblés (IN) ressortent en pastilles
-// oranges ; les points OUT restent une simple ligne (rayon 0). Cas particulier :
-// un point VALIDE ISOLÉ (ses deux voisins sont nuls) doit afficher un marqueur,
-// sinon une ligne ne peut rien tracer et le point est invisible : c'est ce qui
-// arrivait avec une seule mesure (juste après un reset) : graphe vide alors que
-// la donnée existe. On donne donc un petit rayon à ces points isolés.
-function applyFillStyle(dataset, flags) {
+// Rend visibles les points VALIDES ISOLÉS (leurs deux voisins sont nuls) : une
+// ligne ne peut rien tracer entre deux trous, le point serait invisible. C'est
+// ce qui arrivait avec une seule mesure (juste après un reset) : graphe vide
+// alors que la donnée existe. On leur donne donc un petit rayon ; les autres
+// points restent une simple ligne (rayon 0). Le 2e paramètre est conservé pour
+// compatibilité d'appel mais n'est plus utilisé (plus de comblement inter-source).
+function applyFillStyle(dataset, _flags) {
     const data = dataset.data || [];
     const isNum = (v) => typeof v === 'number' && isFinite(v);
     const isolated = (i) => isNum(data[i]) && !isNum(data[i - 1]) && !isNum(data[i + 1]);
-    if (!flags) {
-        dataset.pointRadius = data.map((_, i) => (isolated(i) ? 2.5 : 0));
-        dataset.pointBackgroundColor = dataset.borderColor;
-        return;
-    }
-    dataset.pointRadius = data.map((_, i) => (flags[i] ? 3 : (isolated(i) ? 2.5 : 0)));
-    dataset.pointBackgroundColor = flags.map((f) => (f ? FILL_COLOR : dataset.borderColor));
+    dataset.pointRadius = data.map((_, i) => (isolated(i) ? 2.5 : 0));
+    dataset.pointBackgroundColor = dataset.borderColor;
 }
 
 function formatRangeLabel(range) {
@@ -1012,6 +973,15 @@ async function refreshLongterm() {
     const interval = computeInterval(primary.to - primary.from);
     const spanSeconds = primary.to - primary.from;
 
+    // Seuil de connexion des points, exprimé en nombre de tranches (l'axe X est
+    // catégoriel : une unité = une tranche). On relie par-dessus les tranches
+    // vides tant que le silence reste court (cadence normale : l'extérieur émet
+    // toutes les 5 min, plus large que la tranche sur une plage courte) et on ne
+    // coupe le trait que sur un VRAI silence capteur : max(2,5 tranches, 20 min).
+    // Même règle que dans morfAnalytics, valable quelle que soit la période.
+    const connectSpanS = Math.max(2.5 * interval, 20 * 60);
+    chart.options.spanGaps = connectSpanS / interval;
+
     showChartLoading(true);
     try {
         const ctx = getSourceCtx(); // 'out' | 'in' | 'both'
@@ -1043,13 +1013,12 @@ async function refreshLongterm() {
             if (info) info.textContent =
                 `Intérieur + Extérieur · Période : ${formatRangeLabel(primary)}`;
         } else {
-            // Source unique. En vue OUT, comble les tranches sans mesure extérieure
-            // par l'intérieur, EN LES MARQUANT (jamais un point IN présenté comme OUT).
-            const needIn = (ctx === 'out');
+            // Source unique (Extérieur ou Intérieur). On ne trace QUE la source
+            // demandée : aucun comblement par l'autre source (injecter un point IN
+            // dans un graphe OUT reliait deux valeurs sans rapport et dessinait un
+            // peigne trompeur). Les tranches sans mesure restent vides ; le trait
+            // les enjambe (spanGaps) et ne se coupe que sur un vrai silence capteur.
             const data = await fetchRange(primary, interval, ctx);
-            const inFill = needIn ? await fetchRange(primary, interval, 'in') : null;
-            let fillFlags = null;
-            if (needIn && inFill) fillFlags = fillOutWithIn(data, inFill);
 
             chart.data.labels = data.map((d) => formatTsLabel(d.t, spanSeconds));
             const filtered = buildFilteredSeries(data) || { temp: [], hum: [], pres: [] };
@@ -1058,19 +1027,14 @@ async function refreshLongterm() {
             chart.data.datasets[2].data = filtered.pres;
             setSecondaryDatasets(null); // pas de 2e source
 
-            applyFillStyle(chart.data.datasets[0], fillFlags ? fillFlags.temp : null);
-            applyFillStyle(chart.data.datasets[1], fillFlags ? fillFlags.hum : null);
-            applyFillStyle(chart.data.datasets[2], fillFlags ? fillFlags.pres : null);
+            for (let i = 0; i < 3; i++) applyFillStyle(chart.data.datasets[i], null);
 
             updateChartScale();
             longtermFilteredA = filtered;
             longtermFilteredB = null;
             updateSynthesis();
             if (info) {
-                const filledNote = (fillFlags && fillFlags.slices > 0)
-                    ? `   •   ${fillFlags.slices} tranche(s) comblée(s) par l'intérieur (en orange)`
-                    : '';
-                info.textContent = `${sourceLabel()} · Période : ${formatRangeLabel(primary)}` + filledNote;
+                info.textContent = `${sourceLabel()} · Période : ${formatRangeLabel(primary)}`;
             }
         }
     } catch (e) {

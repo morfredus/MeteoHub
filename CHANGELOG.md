@@ -1,3 +1,16 @@
+# [1.33.3] - 2026-09-14
+
+### Fixed
+
+- **History OUT chart no longer combs.** On a single-source view (Outdoor or
+  Indoor) the empty slices are no longer filled with the other source: injecting
+  an indoor point into an outdoor chart connected two unrelated values and drew a
+  misleading saw-tooth (worse on short custom ranges, where the slice is finer
+  than the 5 min outdoor cadence so most slices were filled). The chart now draws
+  only the requested source and connects points across empty slices, breaking the
+  line only on a real sensor silence (gap > max(2.5 slices, 20 min), the same rule
+  as morfAnalytics). The "N slices filled by indoor" note is gone.
+
 # [1.33.2] - 2026-09-14
 
 ### Documentation
