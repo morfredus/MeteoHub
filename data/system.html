@@ -25,7 +25,7 @@
                 <p class="sys-hint" style="margin:.6rem 0;">
                     MeteoHub trouve seul le service d'analyse présent sur le réseau : il
                     n'y a normalement rien à saisir ici. Cette adresse ne sert que si la
-                    détection automatique ne fonctionne pas — réseau découpé en
+                    détection automatique ne fonctionne pas : réseau découpé en
                     sous-réseaux, liaison VPN, ou box qui bloque les annonces entre
                     appareils. Laisser vide pour revenir à la détection automatique.
                 </p>
@@ -127,20 +127,20 @@
 
                     const dt = (d && d.detected) || {};
                     if (d && d.available && d.mode === 'manual') {
-                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> — adresse saisie '
+                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> · adresse saisie '
                             + 'manuellement : <code>' + escAn(d.effective_url) + '</code>.'
                             + (dt.found ? ' Un service est aussi détecté sur le réseau, mais '
                                         + 'l&rsquo;adresse manuelle reste prioritaire.' : '');
                         el.style.color = '#66bb6a';
                     } else if (d && d.available) {
-                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> — '
+                        el.innerHTML = '✅ <strong>Analyse avancée disponible</strong> · '
                             + '<strong>' + escAn(dt.name || 'service') + '</strong>'
                             + (dt.version ? (' v' + escAn(dt.version)) : '')
                             + (dt.host ? (' sur ' + escAn(dt.host)) : '')
                             + ', détecté automatiquement sur le réseau.';
                         el.style.color = '#66bb6a';
                     } else {
-                        el.innerHTML = '⚠️ <strong>Analyse avancée indisponible</strong> — aucun service '
+                        el.innerHTML = '⚠️ <strong>Analyse avancée indisponible</strong> · aucun service '
                             + 'd&rsquo;analyse trouvé sur le réseau. MeteoHub fonctionne normalement : '
                             + 'mesures, historique, graphiques et exports restent disponibles. '
                             + 'Si un service tourne malgré tout, saisir son adresse ci-dessous.';

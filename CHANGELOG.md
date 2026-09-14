@@ -1,3 +1,47 @@
+# [1.33.1] - 2026-09-14
+
+### Fixed
+
+- **Outdoor card at boot.** Right after a reboot the card showed the disk-seeded
+  (old) value with a fantasy "last frame" date. `awaiting_first` now takes
+  priority: the OUT values show "--" and the card/hero say "en attente du premier
+  relevé après redémarrage (max N min)" until the first real frame arrives, whatever
+  the stale seed contains.
+- **History chart not applying a custom range.** In IN+OUT the two history requests
+  were fired concurrently; the single-threaded ESP32 could fail one (SD streaming),
+  leaving the chart stuck on the previous 24 h. Requests are now sequential and the
+  target point count trimmed for margin, so a selected range (including a custom
+  one) actually loads and the time axis follows it.
+- **Removed em dashes** from the web UI (dashboard, stats, system, history), per
+  house style: hyphens, colons or middots instead.
+
+# [1.33.0] - 2026-09-14
+
+### Changed
+
+- **History page simplified: view, not analysis.** The page is now just Source +
+  Period + chart. The period-vs-period comparison ("Même période / Autre période")
+  is removed - deep analysis lives in morfAnalytics now, and MeteoHub should stay a
+  station that shows what was measured.
+- **New "Intérieur + Extérieur" source.** IN+OUT draws both series on one time axis
+  (outdoor solid, indoor dashed, same units/axes), so the gap, damping and lag are
+  visible at a glance. In IN+OUT, the Synthèse panel shows the outdoor stats with
+  the mean OUT − IN gap per metric. The OUT view keeps its indoor gap-filling
+  (orange-marked), and the time axis keeps adapting to the selected period.
+
+# [1.32.0] - 2026-09-14
+
+### Added
+
+- **Forecast archiving for the forecast-vs-observed analysis (weather chantier
+  step 9, device side).** MeteoHub now archives a daily "day-ahead" forecast
+  snapshot: periodically (~30 min, when NTP is set and the forecast is plausible)
+  it stores tomorrow's forecast under its target day, rewriting so the file for
+  day D converges to the last D-1 forecast for D. Flat JSON files
+  `/history/forecast/AAAA-MM-JJ.json` (low volume, ~1/day). New route
+  `GET /api/forecast/history?from=&to=` streams the archived snapshots for
+  morfAnalytics to collect. Cleared by the existing full history wipe.
+
 # [1.31.0] - 2026-09-14
 
 ### Changed

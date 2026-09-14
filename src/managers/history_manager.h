@@ -105,6 +105,18 @@ struct RawRecord {
     float t, h, p;
 };
 
+// Un instantané de PRÉVISION archivé (étape 9 : prévu vs observé). On fige, pour
+// chaque jour cible, la prévision « day-ahead » (celle émise la veille), afin de la
+// comparer plus tard aux mesures OUT réellement observées ce jour-là. Un fichier
+// plat par jour cible : /history/forecast/AAAA-MM-JJ.json (volume faible, 1/jour).
+struct ForecastRecord {
+    uint32_t target_day;      // AAAAMMJJ : le jour PRÉVU
+    uint32_t issued_ts;       // horodatage Unix d'émission de cette prévision
+    float temp_min;
+    float temp_max;
+    std::string description;
+};
+
 struct StatMetric {
     float min = 10000.0f;
     float max = -10000.0f;
@@ -262,6 +274,16 @@ public:
                        const std::function<void(const RawRecord&)>& emit) const;
     uint32_t exportRawOutdoor(uint32_t day_key, uint32_t from_index, uint32_t limit,
                               const std::function<void(const RawRecord&)>& emit) const;
+
+    // --- Prévisions archivées (étape 9 : prévu vs observé) -------------------
+    // Fige la prévision « day-ahead » sous son jour cible (fichier plat JSON).
+    // Écrasé au fil de J-1 : le fichier du jour J finit avec la dernière prévision
+    // émise en J-1 pour J, la comparaison de référence.
+    void addForecast(const ForecastRecord& rec);
+    // Émet le JSON brut de chaque prévision dont le jour cible tombe dans
+    // [from, to] (streaming HTTP, sans tout charger en mémoire). Trié par jour.
+    void forecastHistoryRaw(time_t from, time_t to,
+                            const std::function<void(const char*)>& emit) const;
 
     // Gestion LittleFS
     void clearHistory();

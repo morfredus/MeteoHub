@@ -38,6 +38,7 @@ static const char METEOHUB_API_JSON[] PROGMEM =
       "{\"method\":\"GET\",\"path\":\"/api/history/summary\",\"summary\":\"synthese de l'historique\"},"
       "{\"method\":\"GET\",\"path\":\"/api/history/export.csv\",\"summary\":\"export CSV de l'historique\"},"
       "{\"method\":\"POST\",\"path\":\"/api/history/clear\",\"summary\":\"efface tout l'historique (IN + OUT)\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/forecast/history\",\"summary\":\"previsions day-ahead archivees (prevu vs observe)\"},"
       "{\"method\":\"GET\",\"path\":\"/api/stats\",\"summary\":\"statistiques agregees\"},"
       "{\"method\":\"GET\",\"path\":\"/api/analytics\",\"summary\":\"analyses meteo embarquees\"},"
       "{\"method\":\"GET\",\"path\":\"/api/alert\",\"summary\":\"alerte meteo courante\"},"
@@ -601,6 +602,29 @@ void WebManager::_setupApi() {
         _history->clearHistory();
         request->send(200, "application/json",
                       "{\"ok\":true,\"message\":\"Historique efface (IN + OUT).\"}");
+    });
+
+    // API Forecast History : prévisions « day-ahead » archivées (étape 9, prévu vs
+    // observé). Renvoie {"data":[{target_day,issued_ts,temp_min,temp_max,description}]}
+    // pour les jours cibles de la plage. Collecté par morfAnalytics.
+    _server.on("/api/forecast/history", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        if (!_history) { request->send(503, "application/json", "{\"data\":[]}"); return; }
+        long to_s = request->hasParam("to") ? request->getParam("to")->value().toInt() : (long)time(NULL);
+        long from_s = request->hasParam("from") ? request->getParam("from")->value().toInt() : 1577836800L; // 2020-01-01
+        if (to_s <= 0) to_s = (long)time(NULL);
+        if (from_s < 0) from_s = 0;
+
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        response->print("{\"data\":[");
+        bool first = true;
+        _history->forecastHistoryRaw(static_cast<time_t>(from_s), static_cast<time_t>(to_s),
+            [&](const char* line) {
+                if (!first) response->print(",");
+                first = false;
+                response->print(line);
+            });
+        response->print("]}");
+        request->send(response);
     });
 
     // API LED : lecture / réglage de la luminosité de la NeoLED (0-255, persistée).

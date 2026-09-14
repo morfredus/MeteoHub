@@ -1179,6 +1179,81 @@ static void listEntries(const char* path, bool wantDirs,
     dir.close();
 }
 
+// Prévisions archivées : fichiers plats /history/forecast/AAAA-MM-JJ.json, un par
+// jour cible (volume faible, ~1/jour), donc pas d'arborescence AAAA/MM ici.
+#define FORECAST_DIR "/history/forecast"
+
+void HistoryManager::addForecast(const ForecastRecord& rec) {
+    if (!_sd || !_sd->isAvailable()) return;
+    if (!SD.exists("/history") && !SD.mkdir("/history")) return;
+    if (!SD.exists(FORECAST_DIR) && !SD.mkdir(FORECAST_DIR)) return;
+
+    const uint32_t d = rec.target_day;
+    char path[64];
+    snprintf(path, sizeof(path), "%s/%04u-%02u-%02u.json",
+             FORECAST_DIR, d / 10000u, (d / 100u) % 100u, d % 100u);
+
+    // Échappe la description pour un JSON valide (guillemets, backslash, contrôle).
+    std::string esc;
+    esc.reserve(rec.description.size() + 8);
+    for (char c : rec.description) {
+        switch (c) {
+            case '"':  esc += "\\\""; break;
+            case '\\': esc += "\\\\"; break;
+            case '\n': case '\r': case '\t': esc += ' '; break;
+            default:   esc += c; break;
+        }
+    }
+
+    // Réécriture complète : le fichier du jour cible reflète la DERNIÈRE prévision
+    // émise pour ce jour (au fil de J-1, on converge vers la prévision day-ahead).
+    SD.remove(path);
+    File f = SD.open(path, FILE_WRITE);
+    if (!f) { LOG_WARNING("Forecast: open failed"); return; }
+    char buf[256];
+    snprintf(buf, sizeof(buf),
+             "{\"target_day\":%u,\"issued_ts\":%u,\"temp_min\":%.1f,"
+             "\"temp_max\":%.1f,\"description\":\"%s\"}",
+             rec.target_day, rec.issued_ts,
+             (double)rec.temp_min, (double)rec.temp_max, esc.c_str());
+    f.print(buf);
+    f.close();
+}
+
+void HistoryManager::forecastHistoryRaw(
+        time_t from, time_t to,
+        const std::function<void(const char*)>& emit) const {
+    if (!_sd || !_sd->ensureMounted()) return;
+
+    struct tm tf, tt;
+    if (!localtime_r(&from, &tf) || !localtime_r(&to, &tt)) return;
+    const uint32_t dayFrom = (tf.tm_year + 1900) * 10000u + (tf.tm_mon + 1) * 100u + tf.tm_mday;
+    const uint32_t dayTo   = (tt.tm_year + 1900) * 10000u + (tt.tm_mon + 1) * 100u + tt.tm_mday;
+
+    std::vector<std::string> files;
+    listEntries(FORECAST_DIR, false, files);
+    std::sort(files.begin(), files.end()); // AAAA-MM-JJ : tri lexical = chronologique
+
+    size_t it = 0;
+    for (const std::string& name : files) {
+        COOPERATIVE_YIELD_EVERY(it, 8);
+        it++;
+        unsigned y = 0, mo = 0, dd = 0;
+        if (sscanf(name.c_str(), "%4u-%2u-%2u.json", &y, &mo, &dd) != 3) continue;
+        if (name.size() < 5 || name.compare(name.size() - 5, 5, ".json") != 0) continue;
+        const uint32_t dayKey = y * 10000u + mo * 100u + dd;
+        if (dayKey < dayFrom || dayKey > dayTo) continue;
+
+        const std::string path = std::string(FORECAST_DIR) + "/" + name;
+        File f = SD.open(path.c_str(), FILE_READ);
+        if (!f) continue;
+        String content = f.readString();
+        f.close();
+        content.trim();
+        if (content.length() > 0) emit(content.c_str());
+    }
+}
+
 std::vector<DayIndexEntry> HistoryManager::listDays() const {
     return listDaysFromRoot("/history/indoor");
 }

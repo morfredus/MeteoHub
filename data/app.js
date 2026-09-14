@@ -135,7 +135,7 @@ function renderAlertCard(data, isDetailed) {
         const senderValue = data.alert_sender || data.sender || '';
         const sender = senderValue ? ` • Source: ${senderValue}` : '';
         const detailsText = data.description_fr || data.alert_description_fr || "";
-        const details = isDetailed && detailsText ? ` — ${detailsText}` : "";
+        const details = isDetailed && detailsText ? ` - ${detailsText}` : "";
 
         alertText.textContent = `${levelLabel} (${level}) - ${event}${sender}${details}`;
         alertText.style.fontWeight = '700';
@@ -166,7 +166,7 @@ function openAlertModal() {
         const description = current_alert_payload.description_fr || current_alert_payload.alert_description_fr || 'Aucune description détaillée fournie.';
         const validity = formatAlertValidity(current_alert_payload.start_unix || current_alert_payload.alert_start_unix, current_alert_payload.end_unix || current_alert_payload.alert_end_unix);
 
-        body.innerHTML = `<p><strong>${levelLabel} (${level})</strong> — ${event}</p><p><strong>Source :</strong> ${senderValue}</p><p><strong>${validity}</strong></p><p>${description}</p><p><strong>Consigne :</strong> Surveillez l’évolution locale et limitez les déplacements non essentiels.</p>`;
+        body.innerHTML = `<p><strong>${levelLabel} (${level})</strong> - ${event}</p><p><strong>Source :</strong> ${senderValue}</p><p><strong>${validity}</strong></p><p>${description}</p><p><strong>Consigne :</strong> Surveillez l’évolution locale et limitez les déplacements non essentiels.</p>`;
     }
 
     modal.classList.add('open');
@@ -296,11 +296,24 @@ function updateStation(data) {
     setText('heroTemp', et.valid ? Number(et.value).toFixed(1) : '--');
     setText('heroHum', eh.valid ? Number(eh.value).toFixed(0) : '--');
 
+    // Au boot, aucune trame OUT n'a encore été reçue : la valeur "out" éventuelle
+    // vient d'un seed disque (ancienne), pas d'une mesure réelle. On la traite donc
+    // comme "en attente", sans afficher ni sa valeur ni un horodatage fantaisiste.
+    const awaiting = !!outb.awaiting_first;
+    const awaitMins = Math.max(1, Math.round((outb.interval_s || 300) / 60));
+
     const badge = document.getElementById('heroBadge');
     const state = document.getElementById('heroState');
     if (badge && state) {
         const st = et.state;
-        if (!et.valid) {
+        if (awaiting) {
+            badge.hidden = false;
+            badge.textContent = 'secours intérieur';
+            badge.className = 'hero-badge fallback';
+            state.textContent = 'En attente du premier relevé extérieur après redémarrage (max '
+                + awaitMins + ' min)';
+            state.className = 'hero-state warn';
+        } else if (!et.valid) {
             badge.hidden = true;
             state.textContent = 'Aucune donnée disponible';
             state.className = 'hero-state warn';
@@ -308,7 +321,7 @@ function updateStation(data) {
             badge.hidden = false;
             badge.textContent = 'secours intérieur';
             badge.className = 'hero-badge fallback';
-            state.textContent = 'Extérieur indisponible — valeur intérieure affichée';
+            state.textContent = 'Extérieur indisponible, valeur intérieure affichée';
             state.className = 'hero-state warn';
         } else if (st === 'stale') {
             badge.hidden = false;
@@ -323,23 +336,23 @@ function updateStation(data) {
         }
     }
 
-    // Bloc OUT (météo extérieure réelle).
-    setText('outTemp', outb.valid ? Number(outb.temp).toFixed(1) : '--');
-    setText('outHum', outb.valid ? Number(outb.hum).toFixed(0) : '--');
-    setText('outPres', (outb.valid && outb.pres > 300) ? Number(outb.pres).toFixed(0) : '--');
+    // Bloc OUT (météo extérieure réelle). En attente de la 1re trame, on n'affiche
+    // PAS la valeur seedée depuis le disque : elle induirait en erreur.
+    const outShow = outb.valid && !awaiting;
+    setText('outTemp', outShow ? Number(outb.temp).toFixed(1) : '--');
+    setText('outHum', outShow ? Number(outb.hum).toFixed(0) : '--');
+    setText('outPres', (outShow && outb.pres > 300) ? Number(outb.pres).toFixed(0) : '--');
     const fresh = document.getElementById('outFreshness');
     if (fresh) {
-        if (!outb.valid) {
-            if (outb.awaiting_first) {
-                // Au boot : pas encore de trame reçue. Ce n'est pas une panne, c'est
-                // l'attente de la première transmission (bornée par la cadence).
-                const mins = Math.max(1, Math.round((outb.interval_s || 300) / 60));
-                fresh.textContent = 'en attente du premier relevé après redémarrage (max ' + mins + ' min)';
-                fresh.className = 'freshness';
-            } else {
-                fresh.textContent = 'sonde extérieure absente';
-                fresh.className = 'freshness warn';
-            }
+        if (awaiting) {
+            // Boot : pas encore de trame reçue. Pas une panne : attente de la 1re
+            // transmission (bornée par la cadence). Aucun horodatage affiché.
+            fresh.textContent = 'en attente du premier relevé après redémarrage (max '
+                + awaitMins + ' min)';
+            fresh.className = 'freshness';
+        } else if (!outb.valid) {
+            fresh.textContent = 'sonde extérieure absente';
+            fresh.className = 'freshness warn';
         } else if (outb.fresh) {
             fresh.textContent = 'à jour (' + formatMeasureTime(outb.age_ms) + ')';
             fresh.className = 'freshness ok';
@@ -360,7 +373,7 @@ function updateStation(data) {
             setText('outBattery', Number(outb.battery_pct).toFixed(0));
             if (outb.battery_low) {
                 batteryAlert.hidden = false;
-                batteryAlert.textContent = `Pile de la sonde faible (${Number(outb.battery_pct).toFixed(0)} %) — à remplacer`;
+                batteryAlert.textContent = `Pile de la sonde faible (${Number(outb.battery_pct).toFixed(0)} %) : à remplacer`;
             } else {
                 batteryAlert.hidden = true;
             }
@@ -558,7 +571,7 @@ const OUTLIER_FLOOR = { temp: 1.0, hum: 6, pres: 1.0 };
 
 // Détection de valeurs aberrantes fondée sur la cohérence temporelle (et non sur
 // un seuil fixe) : un point est écarté (mis à null) s'il s'éloigne fortement de
-// SES DEUX voisins alors que ceux-ci restent cohérents entre eux — c.-à-d. un pic
+// SES DEUX voisins alors que ceux-ci restent cohérents entre eux, c.-à-d. un pic
 // ou un creux d'un seul point suivi d'un retour immédiat à la normale. Les points
 // valides sont alors reliés directement (spanGaps). Les données brutes ne sont pas
 // modifiées : seule leur exploitation (tracé et statistiques) est adaptée.
@@ -689,7 +702,7 @@ function initChart() {
 // ------------------------------------------------------------------
 // Page Historique : sélection et comparaison de périodes arbitraires
 // ------------------------------------------------------------------
-const LONGTERM_TARGET_POINTS = 300; // nombre de points visés par requête
+const LONGTERM_TARGET_POINTS = 250; // points visés/requête (marge sous la limite ESP32)
 let longtermRefreshTimer = null;
 
 // Calcule un intervalle d'agrégation (secondes) pour tenir ~LONGTERM_TARGET_POINTS.
@@ -749,30 +762,17 @@ function getPrimaryRange() {
     return { from: now - seconds, to: now, relative: true };
 }
 
-// Détermine la période de comparaison (B), de même durée que A.
-function getCompareRange(primary) {
-    const mode = document.getElementById('comparePreset')?.value || 'none';
-    if (mode === 'none') return null;
-    const duration = primary.to - primary.from;
-    if (mode === 'prev') {
-        return { from: primary.from - duration, to: primary.from };
-    }
-    if (mode === 'custom') {
-        const from = localInputToUnix(document.getElementById('compareFromInput')?.value);
-        if (!from) return null;
-        return { from, to: from + duration };
-    }
-    return null;
-}
-
-// Source sélectionnée sur la page Historique : OUT par défaut (météo extérieure),
-// IN sur bascule. Le paramètre ctx est propagé à toutes les requêtes de plage.
+// Source sélectionnée sur la page Historique : OUT (météo extérieure, défaut), IN
+// (confort intérieur) ou BOTH (les deux, tracées ensemble). Propagé aux requêtes.
 function getSourceCtx() {
     return document.getElementById('sourceCtx')?.value || 'out';
 }
 
 function sourceLabel() {
-    return getSourceCtx() === 'out' ? 'Extérieur' : 'Intérieur';
+    const c = getSourceCtx();
+    if (c === 'in') return 'Intérieur';
+    if (c === 'both') return 'Intérieur + Extérieur';
+    return 'Extérieur';
 }
 
 async function fetchRange(range, interval, ctxOverride) {
@@ -828,7 +828,7 @@ const FILL_COLOR = '#ff9f2e';
 // Applique le marquage visuel : les points comblés (IN) ressortent en pastilles
 // oranges ; les points OUT restent une simple ligne (rayon 0). Cas particulier :
 // un point VALIDE ISOLÉ (ses deux voisins sont nuls) doit afficher un marqueur,
-// sinon une ligne ne peut rien tracer et le point est invisible — c'est ce qui
+// sinon une ligne ne peut rien tracer et le point est invisible : c'est ce qui
 // arrivait avec une seule mesure (juste après un reset) : graphe vide alors que
 // la donnée existe. On donne donc un petit rayon à ces points isolés.
 function applyFillStyle(dataset, flags) {
@@ -851,18 +851,19 @@ function formatRangeLabel(range) {
     return `${f} → ${t}`;
 }
 
-// La période comparée B reprend les mêmes couleurs que les courbes principales,
-// différenciée uniquement par un tracé en pointillés.
-const COMPARE_COLORS = { temp: '#00a8ff', hum: '#00ff88', pres: '#ff00ff' };
+// Deuxième source (l'INTÉRIEUR en vue IN+OUT) : mêmes couleurs et mêmes axes que
+// les courbes principales (OUT), différenciée uniquement par un tracé en
+// pointillés. Alignée par index sur la source principale (même plage/intervalle).
+const SECOND_COLORS = { temp: '#00a8ff', hum: '#00ff88', pres: '#ff00ff' };
 
-// Ajoute (ou retire) les 3 jeux de données de la période B, alignés par index sur A.
-// filteredB est un objet {temp,hum,pres} de tableaux déjà filtrés (ou null).
-function setComparisonDatasets(filteredB) {
-    chart.data.datasets = chart.data.datasets.slice(0, 3); // conserve A (temp/hum/pres)
-    if (!filteredB) return;
+// Ajoute (ou retire) les 3 jeux de données de la 2e source. `filtered` est un
+// objet {temp,hum,pres} de tableaux déjà filtrés (l'INTÉRIEUR), ou null.
+function setSecondaryDatasets(filtered) {
+    chart.data.datasets = chart.data.datasets.slice(0, 3); // conserve la source principale
+    if (!filtered) return;
     const mk = (label, key, color, axis) => ({
         label,
-        data: filteredB[key],
+        data: filtered[key],
         borderColor: color,
         backgroundColor: 'transparent',
         borderDash: [6, 4],
@@ -871,9 +872,9 @@ function setComparisonDatasets(filteredB) {
         pointRadius: 0,
         yAxisID: axis
     });
-    chart.data.datasets.push(mk('°C (B)', 'temp', COMPARE_COLORS.temp, 'y'));
-    chart.data.datasets.push(mk('Hu% (B)', 'hum', COMPARE_COLORS.hum, 'y1'));
-    chart.data.datasets.push(mk('hPa (B)', 'pres', COMPARE_COLORS.pres, 'y2'));
+    chart.data.datasets.push(mk('°C IN', 'temp', SECOND_COLORS.temp, 'y'));
+    chart.data.datasets.push(mk('Hu% IN', 'hum', SECOND_COLORS.hum, 'y1'));
+    chart.data.datasets.push(mk('hPa IN', 'pres', SECOND_COLORS.pres, 'y2'));
 }
 
 // Construit les 3 séries filtrées (valeurs aberrantes -> null) d'un jeu de points.
@@ -903,7 +904,7 @@ const SYNTH_METRICS = [
 ];
 
 // Calcule min / max / moyenne / variation (dernier - premier) sur des valeurs
-// (les null — points aberrants écartés ou tranches vides — sont ignorés). Les
+// (les null, points aberrants écartés ou tranches vides, sont ignorés). Les
 // statistiques portent donc, comme le graphe, sur les seules mesures valides.
 function computeSynthesisFromValues(values) {
     const v = (values || []).filter((x) => x !== null && x !== undefined && !Number.isNaN(x));
@@ -956,14 +957,15 @@ function renderSynthesisStats(statsA, statsB) {
         const a = arrow(s.delta, m.eps);
         const sign = s.delta > 0 ? '+' : '';
 
-        // En comparaison : écart des moyennes A − B (positif = A supérieure à B).
+        // Vue IN+OUT : écart des moyennes extérieur − intérieur (positif = dehors
+        // plus élevé que dedans). statsA = OUT, statsB = IN.
         let compareLine = '';
         const sB = statsB ? statsB[m.key] : null;
         if (sB) {
             const diff = s.avg - sB.avg;
             const da = arrow(diff, m.eps);
             const dsign = diff > 0 ? '+' : '';
-            compareLine = `<div class="synth-compare ${da.cls}">A − B (moy.) : ${da.symbol} ${dsign}${nf(diff, m.decimals)} ${m.unit}</div>`;
+            compareLine = `<div class="synth-compare ${da.cls}">OUT − IN (moy.) : ${da.symbol} ${dsign}${nf(diff, m.decimals)} ${m.unit}</div>`;
         }
 
         return `
@@ -1007,58 +1009,69 @@ async function refreshLongterm() {
         if (info) info.textContent = 'Sélectionnez une période valide (le début doit précéder la fin).';
         return;
     }
-    const compare = getCompareRange(primary);
     const interval = computeInterval(primary.to - primary.from);
+    const spanSeconds = primary.to - primary.from;
 
     showChartLoading(true);
     try {
-        const ctx = getSourceCtx();
-        // Requêtes lancées EN PARALLÈLE (période A, période B de comparaison, et en
-        // vue OUT l'intérieur pour combler les trous) : elles sont indépendantes,
-        // les enchaîner en série ralentissait l'affichage.
-        const needIn = (ctx === 'out');
-        const [dataA, dataB, inA] = await Promise.all([
-            fetchRange(primary, interval),
-            compare ? fetchRange(compare, interval) : Promise.resolve(null),
-            needIn ? fetchRange(primary, interval, 'in') : Promise.resolve(null)
-        ]);
+        const ctx = getSourceCtx(); // 'out' | 'in' | 'both'
 
-        // En vue OUT, comble les tranches extérieures manquantes par l'intérieur
-        // (marquées ensuite en orange).
-        let fillFlags = null;
-        if (needIn && inA) fillFlags = fillOutWithIn(dataA, inA);
+        if (ctx === 'both') {
+            // Intérieur + Extérieur : deux séries, même axe temporel. OUT en trait
+            // plein (source principale), IN en pointillés. Requêtes SÉQUENTIELLES :
+            // l'ESP32 sert son historique depuis la carte SD sur un seul fil ; deux
+            // flux concurrents pouvaient faire échouer une réponse (plage vide alors
+            // que les données existent). Même plage/intervalle -> points alignés.
+            const outData = await fetchRange(primary, interval, 'out');
+            const inData  = await fetchRange(primary, interval, 'in');
+            const base = outData.length >= inData.length ? outData : inData;
+            chart.data.labels = base.map((d) => formatTsLabel(d.t, spanSeconds));
 
-        // Axe X : horodatage réel de la période A (les points B sont alignés par
-        // index). Le format s'adapte à la durée affichée (cf. formatTsLabel).
-        const spanSeconds = primary.to - primary.from;
-        chart.data.labels = dataA.map((d) => formatTsLabel(d.t, spanSeconds));
-        // Filtre les valeurs aberrantes (pics/creux d'un point) pour le tracé et les stats.
-        const filteredA = buildFilteredSeries(dataA);
-        const filteredB = dataB ? buildFilteredSeries(dataB) : null;
-        chart.data.datasets[0].data = filteredA.temp;
-        chart.data.datasets[1].data = filteredA.hum;
-        chart.data.datasets[2].data = filteredA.pres;
-        setComparisonDatasets(filteredB);
+            const fOut = buildFilteredSeries(outData) || { temp: [], hum: [], pres: [] };
+            const fIn  = buildFilteredSeries(inData)  || { temp: [], hum: [], pres: [] };
+            chart.data.datasets[0].data = fOut.temp;
+            chart.data.datasets[1].data = fOut.hum;
+            chart.data.datasets[2].data = fOut.pres;
+            setSecondaryDatasets(fIn); // IN en pointillés (datasets 3-5)
+            // Points isolés visibles sur la source principale (pas de comblement ici).
+            for (let i = 0; i < 3; i++) applyFillStyle(chart.data.datasets[i], null);
 
-        // Marque les points comblés par l'intérieur (vue OUT uniquement).
-        applyFillStyle(chart.data.datasets[0], fillFlags ? fillFlags.temp : null);
-        applyFillStyle(chart.data.datasets[1], fillFlags ? fillFlags.hum : null);
-        applyFillStyle(chart.data.datasets[2], fillFlags ? fillFlags.pres : null);
+            updateChartScale();
+            longtermFilteredA = fOut; // OUT
+            longtermFilteredB = fIn;  // IN
+            updateSynthesis();
+            if (info) info.textContent =
+                `Intérieur + Extérieur · Période : ${formatRangeLabel(primary)}`;
+        } else {
+            // Source unique. En vue OUT, comble les tranches sans mesure extérieure
+            // par l'intérieur, EN LES MARQUANT (jamais un point IN présenté comme OUT).
+            const needIn = (ctx === 'out');
+            const data = await fetchRange(primary, interval, ctx);
+            const inFill = needIn ? await fetchRange(primary, interval, 'in') : null;
+            let fillFlags = null;
+            if (needIn && inFill) fillFlags = fillOutWithIn(data, inFill);
 
-        updateChartScale();
+            chart.data.labels = data.map((d) => formatTsLabel(d.t, spanSeconds));
+            const filtered = buildFilteredSeries(data) || { temp: [], hum: [], pres: [] };
+            chart.data.datasets[0].data = filtered.temp;
+            chart.data.datasets[1].data = filtered.hum;
+            chart.data.datasets[2].data = filtered.pres;
+            setSecondaryDatasets(null); // pas de 2e source
 
-        longtermFilteredA = filteredA;
-        longtermFilteredB = filteredB;
-        updateSynthesis();
+            applyFillStyle(chart.data.datasets[0], fillFlags ? fillFlags.temp : null);
+            applyFillStyle(chart.data.datasets[1], fillFlags ? fillFlags.hum : null);
+            applyFillStyle(chart.data.datasets[2], fillFlags ? fillFlags.pres : null);
 
-        if (info) {
-            const src = `${sourceLabel()} · `;
-            const filledNote = (fillFlags && fillFlags.slices > 0)
-                ? `   •   ${fillFlags.slices} tranche(s) comblée(s) par l'intérieur (en orange)`
-                : '';
-            info.textContent = (compare
-                ? `${src}Période A : ${formatRangeLabel(primary)}   •   Période B : ${formatRangeLabel(compare)}`
-                : `${src}Période : ${formatRangeLabel(primary)}`) + filledNote;
+            updateChartScale();
+            longtermFilteredA = filtered;
+            longtermFilteredB = null;
+            updateSynthesis();
+            if (info) {
+                const filledNote = (fillFlags && fillFlags.slices > 0)
+                    ? `   •   ${fillFlags.slices} tranche(s) comblée(s) par l'intérieur (en orange)`
+                    : '';
+                info.textContent = `${sourceLabel()} · Période : ${formatRangeLabel(primary)}` + filledNote;
+            }
         }
     } catch (e) {
         console.error('Erreur historique', e);
@@ -1083,8 +1096,7 @@ function scheduleLongtermAutoRefresh() {
     const autoToggle = document.getElementById('autoRefreshToggle');
     if (autoToggle && !autoToggle.checked) return; // mise à jour temps réel désactivée
     const preset = document.getElementById('periodPreset')?.value || '86400';
-    const compareMode = document.getElementById('comparePreset')?.value || 'none';
-    if (preset === 'custom' || compareMode !== 'none') return;
+    if (preset === 'custom') return;
     const primary = getPrimaryRange();
     if (!primary) return;
     if ((primary.to - primary.from) > LONGTERM_AUTOREFRESH_MAX_SECONDS) return;
@@ -1097,15 +1109,11 @@ function scheduleLongtermAutoRefresh() {
 function initLongtermControls() {
     const periodPreset = document.getElementById('periodPreset');
     const customRange = document.getElementById('customRange');
-    const comparePreset = document.getElementById('comparePreset');
-    const compareCustom = document.getElementById('compareCustom');
     const fromInput = document.getElementById('fromInput');
     const toInput = document.getElementById('toInput');
-    const compareFromInput = document.getElementById('compareFromInput');
 
     const syncVisibility = () => {
         if (customRange) customRange.hidden = periodPreset?.value !== 'custom';
-        if (compareCustom) compareCustom.hidden = comparePreset?.value !== 'custom';
         scheduleLongtermAutoRefresh();
     };
 
@@ -1121,12 +1129,10 @@ function initLongtermControls() {
         }
         applyNow();
     });
-    if (comparePreset) comparePreset.addEventListener('change', applyNow);
     const sourceCtx = document.getElementById('sourceCtx');
     if (sourceCtx) sourceCtx.addEventListener('change', refreshLongterm);
     if (fromInput) fromInput.addEventListener('change', refreshLongterm);
     if (toInput) toInput.addEventListener('change', refreshLongterm);
-    if (compareFromInput) compareFromInput.addEventListener('change', refreshLongterm);
 
     // La bascule Synthèse (re)dessine à partir des derniers points, sans requête.
     const synthToggle = document.getElementById('synthToggle');

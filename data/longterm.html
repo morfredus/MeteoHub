@@ -22,6 +22,7 @@
                 <select id="sourceCtx">
                     <option value="out" selected>Extérieur (OUT)</option>
                     <option value="in">Intérieur (IN)</option>
+                    <option value="both">Intérieur + Extérieur</option>
                 </select>
             </div>
             <div class="field">
@@ -39,18 +40,6 @@
                     <input type="datetime-local" id="fromInput">
                     <label for="toInput">au</label>
                     <input type="datetime-local" id="toInput">
-                </span>
-            </div>
-            <div class="field">
-                <label for="comparePreset">Comparer :</label>
-                <select id="comparePreset">
-                    <option value="none" selected>Aucune comparaison</option>
-                    <option value="prev">Période précédente</option>
-                    <option value="custom">Autre période…</option>
-                </select>
-                <span id="compareCustom" hidden class="field">
-                    <label for="compareFromInput">à partir du</label>
-                    <input type="datetime-local" id="compareFromInput">
                 </span>
             </div>
             <div class="field">

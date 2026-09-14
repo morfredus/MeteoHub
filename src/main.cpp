@@ -231,6 +231,7 @@ void setup() {
 void loop() {
     static unsigned long lastHistoryUpdate = 0;
     static unsigned long lastLedUpdate = 0;
+    static unsigned long lastForecastArchive = 0;
 
     wifi.update();
 
@@ -264,6 +265,31 @@ void loop() {
         } else {
             if (wifi.ip() != "0.0.0.0") neoWifiOK();
             else { if (blink) neoWifiLost(); else neoOff(); }
+        }
+    }
+
+    // Archivage « day-ahead » de la prévision (étape 9 : prévu vs observé). On fige
+    // périodiquement la prévision du LENDEMAIN sous son jour cible ; en réécrivant au
+    // fil de J-1, le fichier du jour J converge vers la dernière prévision J-1 pour J,
+    // la référence à comparer aux mesures OUT observées. Cadence alignée sur celle de
+    // la prévision (~30 min). On exige NTP (horodatage fiable) et une prévision
+    // plausible (min < max) pour ne pas archiver une trame vide.
+    if (millis() - lastForecastArchive >= (30UL * 60UL * 1000UL)) {
+        struct tm tinfo;
+        if (getLocalTime(&tinfo) && forecast.tomorrow.temp_max > forecast.tomorrow.temp_min) {
+            const time_t nowt = time(NULL);
+            const time_t tmr = nowt + 86400;
+            struct tm tt;
+            if (localtime_r(&tmr, &tt)) {
+                ForecastRecord fr;
+                fr.target_day = (tt.tm_year + 1900) * 10000u + (tt.tm_mon + 1) * 100u + tt.tm_mday;
+                fr.issued_ts = static_cast<uint32_t>(nowt);
+                fr.temp_min = forecast.tomorrow.temp_min;
+                fr.temp_max = forecast.tomorrow.temp_max;
+                fr.description = forecast.tomorrow.description;
+                history.addForecast(fr);
+                lastForecastArchive = millis(); // ne marque le succès qu'une fois archivé
+            }
         }
     }
 
