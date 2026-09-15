@@ -133,7 +133,7 @@ void pageNetwork_oled(DisplayInterface& d, WifiManager& wifi, int pageIndex, int
 }
 
 // 5. Page système : affiche infos mémoire et version
-void pageSystem_oled(DisplayInterface& d, HistoryManager& history, int pageIndex, int pageCount) {
+void pageSystem_oled(DisplayInterface& d, int pageIndex, int pageCount) {
 	SystemInfo s = getSystemInfo();
 
 	d.clear();
@@ -144,17 +144,53 @@ void pageSystem_oled(DisplayInterface& d, HistoryManager& history, int pageIndex
 	d.text(0, OLED_LINE_3_Y, std::string("Flash: ") + std::to_string(s.flashSize / 1024 / 1024) + " MB");
 	d.text(0, OLED_LINE_4_Y, std::string("Ver:   ") + std::string(PROJECT_VERSION));
 
-	// Ligne 5 : batterie de la sonde deportee (tension + %) quand une trame l'a
-	// rapportee. C'est l'etat "materiel" du capteur exterieur, sa place logique
-	// est ici avec l'etat systeme, visible en permanence (pas seulement en alerte).
-	if (history.hasLiveOutdoor()) {
+	d.show();
+}
+
+// 7b. Page Capteur : etat de la sonde exterieure (batterie, liaison ESP-NOW,
+// fraicheur). Les metriques "materielles" du capteur ont leur page dediee ici,
+// plutot que de deborder la page Systeme : l'OLED n'a la place que de 4 lignes.
+void pageSensor_oled(DisplayInterface& d, HistoryManager& history, int pageIndex, int pageCount) {
+	d.clear();
+	d.text(0, OLED_HEADER_Y, getHeader("Capteur", pageIndex, pageCount));
+
+	const unsigned long ageMs = history.outdoorAgeMs();
+	const bool hasLive = history.hasLiveOutdoor() && ageMs != 0xFFFFFFFFUL;
+
+	// Ligne 1 : batterie (tension + %) si la sonde la rapporte, sinon "absente".
+	if (hasLive && history.lastOutdoorLive().has_battery) {
 		const OutdoorData& live = history.lastOutdoorLive();
-		if (live.has_battery) {
-			char batLine[24];
-			snprintf(batLine, sizeof(batLine), "Sonde: %.2fV %u%%",
-			         live.battery_voltage, (unsigned)live.battery_percent);
-			d.text(0, OLED_LINE_5_Y, batLine);
-		}
+		char l[22];
+		snprintf(l, sizeof(l), "Bat %.2fV %u%%", live.battery_voltage,
+		         (unsigned)live.battery_percent);
+		d.text(0, OLED_LINE_1_Y, l);
+	} else {
+		d.text(0, OLED_LINE_1_Y, "Bat: absente");
+	}
+
+	// Ligne 2 : canal ESP-NOW courant.
+	uint8_t ch = 0;
+	uint32_t rx = 0, ok = 0;
+	if (EspNowReceiver::instance()) {
+		ch = EspNowReceiver::instance()->getWifiChannel();
+		rx = EspNowReceiver::instance()->getPacketsReceived();
+		ok = EspNowReceiver::instance()->getPacketsValid();
+	}
+	d.text(0, OLED_LINE_2_Y, std::string("Canal: ") + std::to_string(ch));
+
+	// Ligne 3 : sante de la liaison (trames recues / valides depuis le boot).
+	char tr[22];
+	snprintf(tr, sizeof(tr), "Trames rx%lu ok%lu",
+	         (unsigned long)rx, (unsigned long)ok);
+	d.text(0, OLED_LINE_3_Y, tr);
+
+	// Ligne 4 : fraicheur de la derniere trame recue.
+	if (hasLive) {
+		const unsigned long mins = ageMs / 60000UL;
+		if (mins == 0) d.text(0, OLED_LINE_4_Y, "Recu: <1min");
+		else d.text(0, OLED_LINE_4_Y, std::string("Recu: ") + std::to_string(mins) + "min");
+	} else {
+		d.text(0, OLED_LINE_4_Y, "OUT absent");
 	}
 
 	d.show();

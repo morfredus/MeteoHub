@@ -10,13 +10,42 @@ Version minimale valide : 1.9.0
 - Confirm valide les actions contextuelles.
 
 
-Pages principales :
-- Météo : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT** (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
-- Prévisions
-- Graphes : pages de courbes pour l'intérieur et l'extérieur (température, humidité, pression)
-- Réseau : SSID, IP, **canal Wi-Fi**, RSSI et **MAC STA**. La sonde scanne `MH-NOW` pour le canal ; elle n'a pas besoin de la MAC pour le broadcast.
-- Système
-- Logs
+Pages principales (dans l'ordre de défilement à l'encodeur) :
+- **Météo** : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT** (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
+- **Prévisions** : min/max et description du jour et du lendemain, et l'éventuelle alerte météo.
+- **Graphes** : courbes intérieur et extérieur (température, humidité, pression), tracées sur les dernières **24 h** lues sur la carte SD (et non la seule mémoire vive), reliées en continu et coupées uniquement en cas de vrai silence capteur.
+- **Réseau** : SSID, IP, **canal Wi-Fi**, RSSI et **MAC STA du hub**. La sonde scanne `MH-NOW` pour trouver le canal, puis émet en **unicast** vers cette MAC (accusé de réception matériel).
+- **Système** : mémoire libre (**Heap**, **PSRAM**), taille de la **flash** et **version** du firmware.
+- **Capteur** : état de la sonde extérieure déportée, sur une page dédiée (l'OLED n'a la place que de quatre lignes) :
+  - **Batterie** : tension (V) et niveau (%) de l'accu de la sonde, ou « Bat: absente » tant qu'aucune trame ne porte la mesure (sonde sur secteur, ou lecture batterie non câblée/non activée côté sonde).
+  - **Canal** : canal Wi-Fi/ESP-NOW sur lequel la sonde et le hub dialoguent.
+  - **Trames** : nombre de trames **reçues** (`rx`) et **validées** CRC (`ok`) depuis le démarrage ; un `ok` nettement inférieur à `rx` trahit une liaison bruitée.
+  - **Fraîcheur** : temps écoulé depuis la dernière trame reçue (« Recu: N min »), ou « OUT absent » si la sonde est muette.
+- **Logs** : dernières lignes de journal (défilables à l'encodeur).
+
+### Aperçu des pages OLED
+
+Représentation schématique de l'écran (128x64). Le bandeau du haut montre le titre
+et le numéro de page (`n/total`). Les valeurs sont des exemples.
+
+```text
+  Meteo        1/12          Prev.        2/12          OUT Temp     8/12
+ IN   26.5C  58%            Aujourd'hui                     _/\_    35.0
+ OUT  21.5C  68%            Min 14C / Max 24C            _/     \__
+ P    1019 hPa              Ensoleille                  /          \ 28.0
+ Ensoleille                                             -24h        now
+
+  Reseau       9/12          Sys.        10/12          Capteur     11/12
+ SSID: MonWiFi              Heap:  180 KB              Bat 3.98V 72%
+ IP:   192.168.1.42         PSRAM: 8192 KB             Canal: 12
+ CH:12  RSSI -58            Flash: 16 MB               Trames rx145 ok143
+ AA:BB:CC:DD:EE:FF          Ver:   1.35.0              Recu: 2min
+```
+
+La page **Capteur** (11/12), juste après **Système**, regroupe l'état de la sonde
+extérieure : batterie (V + %, ou « Bat: absente »), canal ESP-NOW, compteurs de
+trames reçues/validées (`rx`/`ok`) et fraîcheur de la dernière trame. La page
+**Logs** (12/12) ferme le cycle.
 
 ---
 

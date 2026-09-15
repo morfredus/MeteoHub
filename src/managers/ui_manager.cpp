@@ -354,7 +354,8 @@ void UiManager::drawPage() {
         case PAGE_GRAPH_OUT_PRES: pageGraph_oled(*d, *history, 2, page + 1, pCount, true); break;
         case PAGE_NETWORK: pageNetwork_oled(*d, *wifi, page + 1, pCount); break;
         case PAGE_LOGS: pageLogs_oled(*d, page + 1, pCount, logScrollLine); break;
-        case PAGE_SYSTEM: pageSystem_oled(*d, *history, page + 1, pCount); break;
+        case PAGE_SYSTEM: pageSystem_oled(*d, page + 1, pCount); break;
+        case PAGE_SENSOR: pageSensor_oled(*d, *history, page + 1, pCount); break;
     }
 #endif
 }

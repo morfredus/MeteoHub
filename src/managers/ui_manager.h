@@ -20,6 +20,7 @@ enum Page {
     PAGE_GRAPH_OUT_PRES,
     PAGE_NETWORK,
     PAGE_SYSTEM,
+    PAGE_SENSOR,
     PAGE_LOGS,
     PAGE_COUNT
 };

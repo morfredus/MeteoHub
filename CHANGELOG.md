@@ -1,3 +1,14 @@
+# [1.35.0] - 2026-09-15
+
+### Added
+
+- **Dedicated "Capteur" OLED page** for the outdoor probe, inserted between System
+  and Logs: battery (voltage + %, or "Bat: absente"), ESP-NOW channel, frame
+  counters (received `rx` / CRC-valid `ok`) and freshness of the last frame. The
+  System page is back to its original four lines (Heap/PSRAM/Flash/Ver): the probe
+  battery line added in 1.34.0 overflowed the 64 px screen, so it moved to its own
+  page. User guide now lists every OLED page with ASCII mockups.
+
 # [1.34.1] - 2026-09-15
 
 ### Fixed
