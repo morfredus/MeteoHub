@@ -1,3 +1,18 @@
+# [1.36.0] - 2026-09-16
+
+### Added
+
+- **Memory auto-recovery guard.** The web UI (ESPAsyncWebServer/AsyncTCP) could
+  stop responding after several hours without the device rebooting, requiring a
+  manual power-cycle: long SD reads keep feeding the task watchdog, so it never
+  fires. A `heapGuard()` in the main loop now watches both the free heap and the
+  largest allocatable block (AsyncTCP needs contiguous memory) and restarts
+  cleanly when either stays critical for a grace period. Thresholds are in
+  `config.h` (`HEAP_MIN_FREE_BYTES`, `HEAP_MIN_BLOCK_BYTES`, `HEAP_LOW_GRACE_MS`).
+- **Health metrics in `/status`.** The endpoint now carries a `metrics` block with
+  `free_heap_b` and `free_block_b`, so morfMonitor can record a 48 h FIFO of heap
+  and uptime and diagnose a future freeze (declining heap, moment of the break).
+
 # [1.35.0] - 2026-09-15
 
 ### Added

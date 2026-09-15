@@ -86,6 +86,22 @@
 #define UDP_LOG_HOST             "255.255.255.255"     // IP du PC récepteur, ou 255.255.255.255 pour un broadcast sur le réseau local
 
 // ===============
+// Auto-récupération mémoire (garde-fou contre le figeage web)
+// ===============
+// Symptôme observé : après plusieurs heures, l'UI web (ESPAsyncWebServer/AsyncTCP)
+// cesse de répondre sans que l'appareil redémarre (les longues lectures SD
+// réarment le watchdog, donc il ne se déclenche jamais). AsyncTCP a besoin de
+// blocs CONTIGUS : une heap fragmentée le tue même quand le total libre semble
+// suffisant. On surveille donc le total libre ET le plus gros bloc allouable ;
+// si l'un reste critique assez longtemps, on redémarre proprement plutôt que de
+// rester figé. Valeurs prudentes, ajustables selon la heap observée dans /status.
+#define HEAP_GUARD_ENABLED       1
+#define HEAP_MIN_FREE_BYTES      22000  // seuil de heap totale libre (octets)
+#define HEAP_MIN_BLOCK_BYTES     10000  // seuil du plus gros bloc allouable (AsyncTCP)
+#define HEAP_LOW_GRACE_MS        15000  // durée sous seuil avant redémarrage (ms)
+#define HEAP_CHECK_PERIOD_MS     5000   // période de vérification (ms)
+
+// ===============
 // Détection morfAnalytics (écosystème morfSystem, OPTIONNEL)
 // ===============
 // MeteoHub reste 100 % autonome. Il écoute passivement le heartbeat morfBeacon du

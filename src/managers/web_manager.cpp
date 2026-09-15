@@ -298,12 +298,20 @@ void WebManager::_setupApi() {
     // C'est ce qui permet de retirer MeteoHub des listes statiques de
     // morfsystem.json — il se declare lui-meme au lieu d'etre declare ailleurs.
     _server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+        // Metriques de sante VOLATILES exposees pour le suivi FIFO de morfMonitor :
+        // heap totale libre et plus gros bloc allouable (AsyncTCP a besoin de blocs
+        // contigus). Leur declin annonce le figeage web ; uptime_s est deja emis
+        // par buildStatusJson (un reset marque un redemarrage).
+        char metrics[80];
+        snprintf(metrics, sizeof(metrics),
+                 "{\"free_heap_b\":%u,\"free_block_b\":%u}",
+                 (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
         const String body = morfbeacon::buildStatusJson(
             presence,
             "/",                                    // chemin de l'interface
             "MeteoHub",                             // libelle affiche
             "Releves, historique et graphiques.",   // description
-            String(),                               // metrics : deja dans le heartbeat
+            String(metrics),                        // metrics de sante (heap)
             FPSTR(METEOHUB_API_JSON));               // api offerte au parc
         request->send(200, "application/json", body);
     });

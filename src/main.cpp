@@ -228,10 +228,45 @@ void setup() {
     ui.begin(*display, wifi, sensors, forecast, history, sdCard);
 }
 
+// Redémarre proprement si la mémoire devient critique (voir config.h). Sépare
+// l'auto-récupération de la boucle métier pour la garder lisible.
+static void heapGuard() {
+#if HEAP_GUARD_ENABLED
+    static unsigned long lastCheck = 0;
+    static unsigned long lowSince = 0;
+    if (millis() - lastCheck < HEAP_CHECK_PERIOD_MS) {
+        return;
+    }
+    lastCheck = millis();
+
+    const size_t freeHeap = ESP.getFreeHeap();
+    const size_t largest  = ESP.getMaxAllocHeap();  // plus gros bloc contigu allouable
+    const bool critical   = (freeHeap < HEAP_MIN_FREE_BYTES) || (largest < HEAP_MIN_BLOCK_BYTES);
+
+    if (!critical) {
+        lowSince = 0;
+        return;
+    }
+    if (lowSince == 0) {
+        lowSince = millis();
+        LOG_WARNING("Heap basse: libre=" + std::to_string(freeHeap) +
+                    " bloc=" + std::to_string(largest) + " (surveillance)");
+    }
+    if (millis() - lowSince >= HEAP_LOW_GRACE_MS) {
+        LOG_ERROR("Heap critique persistante: libre=" + std::to_string(freeHeap) +
+                  " bloc=" + std::to_string(largest) + " -> redemarrage auto");
+        delay(250);  // laisse la tache UDP emettre le dernier log
+        ESP.restart();
+    }
+#endif
+}
+
 void loop() {
     static unsigned long lastHistoryUpdate = 0;
     static unsigned long lastLedUpdate = 0;
     static unsigned long lastForecastArchive = 0;
+
+    heapGuard();
 
     wifi.update();
 
