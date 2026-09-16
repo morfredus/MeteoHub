@@ -45,6 +45,25 @@ morfbeacon::Emitter presence;
 
 bool ota_started = false;
 
+// Traduit le code esp_reset_reason() rapporte par la sonde (paquet v2) en nom
+// lisible. BROWNOUT/POWERON apres un trou = coupure d'alimentation ; DEEPSLEEP =
+// reveil normal ; PANIC/WDT = plantage firmware.
+static const char* resetReasonName(uint8_t r) {
+    switch (r) {
+        case 1:  return "POWERON";
+        case 2:  return "EXT";
+        case 3:  return "SW";
+        case 4:  return "PANIC";
+        case 5:  return "INT_WDT";
+        case 6:  return "TASK_WDT";
+        case 7:  return "WDT";
+        case 8:  return "DEEPSLEEP";
+        case 9:  return "BROWNOUT";
+        case 10: return "SDIO";
+        default: return "UNKNOWN";
+    }
+}
+
 void setup() {
     Serial.begin(115200);
 
@@ -204,6 +223,18 @@ void setup() {
     espNowReceiver.setOutdoorDataCallback([&](const OutdoorData& outdoor) {
         if (outdoor.valid) {
             history.addOutdoor(outdoor);
+            // Une ligne par trame OUT REELLEMENT recue : horodatee a la capture par
+            // morfMonitor, elle donne l'instant exact de chaque trame. En la
+            // comparant aux fenetres [FORECAST] start/done, on tranche l'hypothese
+            // d'une collision fetch <-> reception (et on voit les trous cote sonde).
+            char buf[144];
+            snprintf(buf, sizeof(buf),
+                     "[OUT] frame recue seq=%u wake=%u reset=%s t=%.1f h=%.0f p=%.1f batt=%.2fV/%d%%",
+                     (unsigned)outdoor.sequence, (unsigned)outdoor.wake_count,
+                     resetReasonName(outdoor.reset_reason),
+                     outdoor.temperature, outdoor.humidity, outdoor.pressure,
+                     outdoor.battery_voltage, outdoor.battery_percent);
+            LOG_INFO(std::string(buf));
         }
     });
     if (espNowReceiver.begin()) {

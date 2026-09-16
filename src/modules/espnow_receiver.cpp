@@ -252,6 +252,11 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
         outdoor.has_battery = true;
     }
 
+    // Diagnostic v2 : reporté tel quel pour journalisation (voir main.cpp).
+    outdoor.reset_reason = packet.reset_reason;
+    outdoor.wake_count = packet.wake_count;
+    outdoor.sequence = packet.sequence;
+
     const bool flagged = (packet.valid_fields
                           & (FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_PRESSURE)) != 0;
     // Repli : une trame CRC-valide avec une T plausible reste affichable même

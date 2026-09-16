@@ -71,7 +71,12 @@ void ForecastManager::update() {
     }
     lastUpdate = now;
 
-    LOG_DEBUG("Fetching forecast...");
+    // Horodate le debut : capte par le logger UDP, il permet a morfMonitor de
+    // CORRELER une eventuelle disparition de trames OUT avec un fetch en cours
+    // (hypothese d'une collision fetch <-> reception ESP-NOW). Sans ce marqueur,
+    // on ne pourrait que supposer.
+    const unsigned long fetchStart = millis();
+    LOG_INFO("[FORECAST] start");
 
     HTTPClient http;
     std::string url = "https://api.openweathermap.org/data/3.0/onecall?lat=";
@@ -87,17 +92,24 @@ void ForecastManager::update() {
     url += "&exclude=minutely,hourly,current";
 
     http.begin(url.c_str());
+    // Bornes STRICTES : le fetch tourne dans loop() ; sans elles, un serveur
+    // lent ou une coupure reseau pourrait figer la boucle jusqu'a ~5 s (defaut),
+    // voire davantage. On plafonne connexion et lecture pour ne jamais bloquer
+    // longtemps la boucle (et donc le drainage de la file ESP-NOW).
+    http.setConnectTimeout(3000);
+    http.setTimeout(4000);
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK) {
         std::string payload = http.getString().c_str();
         parseResponse(payload);
-        LOG_INFO("Forecast OK");
-    } else {
-        LOG_WARNING(std::string("Forecast fail: ") + std::to_string(httpCode));
     }
-
     http.end();
+
+    // Horodate la fin + duree : c'est la fenetre exacte a comparer aux instants
+    // de reception des trames OUT dans les logs captes par morfMonitor.
+    LOG_INFO("[FORECAST] done in " + std::to_string(millis() - fetchStart)
+             + "ms (code " + std::to_string(httpCode) + ")");
 }
 
 void ForecastManager::parseResponse(const std::string& payload) {

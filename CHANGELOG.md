@@ -1,3 +1,29 @@
+# [1.38.0] - 2026-09-16
+
+### Added
+
+- **Probe diagnostics in the ESP-NOW frame (protocol v2).** Each frame now carries
+  the probe's `reset_reason` (esp_reset_reason: POWERON/BROWNOUT/DEEPSLEEP/PANIC…)
+  and a RTC `wake_count` (survives deep sleep, resets on a power cycle). On every
+  received OUT frame the hub logs `[OUT] frame recue seq=… wake=… reset=… …`, so
+  when a frame returns after a gap we can read WHY the outdoor probe dropped out
+  (a BROWNOUT/POWERON points to power, a wake_count jump to failed wake cycles)
+  without ever plugging it in - it is deployed outdoors. Frame grows 51→54 bytes;
+  the protocol version bump means the probe and the hub must be reflashed together.
+
+# [1.37.0] - 2026-09-16
+
+### Added
+
+- **Forecast fetch bounded and logged.** The forecast HTTP GET runs in `loop()`
+  and had no explicit timeout (default ~5 s, longer if the server hangs). It now
+  sets `setConnectTimeout(3000)` / `setTimeout(4000)` so it can never stall the
+  loop for long (and delay draining the ESP-NOW queue). It also logs
+  `[FORECAST] start` and `[FORECAST] done in Nms (code X)`, and every received OUT
+  frame logs `[OUT] frame recue t=… batt=…`. Captured by morfMonitor, these
+  timestamps let us correlate any OUT-frame gap with a fetch window (testing the
+  "fetch vs ESP-NOW reception collision" hypothesis) instead of guessing.
+
 # [1.36.0] - 2026-09-16
 
 ### Added

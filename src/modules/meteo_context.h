@@ -44,10 +44,18 @@ struct OutdoorData {
     uint8_t battery_percent;
     bool has_battery;
 
+    // Diagnostic de la sonde (paquet v2) : raison du dernier reset + compteur de
+    // reveils + numero de trame. Journalises a chaque reception pour comprendre,
+    // au retour d'une trame apres un trou, pourquoi la sonde a decroche.
+    uint8_t reset_reason;
+    uint16_t wake_count;
+    uint32_t sequence;
+
     OutdoorData() : temperature(0), humidity(0), pressure(0), valid(false),
                     wind_speed(0), wind_gust(0), wind_direction_deg(0),
                     rain_rate(0), rain_accumulated(0), solar_lux(0), uv_index(0),
-                    battery_voltage(0), battery_percent(0), has_battery(false) {}
+                    battery_voltage(0), battery_percent(0), has_battery(false),
+                    reset_reason(0), wake_count(0), sequence(0) {}
 };
 
 // Structure générique de mesure avec contexte explicite
