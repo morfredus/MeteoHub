@@ -45,7 +45,13 @@ private:
     bool _initialized = false;
     bool _wifiWasConnected = false;
     unsigned long _lastBeginAttemptMs = 0;
-    unsigned long _lastStatusLogMs = 0;
+    unsigned long _lastStatusLogMs = 0;       // cadence du refresh canal (15 s)
+    unsigned long _lastStatusHeartbeatMs = 0; // dernier log "battement de coeur"
+    // Compteurs au dernier LOG : on ne re-logue que s'ils ont change (nouvelle
+    // trame), pour ne pas repeter 20 lignes identiques entre deux envois (5 min).
+    uint32_t _loggedReceived = 0;
+    uint32_t _loggedValid = 0;
+    uint32_t _loggedInvalid = 0;
 
     uint32_t _packetsReceived = 0;
     uint32_t _packetsValid = 0;

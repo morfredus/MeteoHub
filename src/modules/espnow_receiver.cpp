@@ -135,21 +135,39 @@ void EspNowReceiver::update() {
 
     processQueuedPackets();
 
+    // Le refresh de canal reste frequent (15 s) pour suivre une migration du hub ;
+    // le LOG, lui, n'est emis que s'il APPORTE une info : compteurs changes (une
+    // trame vient d'arriver ou d'etre rejetee) ou battement de coeur espace (preuve
+    // de vie + canal courant). Sans ce filtre, 20 lignes identiques tombaient entre
+    // deux envois (la sonde n'emet que toutes les 5 min).
+    static constexpr unsigned long STATUS_HEARTBEAT_MS = 300000UL; // 5 min
     if (millis() - _lastStatusLogMs >= 15000) {
         _lastStatusLogMs = millis();
         refreshChannel();
-        char src[18] = "--:--:--:--:--:--";
-        if (_haveSrcMac) {
-            snprintf(src, sizeof(src), "%02X:%02X:%02X:%02X:%02X:%02X",
-                     _lastSrcMac[0], _lastSrcMac[1], _lastSrcMac[2],
-                     _lastSrcMac[3], _lastSrcMac[4], _lastSrcMac[5]);
+
+        const bool changed = (_packetsReceived != _loggedReceived)
+                          || (_packetsValid != _loggedValid)
+                          || (_packetsInvalid != _loggedInvalid);
+        const bool heartbeat = (millis() - _lastStatusHeartbeatMs >= STATUS_HEARTBEAT_MS);
+        if (changed || heartbeat) {
+            _loggedReceived = _packetsReceived;
+            _loggedValid = _packetsValid;
+            _loggedInvalid = _packetsInvalid;
+            _lastStatusHeartbeatMs = millis();
+
+            char src[18] = "--:--:--:--:--:--";
+            if (_haveSrcMac) {
+                snprintf(src, sizeof(src), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         _lastSrcMac[0], _lastSrcMac[1], _lastSrcMac[2],
+                         _lastSrcMac[3], _lastSrcMac[4], _lastSrcMac[5]);
+            }
+            LOG_INFO("ESP-NOW: ch=" + std::to_string(_wifiChannel)
+                     + " rx=" + std::to_string(_packetsReceived)
+                     + " ok=" + std::to_string(_packetsValid)
+                     + " bad=" + std::to_string(_packetsInvalid)
+                     + " last_len=" + std::to_string(_lastRxLen)
+                     + " src=" + std::string(src));
         }
-        LOG_INFO("ESP-NOW: ch=" + std::to_string(_wifiChannel)
-                 + " rx=" + std::to_string(_packetsReceived)
-                 + " ok=" + std::to_string(_packetsValid)
-                 + " bad=" + std::to_string(_packetsInvalid)
-                 + " last_len=" + std::to_string(_lastRxLen)
-                 + " src=" + std::string(src));
     }
 }
 

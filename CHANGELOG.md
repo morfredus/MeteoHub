@@ -1,3 +1,13 @@
+# [1.38.1] - 2026-09-16
+
+### Changed
+
+- **ESP-NOW status log no longer spams.** It was printed every 15 s regardless of
+  activity - 20 identical lines between two sends (the probe emits every 5 min).
+  The 15 s cadence still drives the channel refresh, but the line is now logged
+  only when the counters change (a frame arrived or was rejected) or as a 5 min
+  heartbeat (liveness + current channel). Far cleaner in the captured logs.
+
 # [1.38.0] - 2026-09-16
 
 ### Added
