@@ -241,10 +241,12 @@ void setup() {
         // 2) Voie inverse D'ABORD : la fenetre d'ecoute de la sonde est courte
         //    (~300 ms). On renvoie l'accuse cumulatif + le trou a combler AVANT
         //    l'archivage (une ecriture SD peut etre lente et ferait manquer la
-        //    fenetre). Le SyncControl porte l'etat deja a jour par onPacket.
+        //    fenetre). Cet accuse elague le backlog de la sonde et recale son
+        //    horloge ; la retransmission, elle, est PROACTIVE cote sonde.
+        bool replySent = false;
         if (d.haveReply) {
             SyncControl reply = d.reply;
-            espNowReceiver.sendControl(reply);
+            replySent = espNowReceiver.sendControl(reply);
         }
 
         // 3) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
@@ -259,14 +261,15 @@ void setup() {
             history.refreshOutdoorLive(outdoor);
         }
 
-        char buf[176];
+        char buf[208];
         snprintf(buf, sizeof(buf),
-                 "[OUT] %s seq=%u %s wake=%u reset=%s t=%.1f h=%.0f p=%.1f ack<=%u",
+                 "[OUT] %s seq=%u %s wake=%u reset=%s t=%.1f h=%.0f p=%.1f ack<=%u want=%u/%u reply=%d",
                  (outdoor.frame_type == FRAME_RETRANSMIT) ? "retx" : "live",
                  (unsigned)outdoor.sequence, d.archive ? "new" : "dup",
                  (unsigned)outdoor.wake_count, resetReasonName(outdoor.reset_reason),
                  outdoor.temperature, outdoor.humidity, outdoor.pressure,
-                 (unsigned)d.reply.ack_seq);
+                 (unsigned)d.reply.ack_seq, (unsigned)d.reply.want_from_seq,
+                 (unsigned)d.reply.want_count, replySent ? 1 : 0);
         LOG_INFO(std::string(buf));
     });
     if (espNowReceiver.begin()) {

@@ -1,3 +1,14 @@
+# [1.41.0] - 2026-09-22
+
+### Changed
+
+- **More diagnosable OUT sync log.** The `[OUT]` line now reports the reply the hub
+  sent back to the probe: `ack<=N want=<from>/<count> reply=<0|1>`, to see at a
+  glance whether the cumulative ACK advances, what gap is being requested, and
+  whether the reverse `SyncControl` was actually emitted. Pairs with the probe-side
+  fix (0.21.0) that makes gap recovery proactive rather than dependent on catching
+  that reply in a tight window.
+
 # [1.40.0] - 2026-09-22
 
 ### Added
