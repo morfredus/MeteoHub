@@ -1,3 +1,16 @@
+# [1.42.0] - 2026-09-22
+
+### Fixed
+
+- **No more false ACK with dropped data (field test).** The cumulative ACK used to
+  advance as soon as a frame's sequence was received, even if the frame was then
+  dropped at archival (e.g. an unusable reconstructed timestamp). The probe saw the
+  advanced ACK, marked those measurements SYNCED and stopped retransmitting them -
+  a silent permanent loss. Now a frame advances the cumulative ACK ONLY if its
+  measurement time is usable and it is actually archived. An unarchivable frame
+  stays a gap, so the probe keeps retransmitting it (with a corrected timestamp,
+  cf. MeteoHubSensor 0.22.0) until it lands.
+
 # [1.41.0] - 2026-09-22
 
 ### Changed

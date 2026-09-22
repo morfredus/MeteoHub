@@ -39,6 +39,7 @@ public:
     struct Decision {
         bool archive = false;     // true = mesure nouvelle a archiver (sinon doublon)
         bool isLive = false;      // true = trame LIVE (met a jour l'affichage live)
+        bool plausibleTs = false; // true = heure de mesure exploitable (archivable)
         int64_t measurementTs = 0;// heure de MESURE reconstruite (epoch s)
         SyncControl reply{};      // accuse cumulatif + trou a combler (a renvoyer)
         bool haveReply = false;   // false si l'etat ne permet pas encore de repondre
@@ -76,8 +77,14 @@ public:
             d.measurementTs = n.anchor.has() ? n.anchor.reconstruct(sensorTs) : nowReal;
         }
 
-        // 4) Dedup : nouveau seq -> a archiver ; deja connu -> doublon (ignore).
-        d.archive = n.tracker.markReceived(seq);
+        // 4) Dedup ET couplage a l'ARCHIVABILITE. On ne compte une trame comme
+        //    « recue » (avancement de l'accuse cumulatif) QUE si son heure de mesure
+        //    est exploitable. Sinon (heure non reconstructible), on la LAISSE en trou :
+        //    l'accuse n'avance pas, la sonde continue de la retransmettre plus tard
+        //    (quand elle aura une heure fiable), plutot que de la marquer synced alors
+        //    qu'on n'a pas pu l'archiver -> plus jamais de faux ACK avec perte.
+        d.plausibleTs = d.measurementTs > (int64_t)kEpochPlausible;
+        d.archive = d.plausibleTs && n.tracker.markReceived(seq);
 
         // 5) Reponse : accuse cumulatif + plus bas trou a combler.
         d.reply.node_id = nodeId;
