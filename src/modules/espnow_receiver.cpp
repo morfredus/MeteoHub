@@ -115,6 +115,41 @@ void EspNowReceiver::setOutdoorDataCallback(OutdoorDataCallback callback) {
     _outdoorCallback = callback;
 }
 
+bool EspNowReceiver::sendControl(SyncControl& ctrl) {
+    // Voie inverse : accuse cumulatif + trou a combler, renvoye a la sonde qui
+    // vient d'emettre. On finalise magic/version + CRC ici, on (re)declare la MAC
+    // de la sonde comme peer unicast, puis on emet. La fenetre d'ecoute de la
+    // sonde etant courte, cet envoi doit suivre de pres la reception de sa trame.
+    if (!_initialized || !_haveSrcMac) return false;
+
+    ctrl.magic[0] = METEO_CONTROL_MAGIC_0;
+    ctrl.magic[1] = METEO_CONTROL_MAGIC_1;
+    ctrl.protocol_version = METEO_PROTOCOL_VERSION;
+    const size_t lenForCrc = sizeof(SyncControl) - sizeof(uint16_t);
+    ctrl.crc16 = calculateCrc16(reinterpret_cast<const uint8_t*>(&ctrl), lenForCrc);
+
+    // Peer unicast vers la sonde (channel 0 = suit le canal radio courant).
+    if (!esp_now_is_peer_exist(_lastSrcMac)) {
+        esp_now_peer_info_t peer{};
+        memcpy(peer.peer_addr, _lastSrcMac, 6);
+        peer.channel = 0;
+        peer.ifidx = WIFI_IF_STA;
+        peer.encrypt = false;
+        if (esp_now_add_peer(&peer) != ESP_OK) {
+            LOG_WARNING("ESP-NOW: add sensor peer failed (SyncControl)");
+            return false;
+        }
+    }
+
+    const esp_err_t r = esp_now_send(_lastSrcMac, reinterpret_cast<const uint8_t*>(&ctrl),
+                                     sizeof(SyncControl));
+    if (r != ESP_OK) {
+        LOG_WARNING("ESP-NOW: SyncControl send error " + std::to_string((int)r));
+        return false;
+    }
+    return true;
+}
+
 void EspNowReceiver::update() {
     const bool wifiUp = (WiFi.status() == WL_CONNECTED);
 
@@ -274,6 +309,12 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
     outdoor.reset_reason = packet.reset_reason;
     outdoor.wake_count = packet.wake_count;
     outdoor.sequence = packet.sequence;
+
+    // Synchronisation fiable (v3) : reportés pour la logique de sync/dedup/anchor.
+    outdoor.sensor_ts = packet.sensor_ts;
+    outdoor.frame_type = packet.frame_type;
+    outdoor.oldest_seq = packet.oldest_seq;
+    outdoor.node_id = packet.node_id;
 
     const bool flagged = (packet.valid_fields
                           & (FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_PRESSURE)) != 0;

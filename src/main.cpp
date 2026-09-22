@@ -15,6 +15,7 @@
 #include "modules/sensors.h"
 #include "modules/analytics_beacon.h"
 #include "modules/espnow_receiver.h"
+#include "modules/meteo_sync_service.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
 #include "config.h"
 #include "../include/meteo_packet.h"
@@ -35,6 +36,7 @@ HistoryManager history;
 SdManager sdCard;
 AnalyticsBeacon analytics;
 EspNowReceiver espNowReceiver;
+mhsync::MeteoSyncService meteoSync; // suivi reception / dedup / horodatage / voie inverse (v3)
 
 // Annonce de presence sur le LAN (protocole morfbeacon/1). MeteoHub ECOUTAIT
 // deja ce protocole pour reperer un service d'analyse ; il l'EMET desormais, et
@@ -217,25 +219,55 @@ void setup() {
 
     // Détection optionnelle de morfAnalytics (écoute passive du beacon LAN).
     analytics.begin();
+
+    // Etat de synchronisation fiable (v3) : charge l'accuse cumulatif + trous
+    // persistes (reprise apres reboot hub, sans re-archiver ni redemander).
+    meteoSync.begin();
     
     // Récepteur ESP-NOW : le callback est enregistré avant begin() pour que
     // les retries dans loop() n'oublient pas d'injecter les trames OUT.
     espNowReceiver.setOutdoorDataCallback([&](const OutdoorData& outdoor) {
-        if (outdoor.valid) {
-            history.addOutdoor(outdoor);
-            // Une ligne par trame OUT REELLEMENT recue : horodatee a la capture par
-            // morfMonitor, elle donne l'instant exact de chaque trame. En la
-            // comparant aux fenetres [FORECAST] start/done, on tranche l'hypothese
-            // d'une collision fetch <-> reception (et on voit les trous cote sonde).
-            char buf[144];
-            snprintf(buf, sizeof(buf),
-                     "[OUT] frame recue seq=%u wake=%u reset=%s t=%.1f h=%.0f p=%.1f batt=%.2fV/%d%%",
-                     (unsigned)outdoor.sequence, (unsigned)outdoor.wake_count,
-                     resetReasonName(outdoor.reset_reason),
-                     outdoor.temperature, outdoor.humidity, outdoor.pressure,
-                     outdoor.battery_voltage, outdoor.battery_percent);
-            LOG_INFO(std::string(buf));
+        if (!outdoor.valid) return;
+
+        // --- Synchronisation fiable (v3) -----------------------------------
+        // 1) Le service decide : mesure nouvelle ou doublon, live ou historique,
+        //    et l'HEURE DE MESURE reconstruite (jamais l'heure d'arrivee).
+        const int64_t nowReal = (int64_t)time(NULL);
+        const uint8_t nodeId = outdoor.node_id ? outdoor.node_id : 1;
+        const mhsync::MeteoSyncService::Decision d = meteoSync.onPacket(
+            nodeId, outdoor.sequence, outdoor.sensor_ts, outdoor.frame_type,
+            outdoor.oldest_seq, nowReal);
+
+        // 2) Voie inverse D'ABORD : la fenetre d'ecoute de la sonde est courte
+        //    (~300 ms). On renvoie l'accuse cumulatif + le trou a combler AVANT
+        //    l'archivage (une ecriture SD peut etre lente et ferait manquer la
+        //    fenetre). Le SyncControl porte l'etat deja a jour par onPacket.
+        if (d.haveReply) {
+            SyncControl reply = d.reply;
+            espNowReceiver.sendControl(reply);
         }
+
+        // 3) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
+        //    pas ré-archivé. Une trame live met a jour l'affichage ; une
+        //    retransmission n'archive que l'historique, a son heure d'origine.
+        if (d.archive) {
+            if (d.isLive) history.addOutdoorLive(outdoor, (time_t)d.measurementTs);
+            else          history.addOutdoorHistorical(outdoor, (time_t)d.measurementTs);
+        } else if (d.isLive) {
+            // Doublon mais trame live : on rafraichit tout de meme la valeur
+            // « live » (affichage/fraicheur) sans ré-archiver.
+            history.refreshOutdoorLive(outdoor);
+        }
+
+        char buf[176];
+        snprintf(buf, sizeof(buf),
+                 "[OUT] %s seq=%u %s wake=%u reset=%s t=%.1f h=%.0f p=%.1f ack<=%u",
+                 (outdoor.frame_type == FRAME_RETRANSMIT) ? "retx" : "live",
+                 (unsigned)outdoor.sequence, d.archive ? "new" : "dup",
+                 (unsigned)outdoor.wake_count, resetReasonName(outdoor.reset_reason),
+                 outdoor.temperature, outdoor.humidity, outdoor.pressure,
+                 (unsigned)d.reply.ack_seq);
+        LOG_INFO(std::string(buf));
     });
     if (espNowReceiver.begin()) {
         LOG_INFO("ESP-NOW receiver initialized");
@@ -315,6 +347,9 @@ void loop() {
     ui.update();
     analytics.update();
     espNowReceiver.update();
+    // Persiste l'etat de synchro (accuse cumulatif + trous) modifie pendant le
+    // traitement des trames, pour survivre a un reboot du hub sans re-archiver.
+    meteoSync.persistDirty();
     presence.update();
     webManager.handle();
 

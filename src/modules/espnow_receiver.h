@@ -30,6 +30,11 @@ public:
 
     bool isReady() const { return _initialized; }
 
+    // Voie inverse (v3) : renvoie un SyncControl a la DERNIERE sonde vue (unicast
+    // vers _lastSrcMac). Renvoie false si aucune sonde connue ou envoi impossible.
+    // Le CRC est calcule ici ; l'appelant remplit ack_seq/want_*.
+    bool sendControl(SyncControl& ctrl);
+
     uint32_t getPacketsReceived() const { return _packetsReceived; }
     uint32_t getPacketsValid() const { return _packetsValid; }
     uint32_t getPacketsInvalid() const { return _packetsInvalid; }

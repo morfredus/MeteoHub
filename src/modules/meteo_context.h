@@ -51,11 +51,21 @@ struct OutdoorData {
     uint16_t wake_count;
     uint32_t sequence;
 
+    // Synchronisation fiable (v3). sensor_ts : horloge relative de la sonde a
+    // l'acquisition (pour reconstruire l'heure de MESURE). frame_type : LIVE ou
+    // RETRANSMIT (une retransmission ne doit pas ecraser la valeur « live »).
+    // oldest_seq : plus vieux seq encore disponible cote sonde (garde anti-blocage).
+    uint32_t sensor_ts;
+    uint8_t frame_type;
+    uint32_t oldest_seq;
+    uint8_t node_id;
+
     OutdoorData() : temperature(0), humidity(0), pressure(0), valid(false),
                     wind_speed(0), wind_gust(0), wind_direction_deg(0),
                     rain_rate(0), rain_accumulated(0), solar_lux(0), uv_index(0),
                     battery_voltage(0), battery_percent(0), has_battery(false),
-                    reset_reason(0), wake_count(0), sequence(0) {}
+                    reset_reason(0), wake_count(0), sequence(0),
+                    sensor_ts(0), frame_type(0), oldest_seq(0), node_id(0) {}
 };
 
 // Structure générique de mesure avec contexte explicite

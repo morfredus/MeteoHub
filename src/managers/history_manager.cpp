@@ -248,42 +248,18 @@ void HistoryManager::addIndoor(const IndoorData& data) {
     add(data.temperature, data.humidity, data.pressure);
 }
 
-void HistoryManager::addOutdoor(const OutdoorData& data) {
-    // RÈGLE STRICTE : seule une trame OUT réellement REÇUE et VALIDE entre dans
-    // l'historique OUT. Jamais une valeur intérieure, jamais la valeur
-    // « effective » (présentation), jamais une valeur seedée depuis le disque au
-    // boot. L'historique répond à « qu'a réellement mesuré le capteur OUT ? »,
-    // pas à « que montre-t-on maintenant ? » : ce sont deux chemins distincts.
-    // Une trame invalide (implausible / mal formée) ne met à jour NI le live NI
-    // l'historique. Ce garde protège l'invariant même si un futur appelant
-    // oubliait de filtrer en amont.
-    if (!data.valid) {
-        LOG_WARNING("History: Outdoor frame invalid, ignored (no live, no archive)");
-        return;
-    }
+// Horodatage plancher de plausibilité : en deçà (avant ~2020), l'heure est
+// bidon (hub pas encore synchronisé NTP, ou ancre absente). On garde alors le
+// live mais on n'archive pas une mesure mal datée.
+static bool outdoorTsPlausible(time_t ts) { return ts > 1600000000; }
 
-    // Trame OUT réelle et valide : elle devient le dernier relevé « live » et
-    // fait référence pour la fraîcheur (contrairement au seed disque, qui reste
-    // volontairement « périmé »). _hasOutdoorRadioMs = « au moins une vraie trame
-    // reçue depuis le boot » : avant lui, l'OUT est en attente de 1re réception.
-    _lastOutdoorLive = data;
-    _hasLiveOutdoor = true;
-    _lastOutdoorRadioMs = millis();
-    _hasOutdoorRadioMs = true;
-
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-        LOG_WARNING("History: Time not synced, outdoor live kept, archive skipped");
-        return;
-    }
-
+// Construit l'enregistrement OUT à partir de la donnée + son heure de mesure.
+static OutdoorHistoryRecord makeOutdoorRecord(const OutdoorData& data, time_t ts) {
     OutdoorHistoryRecord record;
-    record.timestamp = time(NULL);
+    record.timestamp = ts;
     record.t = data.temperature;
     record.h = data.humidity;
     record.p = data.pressure;
-    
-    // Extensions futures (vent, pluie, UV)
     record.wind_speed = data.wind_speed;
     record.wind_gust = data.wind_gust;
     record.wind_direction_deg = data.wind_direction_deg;
@@ -291,7 +267,41 @@ void HistoryManager::addOutdoor(const OutdoorData& data) {
     record.rain_accumulated = data.rain_accumulated;
     record.solar_lux = data.solar_lux;
     record.uv_index = data.uv_index;
+    return record;
+}
 
+// Compat : ancien point d'entrée, traité comme une trame live datée « maintenant ».
+void HistoryManager::addOutdoor(const OutdoorData& data) {
+    addOutdoorLive(data, time(NULL));
+}
+
+void HistoryManager::addOutdoorLive(const OutdoorData& data, time_t measurementTs) {
+    // RÈGLE STRICTE : seule une trame OUT réellement REÇUE et VALIDE entre dans
+    // l'historique OUT (jamais une valeur intérieure, ni la valeur « effective »
+    // de présentation, ni un seed disque). Une trame invalide ne met à jour NI le
+    // live NI l'historique.
+    if (!data.valid) {
+        LOG_WARNING("History: Outdoor frame invalid, ignored (no live, no archive)");
+        return;
+    }
+
+    // Trame OUT réelle et valide : elle devient le dernier relevé « live » et fait
+    // référence pour la fraîcheur.
+    _lastOutdoorLive = data;
+    _hasLiveOutdoor = true;
+    _lastOutdoorRadioMs = millis();
+    _hasOutdoorRadioMs = true;
+
+    if (!outdoorTsPlausible(measurementTs)) {
+        LOG_WARNING("History: Outdoor live kept, archive skipped (implausible ts)");
+        return;
+    }
+
+    struct tm timeinfo;
+    time_t ts = measurementTs;
+    localtime_r(&ts, &timeinfo);
+
+    OutdoorHistoryRecord record = makeOutdoorRecord(data, measurementTs);
     _outdoorHistory.push_back(record);
     if (_outdoorHistory.size() > MAX_RECENT_RECORDS) {
         _outdoorHistory.erase(_outdoorHistory.begin());
@@ -299,12 +309,40 @@ void HistoryManager::addOutdoor(const OutdoorData& data) {
 
     saveOutdoorRecent(record);
     updateOutdoorDayStats(record, timeinfo);
-
     if (_sd && _sd->isAvailable()) {
         saveOutdoorToSdBinary(record);
     }
-    
-    LOG_INFO("History: Outdoor data added (T=" + std::to_string(data.temperature) + "°C, H=" + std::to_string(data.humidity) + "%)");
+
+    LOG_INFO("History: Outdoor live added (T=" + std::to_string(data.temperature)
+             + "°C, seq=" + std::to_string(data.sequence) + ")");
+}
+
+void HistoryManager::refreshOutdoorLive(const OutdoorData& data) {
+    if (!data.valid) return;
+    _lastOutdoorLive = data;
+    _hasLiveOutdoor = true;
+    _lastOutdoorRadioMs = millis();
+    _hasOutdoorRadioMs = true;
+}
+
+void HistoryManager::addOutdoorHistorical(const OutdoorData& data, time_t measurementTs) {
+    // Mesure RETRANSMISE (ancienne) : on archive SEULEMENT, à son heure d'origine,
+    // sans toucher au live ni à la fraîcheur (une vieille mesure ne doit pas se
+    // faire passer pour la mesure courante). Elle atterrit dans le bon fichier-jour
+    // grâce à son horodatage ; morfAnalytics la relira via son curseur (jour,index)
+    // et la remettra dans l'ordre chronologique (ORDER BY ts).
+    if (!data.valid) return;
+    if (!outdoorTsPlausible(measurementTs)) {
+        LOG_WARNING("History: Outdoor historical dropped (implausible ts, seq="
+                    + std::to_string(data.sequence) + ")");
+        return;
+    }
+    if (!(_sd && _sd->isAvailable())) return; // sans SD, pas d'archive historique
+
+    OutdoorHistoryRecord record = makeOutdoorRecord(data, measurementTs);
+    saveOutdoorToSdBinary(record); // append-only, chemin dérivé de l'heure de mesure
+    LOG_INFO("History: Outdoor historical archived (seq=" + std::to_string(data.sequence)
+             + ", ts=" + std::to_string((long)measurementTs) + ")");
 }
 
 const std::vector<IndoorHistoryRecord>& HistoryManager::getIndoorHistory() const {

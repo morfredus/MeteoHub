@@ -1,3 +1,56 @@
+# [1.40.0] - 2026-09-22
+
+### Added
+
+- **Time alignment pushed to the probe.** The hub's real (NTP) epoch is now
+  carried in the `SyncControl` reply, letting the probe - which has no RTC or NTP -
+  keep absolute time across deep sleep at no radio cost. When a received frame
+  already carries an absolute `sensor_ts` (aligned probe), the hub archives it at
+  that exact acquisition time; otherwise it falls back to relative-clock
+  reconstruction via the live-frame anchor.
+
+### Changed
+
+- `SyncControl` grew from 16 to 20 bytes (added `hub_epoch`). Reflash probe and hub
+  together (requires MeteoHubSensor >= 0.20.0).
+
+# [1.39.0] - 2026-09-22
+
+### Added
+
+- **Loss-tolerant OUT sync (ESP-NOW protocol v3).** The hub detects gaps in the
+  probe's sequence numbers and drives their recovery: on every received frame it
+  returns a `SyncControl` (cumulative ACK + lowest missing seq) to the probe during
+  its short wake window, so the probe can retransmit what was lost. Archival is
+  IDEMPOTENT (dedup by seq): a retransmitted measurement is never stored twice. An
+  unrecoverable gap (a measurement that rotated out of the probe's buffer, reported
+  via `oldest_seq`) no longer freezes the cumulative ACK forever.
+- **Measurement-time reconstruction.** A frame is archived at its real ACQUISITION
+  time (reconstructed from the probe's relative clock, anchored on live frames),
+  not its arrival time: a 17:20 measurement retransmitted at 19:00 lands at 17:20,
+  in the correct day file. A retransmitted (old) frame no longer overwrites the
+  live reading.
+- **Reboot-safe sync state.** The cumulative ACK and gap set are persisted in NVS,
+  so a hub restart resumes without manual action and without re-archiving.
+- **Native unit tests** (`pio test -e native`) for SyncTracker (cumulative ack,
+  gap detection, dedup, anti-stall) and TimeAnchor (measurement-time
+  reconstruction).
+
+### Changed
+
+- `addOutdoor` is split into `addOutdoorLive` (updates the live reading and
+  archives at the measurement time) and `addOutdoorHistorical` (archives a
+  retransmitted measurement only, without touching the live reading). The OUT
+  frame `OutdoorData` now carries `sensor_ts`, `frame_type`, `oldest_seq` and
+  `node_id`.
+
+### Notes
+
+- Requires MeteoHubSensor >= 0.19.0. Reflash both together: a v3 receiver rejects a
+  different protocol version.
+- morfAnalytics is unchanged: a late historical measurement is picked up naturally
+  by its `(day, index)` cursor and reordered on read (`ORDER BY ts`).
+
 # [1.38.1] - 2026-09-16
 
 ### Changed

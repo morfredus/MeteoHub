@@ -198,6 +198,20 @@ public:
     void addIndoor(const IndoorData& data);
     void addOutdoor(const OutdoorData& data);
 
+    // --- Synchronisation fiable (v3) : archivage horodate a l'heure de MESURE --
+    // addOutdoorLive : trame courante reçue en direct. Met à jour la valeur
+    //   « live » (affichage, fraîcheur) ET archive, à l'horodatage `measurementTs`
+    //   (reconstruit par le hub, ≈ maintenant pour une trame live).
+    // addOutdoorHistorical : mesure RETRANSMISE (ancienne). Archive UNIQUEMENT,
+    //   à son heure de mesure d'origine, SANS toucher la valeur « live » (une
+    //   vieille mesure ne doit pas se faire passer pour la mesure courante).
+    // Les deux sont IDEMPOTENTES côté appelant (dedup par seq via MeteoSyncService).
+    void addOutdoorLive(const OutdoorData& data, time_t measurementTs);
+    void addOutdoorHistorical(const OutdoorData& data, time_t measurementTs);
+    // Rafraîchit la valeur « live » (affichage + fraîcheur) SANS archiver : pour
+    // une trame live déjà connue (doublon), rare mais possible.
+    void refreshOutdoorLive(const OutdoorData& data);
+
     // Dernier relevé OUT vu (RAM), même si l'archivage a été sauté (NTP absent).
     bool hasLiveOutdoor() const { return _hasLiveOutdoor; }
     const OutdoorData& lastOutdoorLive() const { return _lastOutdoorLive; }
