@@ -4,13 +4,28 @@
 
 Version minimale valide : 1.9.0
 
+**DevKitC (encodeur + boutons)** :
+
 - Tourner l’encodeur pour naviguer entre les pages.
 - Le clic encodeur ouvre le menu.
 - Back sort du menu/des confirmations.
 - Confirm valide les actions contextuelles.
 
+**Super Mini (un seul bouton)** :
 
-Pages principales (dans l'ordre de défilement à l'encodeur) :
+| Contexte | Appui court (< 0,8 s) | Appui long (≥ 0,8 s) |
+|---|---|---|
+| Page normale | page suivante | ouvre le menu |
+| Menu | élément suivant | exécute l'élément (« Retour » ferme le menu) |
+| Confirmation (Format SD, effacements) | annule | confirme |
+
+L'appui long réagit dès que le seuil est atteint, sans attendre le relâchement ; les
+actions destructives exigent toujours un appui long volontaire. Sans molette, la page
+**Logs** défile seule (toutes les 3 s) et la page **Prévisions** alterne ses trois vues
+(toutes les 5 s).
+
+
+Pages principales (dans l'ordre de défilement) :
 - **Météo** : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT** (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
 - **Prévisions** : min/max et description du jour et du lendemain, et l'éventuelle alerte météo.
 - **Graphes** : courbes intérieur et extérieur (température, humidité, pression), tracées sur les dernières **24 h** lues sur la carte SD (et non la seule mémoire vive), reliées en continu et coupées uniquement en cas de vrai silence capteur.
@@ -21,7 +36,7 @@ Pages principales (dans l'ordre de défilement à l'encodeur) :
   - **Canal** : canal Wi-Fi/ESP-NOW sur lequel la sonde et le hub dialoguent.
   - **Trames** : nombre de trames **reçues** (`rx`) et **validées** CRC (`ok`) depuis le démarrage ; un `ok` nettement inférieur à `rx` trahit une liaison bruitée.
   - **Fraîcheur** : temps écoulé depuis la dernière trame reçue (« Recu: N min »), ou « OUT absent » si la sonde est muette.
-- **Logs** : dernières lignes de journal (défilables à l'encodeur).
+- **Logs** : dernières lignes de journal (défilables à l'encodeur ; défilement automatique sur Super Mini).
 
 ### Aperçu des pages OLED
 

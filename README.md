@@ -20,16 +20,23 @@ MeteoHub S3 is a PlatformIO project for ESP32-S3 centered around an OLED dashboa
 
 ## Hardware Requirements
 
-* OLED display (SH1106 or SSD1306, I2C)
-* HW-040 rotary encoder module (encoder with push button)
-* Back and Confirm buttons
-* AHT20 and BMP280 sensors
-* Optional SD card for long-term data storage (recommended: FAT32, 4-32 GB)
+Two builds are supported, one PlatformIO environment each:
+
+| | `esp32-s3-oled` (original) | `esp32-s3-supermini` (simplified) |
+|---|---|---|
+| Board | ESP32-S3 DevKitC-1 N16R8 (16 MB / 8 MB PSRAM) | ESP32-S3 Super Mini (4 MB / 2 MB PSRAM), same as the probe |
+| Display | 1.3" SH1106 OLED (I2C) | 0.96" JMD0.96D-1 SSD1306 OLED (I2C) |
+| Controls | HW-040 rotary encoder + Back and Confirm buttons | one push button (short = next, long = menu / confirm) |
+| Sensors | AHT20 + BMP280 | AHT20 + BMP280 |
+| SD card | SPI module with card detect | SPI module (card detect optional) |
+
+Optional SD card for long-term data storage (recommended: FAT32, 4-32 GB).
+Wiring: [docs/hardware_wiring.md](docs/hardware_wiring.md).
 
 ## Building the Project
 
 * Install PlatformIO in Visual Studio Code
-* Select the `esp32-s3-oled` environment
+* Select your board's environment: `esp32-s3-oled` or `esp32-s3-supermini` (first flash of the Super Mini over USB: its 4 MB partition table cannot be applied by OTA)
 * Build:
 
 ```bash

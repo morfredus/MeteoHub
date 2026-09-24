@@ -80,7 +80,7 @@ au câble série pendant les essais.
 
 ## 6. Avant de proposer une modification
 
-- La compilation passe pour `esp32-s3-oled`.
+- La compilation passe pour `esp32-s3-oled` **et** `esp32-s3-supermini`.
 - La version affichée par le firmware correspond au fichier `VERSION`.
 - L'historique écrit par la version modifiée reste relisible par la précédente,
   ou l'en-tête de format a évolué en conséquence.

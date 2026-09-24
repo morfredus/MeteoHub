@@ -16,15 +16,22 @@
 MeteoHub S3 est un projet PlatformIO pour ESP32-S3 centré sur un tableau de bord OLED (SH1106/SSD1306 via U8g2). Il affiche les mesures intérieures, les métriques extérieures reçues par ESP-NOW depuis la sonde déportée, les prévisions météo, les logs et l'état système.
 
 ## Matériel nécessaire
-- Écran OLED (SH1106 ou SSD1306, I2C)
-- Module encodeur HW-040 (encodeur + bouton central)
-- Boutons Back et Confirm
-- Capteurs AHT20 et BMP280
-- Carte SD optionnelle pour l'archivage long terme (Recommandé: Format FAT32, 4-32 Go)
+Deux montages sont supportés, un environnement PlatformIO chacun :
+
+| | `esp32-s3-oled` (historique) | `esp32-s3-supermini` (simplifié) |
+|---|---|---|
+| Carte | ESP32-S3 DevKitC-1 N16R8 (16 Mo / 8 Mo PSRAM) | ESP32-S3 Super Mini (4 Mo / 2 Mo PSRAM), comme la sonde |
+| Écran | OLED 1,3" SH1106 (I2C) | OLED 0,96" JMD0.96D-1, SSD1306 (I2C) |
+| Commandes | encodeur HW-040 + boutons Back et Confirm | un seul bouton (court = suivant, long = menu / valider) |
+| Capteurs | AHT20 + BMP280 | AHT20 + BMP280 |
+| Carte SD | module SPI avec détection de carte | module SPI (détection optionnelle) |
+
+Carte SD optionnelle pour l'archivage long terme (recommandé : FAT32, 4-32 Go).
+Câblage : [docs/hardware_wiring.md](docs/hardware_wiring.md).
 
 ## Compilation
 - Installer PlatformIO dans VS Code
-- Sélectionner l'environnement : `esp32-s3-oled`
+- Sélectionner l'environnement de sa carte : `esp32-s3-oled` ou `esp32-s3-supermini` (premier flash de la Super Mini en USB : sa table de partitions 4 Mo ne passe pas par OTA)
 - Build : `platformio run`
 - Upload : `platformio run --target upload`
 

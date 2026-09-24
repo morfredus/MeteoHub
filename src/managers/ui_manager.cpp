@@ -65,6 +65,149 @@ void UiManager::begin(DisplayInterface& display, WifiManager& wifiMgr, SensorMan
     history = &historyMgr;
     sd = &sdMgr;
 
+#if defined(UI_SINGLE_BUTTON)
+    btn.begin(BUTTON_NAV_PIN);
+
+    page = 0; 
+    last_rendered_page = -1;
+    last_rendered_menu_mode = false;
+    last_rendered_confirm_mode = false;
+    menuMode = false;
+    confirmFormatMode = false;
+    confirmClearLogsMode = false;
+    confirmClearHistMode = false;
+}
+
+void UiManager::update() {
+    btn.update();
+
+    if (processTransientMessage()) {
+        return;
+    }
+
+    handleButtons();
+
+    if (millis() - lastRefresh > DASHBOARD_REFRESH_MS) {
+        drawPage();
+        lastRefresh = millis();
+    }
+    
+    // Avec un seul bouton, les vues secondaires défilent seules : la prévision
+    // alterne ses 3 vues, et la page Logs fait défiler ses lignes.
+    if (page == PAGE_FORECAST && !menuMode) {
+        if (millis() - lastForecastViewSwitch > 5000) {
+            forecastViewIndex = (forecastViewIndex + 1) % 3;
+            lastForecastViewSwitch = millis();
+            drawPage();
+        }
+    }
+    if (page == PAGE_LOGS && !menuMode) {
+        if (millis() - lastLogScroll > 3000) {
+            logScrollLine++;          // pageLogs_oled reboucle en fin de liste
+            lastLogScroll = millis();
+            drawPage();
+        }
+    }
+}
+
+// Navigation à UN bouton :
+//   - page normale : court = page suivante,     long = ouvre le menu ;
+//   - menu         : court = élément suivant,   long = exécute l'élément ;
+//   - confirmation : court = annule (Non),       long = confirme (OK).
+// Les actions destructives exigent donc toujours un appui long volontaire.
+void UiManager::handleButtons() {
+    const bool shortPress = btn.shortPressed();
+    const bool longPress = btn.longPressed();
+    if (!shortPress && !longPress) return;
+
+    // --- Gestion des confirmations ---
+    
+    if (confirmFormatMode) {
+        confirmFormatMode = false;
+        if (longPress) {
+            d->clear();
+            int h = 64; // Supposition hauteur écran
+            d->center(h / 2 - 10, "Formatage SD...");
+            d->center(h / 2 + 10, "Veuillez patienter.");
+            d->show();
+
+            bool success = sd->format();
+            pendingFormatResult = true;
+            pendingFormatResultSuccess = success;
+            // Message court pour laisser place au résultat
+            showTransientMessage(UI_MESSAGE_FORMAT_IN_PROGRESS, 50); 
+        } else {
+            drawPage();
+        }
+        return;
+    }
+
+    if (confirmClearLogsMode) {
+        confirmClearLogsMode = false;
+        if (longPress) {
+            clearLogs();
+            showTransientMessage(UI_MESSAGE_LOGS_CLEARED, UI_MESSAGE_SHORT_MS);
+        } else {
+            drawPage();
+        }
+        return;
+    }
+
+    if (confirmClearHistMode) {
+        confirmClearHistMode = false;
+        if (longPress) {
+            history->clearHistory();
+            showTransientMessage(UI_MESSAGE_HISTORY_CLEARED, UI_MESSAGE_SHORT_MS);
+        } else {
+            drawPage();
+        }
+        return;
+    }
+
+    // --- Menu ---
+
+    if (menuMode) {
+        if (shortPress) {
+            menuIndex = (menuIndex + 1) % MENU_COUNT;
+        } else {
+            switch (menuIndex) {
+                case MENU_EXIT:
+                    menuMode = false;
+                    break;
+                case MENU_REBOOT:
+                    ESP.restart();
+                    break;
+                case MENU_CLEAR_LOGS:
+                    confirmClearLogsMode = true;
+                    break;
+                case MENU_CLEAR_HISTORY:
+                    confirmClearHistMode = true;
+                    break;
+                case MENU_FORMAT_SD:
+                    confirmFormatMode = true;
+                    break;
+            }
+        }
+        drawPage();
+        return;
+    }
+
+    // --- Navigation normale ---
+
+    if (shortPress) {
+        page = (page + 1) % PAGE_COUNT;
+        logScrollLine = 0;
+        lastLogScroll = millis();
+    } else {
+        menuMode = true;
+        menuIndex = 0;
+    }
+    drawPage();
+    lastRefresh = millis();
+}
+
+#else // --- encodeur + boutons Back / Confirm (DevKitC) ---
+
     enc.begin();
     
     pinMode(BUTTON_BACK_PIN, INPUT_PULLUP);
@@ -253,6 +396,8 @@ void UiManager::handleButtons() {
     }
 }
 
+#endif
+
 void UiManager::drawPage() {
     const bool current_confirm_mode = confirmClearLogsMode || confirmClearHistMode || confirmFormatMode;
     const bool screen_context_changed = (page != last_rendered_page) ||
@@ -310,7 +455,11 @@ void UiManager::drawPage() {
         }
         
         d->center(30, msg.c_str());
+#if defined(UI_SINGLE_BUTTON)
+        d->text(0, 50, "Long=OK Court=Non");
+#else
         d->text(0, 50, "Clic=OK, Back=Non");
+#endif
         d->show();
         return;
     }

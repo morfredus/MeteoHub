@@ -4,7 +4,7 @@
 
 Version minimale valide : 1.9.0
 
-- `src/modules/` : modules matériels et affichage OLED (`sensors`, `oled_display`, `neopixel_status`, `encoder`, `pages_oled`, `espnow_receiver`…)
+- `src/modules/` : modules matériels et affichage OLED (`sensors`, `oled_display`, `neopixel_status`, `encoder` (DevKitC), `button` (Super Mini), `pages_oled`, `espnow_receiver`…)
 - `src/managers/` : gestionnaires fonctionnels et orchestration (`web_manager`, `history_manager`, `sd_manager`, `wifi_manager`, `forecast_manager`, `ui_manager`)
 - `src/utils/` : utilitaires réutilisables (logs, infos système, yield coopératif)
 - `include/` : en-têtes de configuration protégés

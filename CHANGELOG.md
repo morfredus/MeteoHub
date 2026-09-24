@@ -1,3 +1,61 @@
+# [1.44.0] - 2026-09-24
+
+### Fixed
+
+- **Bounded LittleFS recent files (FIFO).** `/history/indoor_recent.dat` and
+  `/history/outdoor_recent.dat` were append-only and grew forever (only the last
+  1440 records are ever used; the long archive lives on SD). They would fill the
+  384 KB LittleFS of the Super Mini within weeks, then every write failed. Once a
+  file exceeds 2 x 1440 records, it is rewritten with the last 1440 only, through a
+  temporary file and an atomic rename: a power cut at any moment leaves either the
+  old or the new complete file, and a leftover temporary is purged at boot. Files
+  already oversized by older firmware are compacted at the first boot. LittleFS
+  stays an SD-independent safety net: if the SD card fails, the last 1440 IN and
+  OUT measurements (5 days at 5 min) remain available for graphs and reboot.
+- An absent indoor recent file no longer prevents the outdoor file from loading
+  at boot.
+
+# [1.43.0] - 2026-09-24
+
+### Added
+
+- **Second board: ESP32-S3 Super Mini** (new PlatformIO env `esp32-s3-supermini`),
+  the same board as the MeteoHubSensor probe (4 MB flash, 2 MB quad PSRAM), for a
+  simplified four-module build: 0.96" JMD0.96D-1 OLED (SSD1306 128x64),
+  AHT20 + BMP280, micro-SD module and a single push button. The DevKitC-1 N16R8
+  build (`esp32-s3-oled`) is unchanged. Pinout selected in `include/board_config.h`
+  by the `BOARD_S3_SUPERMINI` define; I2C (8/9) and SD SPI (10-13) keep the same
+  GPIOs on both boards. Field-tested: sensor, display and OTA update.
+- **One-button navigation** (Super Mini): short press = next page / next menu item /
+  cancel; long press (0.8 s, fires while held) = open menu / run item / confirm.
+  The Logs page auto-scrolls (3 s), like the forecast views already did.
+- **4 MB partition table** `partitions_4mb.csv` (two 1.75 MB OTA slots, 384 KB
+  LittleFS, 64 KB coredump). First flash of a Super Mini must be done over USB.
+- **PSRAM enabled on the Super Mini** (2 MB quad, `qio_qspi`): allocations above
+  4 KB (history buffers) go to PSRAM, keeping internal SRAM for AsyncTCP / WiFi.
+  All in-RAM buffers are bounded (1440 records per stream, 800 aggregation
+  buckets): worst case stays well under 300 KB.
+- **`MORF_ECOSYSTEM_ENABLED`** (`config.h`, default 1): one switch to silence both
+  the morfBeacon heartbeat and the morfAnalytics listener, so a test bench is not
+  discovered by morfAnalytics and cannot mix test data into the real history.
+- New packaging target `esp32s3-supermini-ota` in `morfproject.json`.
+
+### Changed
+
+- `ESP32Encoder` is now a dependency of the `esp32-s3-oled` env only; the encoder
+  module is not compiled for single-button boards.
+
+### Fixed
+
+- **SD wiring documentation (DevKitC N16R8).** D1 and DAT2 of the SD module were
+  documented as "not wired, 10 kΩ pull-up to 3V3". Actual wiring: DAT2 -> 10 kΩ ->
+  GPIO 3 and D1 -> 10 kΩ -> GPIO 46, added during the 2026-07-02 SD diagnosis
+  together with the SPI pin move (21/47/38/39 -> 13/12/11/10). Most likely
+  unnecessary: the Adafruit 4682 already pulls up all SDIO lines, and the Super Mini
+  works with or without them (tested). On the Super Mini, D1 / DAT2 stay unconnected.
+- The outdoor recent buffer is now capped to `MAX_RECENT_RECORDS` when loaded from
+  LittleFS at boot (it already was at runtime, and the indoor buffer at load).
+
 # [1.42.0] - 2026-09-22
 
 ### Fixed

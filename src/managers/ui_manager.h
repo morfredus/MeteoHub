@@ -6,7 +6,9 @@
 #include "managers/forecast_manager.h"
 #include "managers/history_manager.h"
 #include "managers/sd_manager.h"
+#include "board_config.h"
 #include "modules/encoder.h"
+#include "modules/button.h"
 #include <string>
  
 enum Page {
@@ -46,7 +48,12 @@ private:
     ForecastManager* forecast = nullptr;
     HistoryManager* history = nullptr;
     SdManager* sd = nullptr;
-    Encoder enc;
+#if defined(UI_SINGLE_BUTTON)
+    Button btn;   // bouton unique : court = suivant, long = menu / valider
+    unsigned long lastLogScroll = 0;
+#else
+    Encoder enc;  // encodeur EC11 + boutons Back / Confirm
+#endif
     
     int page = 0;
     bool menuMode = false;

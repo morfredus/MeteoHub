@@ -22,7 +22,11 @@
 #define OLED_CONTRAST            180
 #define OLED_CTRL_SH1106         1
 #define OLED_CTRL_SSD1306        2
-#define OLED_CONTROLLER          OLED_CTRL_SH1106
+#if defined(BOARD_S3_SUPERMINI)
+#define OLED_CONTROLLER          OLED_CTRL_SSD1306 // JMD0.96D-1 : 0,96" SSD1306 128x64
+#else
+#define OLED_CONTROLLER          OLED_CTRL_SH1106  // 1,3" SH1106 128x64
+#endif
 #define OLED_I2C_ADDRESS         0x3C
 
 // ===============
@@ -42,7 +46,13 @@
 // Paramètres système
 // ===============
 #define DASHBOARD_REFRESH_MS     1000
-#define BUTTON_GUARD_MS          200
+#define BUTTON_GUARD_MS          200   // encodeur + boutons (DevKitC)
+
+// Bouton de navigation unique (Super Mini) : au-delà de BUTTON_LONG_PRESS_MS
+// maintenu, l'appui est « long » (menu / validation) ; en dessous, « court »
+// (page / élément suivant).
+#define BUTTON_DEBOUNCE_MS       30
+#define BUTTON_LONG_PRESS_MS     800
 
 // ===============
 // Cadence de MESURE intérieure (IN) -> historique
@@ -102,12 +112,21 @@
 #define HEAP_CHECK_PERIOD_MS     5000   // période de vérification (ms)
 
 // ===============
-// Détection morfAnalytics (écosystème morfSystem, OPTIONNEL)
+// Écosystème morfSystem (morfAnalytics)
 // ===============
-// MeteoHub reste 100 % autonome. Il écoute passivement le heartbeat morfBeacon du
-// service morfAnalytics (analyses avancées) sur le LAN : si présent, l'interface le
-// signale ; s'il est absent, le comportement nominal ne change en RIEN.
-#define ANALYTICS_BEACON_ENABLED 1
+// MORF_ECOSYSTEM_ENABLED coupe d'un coup les deux sens de l'écosystème :
+//   - l'ÉMISSION du heartbeat morfBeacon (découverte de MeteoHub sur le LAN) ;
+//   - l'ÉCOUTE du beacon morfAnalytics (lien « analyses avancées »).
+// À passer à 0 sur un banc de test : sinon morfAnalytics découvrirait ce hub et
+// mélangerait des mesures de test à l'historique de la vraie station.
+// MeteoHub reste 100 % autonome dans les deux cas.
+#ifndef MORF_ECOSYSTEM_ENABLED
+#define MORF_ECOSYSTEM_ENABLED   1
+#endif
+
+// Détection passive de morfAnalytics : il est reconnu à sa capacité annoncée ;
+// s'il est absent, le comportement nominal ne change en RIEN.
+#define ANALYTICS_BEACON_ENABLED MORF_ECOSYSTEM_ENABLED
 #define ANALYTICS_BEACON_PORT    45454          // port morfBeacon (protocole morfbeacon/1)
 #define ANALYTICS_APP_NAME       "morfAnalytics" // nom d'app annoncé à détecter
 #define ANALYTICS_TIMEOUT_MS     60000          // au-delà (sans heartbeat), considéré hors ligne

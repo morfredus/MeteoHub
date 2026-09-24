@@ -317,6 +317,12 @@ private:
     SdManager* _sd = nullptr;
     unsigned long _lastSave = 0;
 
+    // Nombre d'enregistrements présents dans chaque fichier récent LittleFS
+    // (compté au chargement, incrémenté à chaque ajout). Sert à déclencher la
+    // compaction sans relire le fichier à chaque mesure.
+    size_t _inRecentFileRecords = 0;
+    size_t _outRecentFileRecords = 0;
+
     // Cache RAM des statistiques du jour courant (évite de relire le .stats à
     // chaque acquisition). _currentDayKey vaut AAAAMMJJ (0 = non initialisé).
     DayStats _currentDayStats; // = jour courant IN (legacy)
@@ -326,6 +332,10 @@ private:
     void loadRecent();
     void saveRecent(const HistoryRecord& record);
     void saveOutdoorRecent(const OutdoorHistoryRecord& record);
+    // Compaction bornée des fichiers récents : réécrit uniquement le contenu RAM
+    // (= les MAX_RECENT_RECORDS derniers) via fichier temporaire + rename.
+    void compactIndoorRecent();
+    void compactOutdoorRecent();
 
     // Stockage binaire journalier, arborescence SYMÉTRIQUE IN/OUT :
     // IN  : /history/indoor/AAAA/MM/AAAA-MM-JJ.bin + .stats

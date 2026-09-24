@@ -19,7 +19,19 @@
 // Ancien nom (avant symétrie IN/OUT), supprimé par clearHistory() pour ne pas
 // laisser un orphelin sur la partition SPIFFS après reflash.
 #define HISTORY_FILE_LEGACY "/history/recent.dat"
+#define OUTDOOR_HISTORY_FILE "/history/outdoor_recent.dat"
 #define MAX_RECENT_RECORDS 1440
+// Rotation des fichiers récents LittleFS : ils sont écrits en ajout seul, mais
+// seules les MAX_RECENT_RECORDS dernières mesures servent (l'archive longue vit
+// sur SD). Au-delà de ce seuil, le fichier est réécrit avec les seuls
+// MAX_RECENT_RECORDS derniers. Le facteur 2 amortit le coût (une réécriture
+// toutes les MAX_RECENT_RECORDS mesures) et borne l'occupation de la partition.
+#define RECENT_COMPACT_THRESHOLD (2 * MAX_RECENT_RECORDS)
+// Temporaires de compaction : le fichier définitif n'est remplacé que par un
+// rename atomique (LittleFS) une fois le temporaire complet et fermé. Une coupure
+// pendant l'écriture laisse l'original intact ; loadRecent() purge l'orphelin.
+#define HISTORY_FILE_TMP "/history/indoor_recent.tmp"
+#define OUTDOOR_HISTORY_FILE_TMP "/history/outdoor_recent.tmp"
 #define SD_SAMPLE_TOLERANCE_S 1800 // tolérance de recherche autour de l'horodatage cible (30 min)
 
 // Détection de valeurs aberrantes par cohérence temporelle (mêmes seuils que le
@@ -541,43 +553,55 @@ Stats24h HistoryManager::getRecentStats() const {
 }
 
 void HistoryManager::loadRecent() {
-    // Chargement de l'historique IN (existant)
-    if (!LittleFS.exists(HISTORY_FILE)) return;
+    // Temporaires de compaction orphelins (coupure avant le rename) : le fichier
+    // définitif est resté intact, on jette simplement le temporaire incomplet.
+    if (LittleFS.exists(HISTORY_FILE_TMP)) LittleFS.remove(HISTORY_FILE_TMP);
+    if (LittleFS.exists(OUTDOOR_HISTORY_FILE_TMP)) LittleFS.remove(OUTDOOR_HISTORY_FILE_TMP);
+    _inRecentFileRecords = 0;
+    _outRecentFileRecords = 0;
 
-    File f = LittleFS.open(HISTORY_FILE, "r");
-    if (!f) return;
-
-    size_t loaded_records = 0;
-    while (f.available()) {
-        HistoryRecord r;
-        if (f.read((uint8_t*)&r, sizeof(HistoryRecord)) == sizeof(HistoryRecord)) {
-            _recentHistory.push_back(r);
-            loaded_records++;
+    // Chargement de l'historique IN (existant). Pas de return anticipé : un
+    // fichier IN absent ne doit pas empêcher le chargement du fichier OUT.
+    File f = LittleFS.exists(HISTORY_FILE) ? LittleFS.open(HISTORY_FILE, "r") : File();
+    if (f) {
+        size_t loaded_records = 0;
+        while (f.available()) {
+            HistoryRecord r;
+            if (f.read((uint8_t*)&r, sizeof(HistoryRecord)) == sizeof(HistoryRecord)) {
+                _recentHistory.push_back(r);
+                loaded_records++;
+            }
         }
-    }
-    f.close();
+        f.close();
 
-    // L'historique RAM est un tampon récent (~24 h) ; l'archive longue vit sur la
-    // carte SD. Le fichier LittleFS peut avoir accumulé des semaines de mesures :
-    // on ne garde en RAM que les dernières MAX_RECENT_RECORDS (comme le fait add()
-    // au fil de l'eau), pour ne pas immobiliser des Mo ni ralentir chaque calcul.
-    if (_recentHistory.size() > MAX_RECENT_RECORDS) {
-        _recentHistory.erase(_recentHistory.begin(),
-                             _recentHistory.end() - MAX_RECENT_RECORDS);
+        // L'historique RAM est un tampon récent (~24 h) ; l'archive longue vit sur la
+        // carte SD. Le fichier LittleFS peut avoir accumulé des semaines de mesures :
+        // on ne garde en RAM que les dernières MAX_RECENT_RECORDS (comme le fait add()
+        // au fil de l'eau), pour ne pas immobiliser des Mo ni ralentir chaque calcul.
+        if (_recentHistory.size() > MAX_RECENT_RECORDS) {
+            _recentHistory.erase(_recentHistory.begin(),
+                                 _recentHistory.end() - MAX_RECENT_RECORDS);
+        }
+
+        LOG_INFO("History: Loaded " + std::to_string(loaded_records)
+                 + " IN records (kept " + std::to_string(_recentHistory.size()) + " in RAM)");
+
+        // Fichier ayant grossi sans borne (firmware antérieur à la rotation) :
+        // compaction immédiate pour libérer la partition dès le boot.
+        _inRecentFileRecords = loaded_records;
+        if (_inRecentFileRecords > RECENT_COMPACT_THRESHOLD) compactIndoorRecent();
     }
 
-    LOG_INFO("History: Loaded " + std::to_string(loaded_records)
-             + " IN records (kept " + std::to_string(_recentHistory.size()) + " in RAM)");
-    
     // ÉTAPE 4: Chargement de l'historique OUT (CSV simplifié)
-    const char* outdoorHistoryFile = "/history/outdoor_recent.dat";
-    if (LittleFS.exists(outdoorHistoryFile)) {
-        File f_out = LittleFS.open(outdoorHistoryFile, "r");
+    if (LittleFS.exists(OUTDOOR_HISTORY_FILE)) {
+        File f_out = LittleFS.open(OUTDOOR_HISTORY_FILE, "r");
         if (f_out) {
             size_t loaded_outdoor = 0;
+            size_t file_lines = 0; // lignes présentes (même illisibles) : base de la rotation
             while (f_out.available()) {
                 String line = f_out.readStringUntil('\n');
                 if (line.length() > 0) {
+                    file_lines++;
                     // Format CSV: timestamp,t,h,p
                     int comma1 = line.indexOf(',');
                     int comma2 = line.indexOf(',', comma1 + 1);
@@ -601,7 +625,18 @@ void HistoryManager::loadRecent() {
                 }
             }
             f_out.close();
-            LOG_INFO("History: Loaded " + std::to_string(loaded_outdoor) + " OUT records");
+
+            // Même bornage RAM que pour IN (et qu'addOutdoorLive au fil de l'eau) :
+            // la compaction réécrit le contenu RAM, il doit donc être borné.
+            if (_outdoorHistory.size() > MAX_RECENT_RECORDS) {
+                _outdoorHistory.erase(_outdoorHistory.begin(),
+                                      _outdoorHistory.end() - MAX_RECENT_RECORDS);
+            }
+            LOG_INFO("History: Loaded " + std::to_string(loaded_outdoor)
+                     + " OUT records (kept " + std::to_string(_outdoorHistory.size()) + " in RAM)");
+
+            _outRecentFileRecords = file_lines;
+            if (_outRecentFileRecords > RECENT_COMPACT_THRESHOLD) compactOutdoorRecent();
         }
     }
 
@@ -622,9 +657,49 @@ void HistoryManager::saveRecent(const HistoryRecord& record) {
         f.write((uint8_t*)&record, sizeof(HistoryRecord));
         f.flush(); // Appel simple, pas de test de retour (void sur certains cores)
         f.close();
+        _inRecentFileRecords++;
     } else {
         LOG_ERROR("Failed to append history to LittleFS");
     }
+
+    // Rotation bornée : _recentHistory contient déjà l'enregistrement ajouté.
+    if (_inRecentFileRecords > RECENT_COMPACT_THRESHOLD) compactIndoorRecent();
+}
+
+void HistoryManager::compactIndoorRecent() {
+    // Le contenu RAM est exactement la fin utile du fichier (loadRecent et add()
+    // appliquent la même borne MAX_RECENT_RECORDS) : on le réécrit tel quel,
+    // sans relire le gros fichier.
+    File f = LittleFS.open(HISTORY_FILE_TMP, "w");
+    if (!f) {
+        LOG_ERROR("History: IN compaction failed (cannot create tmp)");
+        return;
+    }
+    size_t written = 0;
+    for (const auto& r : _recentHistory) {
+        if (f.write((const uint8_t*)&r, sizeof(HistoryRecord)) != sizeof(HistoryRecord)) break;
+        written++;
+    }
+    f.flush();
+    f.close();
+
+    // Écriture incomplète (partition pleine...) : l'original reste valide, on
+    // jette le temporaire et on retentera à la prochaine mesure.
+    if (written != _recentHistory.size()) {
+        LittleFS.remove(HISTORY_FILE_TMP);
+        LOG_ERROR("History: IN compaction failed (short write)");
+        return;
+    }
+    // rename LittleFS = remplacement atomique de la cible : à tout instant, le
+    // fichier définitif est soit l'ancien complet, soit le nouveau complet.
+    if (!LittleFS.rename(HISTORY_FILE_TMP, HISTORY_FILE)) {
+        LittleFS.remove(HISTORY_FILE_TMP);
+        LOG_ERROR("History: IN compaction failed (rename)");
+        return;
+    }
+    LOG_INFO("History: IN recent file compacted (" + std::to_string(_inRecentFileRecords)
+             + " -> " + std::to_string(written) + " records)");
+    _inRecentFileRecords = written;
 }
 
 void HistoryManager::buildDayPaths(const struct tm& tinfo, char* binPath, char* statsPath, size_t sz) const {
@@ -1125,7 +1200,11 @@ void HistoryManager::clearHistory() {
     // SPIFFS : les deux fichiers récents + l'ancien nom (avant symétrie IN/OUT),
     // pour ne pas laisser d'orphelin sur la partition qui survit au reflash.
     LittleFS.remove(HISTORY_FILE);                    // /history/indoor_recent.dat
-    LittleFS.remove("/history/outdoor_recent.dat");
+    LittleFS.remove(OUTDOOR_HISTORY_FILE);            // /history/outdoor_recent.dat
+    LittleFS.remove(HISTORY_FILE_TMP);                // temporaires de compaction éventuels
+    LittleFS.remove(OUTDOOR_HISTORY_FILE_TMP);
+    _inRecentFileRecords = 0;
+    _outRecentFileRecords = 0;
     LittleFS.remove(HISTORY_FILE_LEGACY);            // /history/recent.dat (ancien)
 
     if (_sd && _sd->isAvailable()) {
@@ -1692,21 +1771,57 @@ MeteoTrend HistoryManager::getTrendImpl(bool outdoor) const {
 void HistoryManager::saveOutdoorRecent(const OutdoorHistoryRecord& record) {
     // Sauvegarde des données OUT récentes dans LittleFS
     // Similaire à saveRecent mais pour OUT
-    char path[64];
-    snprintf(path, sizeof(path), "/history/outdoor_recent.dat");
-    
-    File f = LittleFS.open(path, "a");
+    File f = LittleFS.open(OUTDOOR_HISTORY_FILE, "a");
     if (!f) {
         LOG_WARNING("History: Failed to open outdoor recent file");
+    } else {
+        // Format : timestamp,t,h,p (pour l'instant format simple)
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%lu,%.2f,%.2f,%.2f\n",
+                 (unsigned long)record.timestamp, record.t, record.h, record.p);
+        f.write((const uint8_t*)buf, strlen(buf));
+        f.close();
+        _outRecentFileRecords++;
+    }
+
+    // Rotation bornée : _outdoorHistory contient déjà l'enregistrement ajouté.
+    if (_outRecentFileRecords > RECENT_COMPACT_THRESHOLD) compactOutdoorRecent();
+}
+
+void HistoryManager::compactOutdoorRecent() {
+    // Même principe que compactIndoorRecent : réécriture du contenu RAM (= les
+    // MAX_RECENT_RECORDS dernières lignes) dans un temporaire, puis rename.
+    File f = LittleFS.open(OUTDOOR_HISTORY_FILE_TMP, "w");
+    if (!f) {
+        LOG_ERROR("History: OUT compaction failed (cannot create tmp)");
         return;
     }
-    
-    // Format : timestamp,t,h,p (pour l'instant format simple)
+    size_t written = 0;
     char buf[128];
-    snprintf(buf, sizeof(buf), "%lu,%.2f,%.2f,%.2f\n", 
-             (unsigned long)record.timestamp, record.t, record.h, record.p);
-    f.write((const uint8_t*)buf, strlen(buf));
+    for (const auto& r : _outdoorHistory) {
+        const int len = snprintf(buf, sizeof(buf), "%lu,%.2f,%.2f,%.2f\n",
+                                 (unsigned long)r.timestamp, r.t, r.h, r.p);
+        if (len <= 0 || f.write((const uint8_t*)buf, (size_t)len) != (size_t)len) break;
+        written++;
+    }
+    f.flush();
     f.close();
+
+    // Écriture incomplète (partition pleine...) : l'original reste valide, on
+    // jette le temporaire et on retentera à la prochaine mesure.
+    if (written != _outdoorHistory.size()) {
+        LittleFS.remove(OUTDOOR_HISTORY_FILE_TMP);
+        LOG_ERROR("History: OUT compaction failed (short write)");
+        return;
+    }
+    if (!LittleFS.rename(OUTDOOR_HISTORY_FILE_TMP, OUTDOOR_HISTORY_FILE)) {
+        LittleFS.remove(OUTDOOR_HISTORY_FILE_TMP);
+        LOG_ERROR("History: OUT compaction failed (rename)");
+        return;
+    }
+    LOG_INFO("History: OUT recent file compacted (" + std::to_string(_outRecentFileRecords)
+             + " -> " + std::to_string(written) + " records)");
+    _outRecentFileRecords = written;
 }
 
 void HistoryManager::saveOutdoorToSdBinary(const OutdoorHistoryRecord& record) {

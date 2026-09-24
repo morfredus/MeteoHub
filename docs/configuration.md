@@ -20,7 +20,7 @@ Version minimale valide : 1.9.0
 
 ### Paramètres OLED
 - `OLED_CONTRAST` : Contraste de l'écran OLED
-- `OLED_CONTROLLER` : Type de contrôleur OLED (SH1106/SSD1306)
+- `OLED_CONTROLLER` : Type de contrôleur OLED, choisi selon la carte (SH1106 sur DevKitC, SSD1306 sur Super Mini)
 - `OLED_I2C_ADDRESS` : Adresse I2C de l'OLED
 
 ### Paramètres réseau
@@ -30,7 +30,9 @@ Version minimale valide : 1.9.0
 
 ### Paramètres système
 - `DASHBOARD_REFRESH_MS` : Fréquence de rafraîchissement du dashboard (ms)
-- `BUTTON_GUARD_MS` : Anti-rebond pour les boutons (ms)
+- `BUTTON_GUARD_MS` : Anti-rebond pour l'encodeur et les boutons (DevKitC, ms)
+- `BUTTON_DEBOUNCE_MS` / `BUTTON_LONG_PRESS_MS` : anti-rebond et seuil d'appui long du bouton unique (Super Mini, ms)
+- `MORF_ECOSYSTEM_ENABLED` : `1` par défaut (heartbeat morfBeacon émis + écoute de morfAnalytics) ; `0` sur un banc de test, pour que morfAnalytics ne découvre pas ce hub et ne mélange pas ses mesures à celles de la vraie station
 
 ### Monitoring des logs par UDP
 - `UDP_LOG_ENABLED` : diffuser les logs par UDP sur le réseau (1 = activé)
@@ -47,7 +49,7 @@ La configuration effective (projet, réseau, graphes, luminosité LED, intervall
 
 ---
 Fichier réservé :
-- `include/board_config.h` (mapping matériel, dont les broches I2C `I2C_SDA_PIN`/`I2C_SCL_PIN` et la NeoLED)
+- `include/board_config.h` (mapping matériel par carte, sélectionné par le define `BOARD_S3_SUPERMINI`, dont les broches I2C `I2C_SDA_PIN`/`I2C_SCL_PIN` et la NeoLED)
 
 Métadonnées :
 Le nom/la version du projet sont injectés depuis `platformio.ini` via build flags.

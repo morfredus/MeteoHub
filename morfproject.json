@@ -4,7 +4,8 @@
   "packaging": {
     "provider": "project",
     "targets": {
-      "esp32s3-ota": { "platform": { "os": "esp32s3" }, "build": { "tool": "platformio", "env": "esp32-s3-oled" }, "package": { "format": "bin", "ota": true } }
+      "esp32s3-ota": { "platform": { "os": "esp32s3" }, "build": { "tool": "platformio", "env": "esp32-s3-oled" }, "package": { "format": "bin", "ota": true } },
+      "esp32s3-supermini-ota": { "platform": { "os": "esp32s3" }, "build": { "tool": "platformio", "env": "esp32-s3-supermini" }, "package": { "format": "bin", "ota": true } }
     }
   }
 }

@@ -1,0 +1,21 @@
+# Table de partitions MeteoHub - ESP32-S3 Super Mini (4 Mo), env esp32-s3-supermini.
+# (La DevKitC N16R8 16 Mo utilise partitions.csv.)
+#
+# Pourquoi ce fichier existe : sans board_build.partitions, le schema depend du
+# defaut du board / du framework. Or l'OTA EXIGE deux slots d'application
+# (ota_0 + ota_1) : sans second slot, Update.begin() echoue (« OTA begin failed »)
+# et il faut reflasher en USB.
+#
+# Budget 4 Mo : deux slots app de 1,75 Mo (le firmware fait ~1,4 Mo : garder
+# un oeil sur la marge a chaque build), LittleFS de 384 Ko pour les tampons
+# d'historique recents (/history/*_recent.dat ; l'archive longue vit sur SD),
+# coredump 64 Ko. ATTENTION : changer une table de partitions ne peut PAS se
+# faire par OTA -- premier flash de la Super Mini en USB obligatoire.
+#
+# Name,     Type, SubType,  Offset,    Size,     Flags
+nvs,        data, nvs,      0x9000,    0x5000,
+otadata,    data, ota,      0xe000,    0x2000,
+app0,       app,  ota_0,    0x10000,   0x1C0000,
+app1,       app,  ota_1,    0x1D0000,  0x1C0000,
+spiffs,     data, spiffs,   0x390000,  0x60000,
+coredump,   data, coredump, 0x3F0000,  0x10000,

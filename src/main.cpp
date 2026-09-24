@@ -18,6 +18,7 @@
 #include "modules/meteo_sync_service.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
 #include "config.h"
+#include "board_config.h"
 #include "../include/meteo_packet.h"
 #if defined(ESP32_S3_OLED)
 #include "modules/oled_display.h"
@@ -100,10 +101,10 @@ void setup() {
     });
 
     // --- Maintenance : Formatage LittleFS si BOOT maintenu ---
-    pinMode(0, INPUT_PULLUP);
-    if (digitalRead(0) == LOW) {
+    pinMode(BUTTON_BOOT_PIN, INPUT_PULLUP);
+    if (digitalRead(BUTTON_BOOT_PIN) == LOW) {
         delay(100); // Debounce
-        if (digitalRead(0) == LOW) {
+        if (digitalRead(BUTTON_BOOT_PIN) == LOW) {
             display->clear();
             // Utilisation de la méthode center de base
             display->center(30, "MAINTENANCE");
@@ -113,7 +114,7 @@ void setup() {
             
             delay(3000);
             
-            if (digitalRead(0) == LOW) {
+            if (digitalRead(BUTTON_BOOT_PIN) == LOW) {
                 display->clear();
                 display->center(50, "Formatage...");
                 display->show();
@@ -218,6 +219,7 @@ void setup() {
     history.begin(&sdCard); // Injection de la dépendance SD
 
     // Détection optionnelle de morfAnalytics (écoute passive du beacon LAN).
+    // No-op si MORF_ECOSYSTEM_ENABLED = 0 (banc de test, voir config.h).
     analytics.begin();
 
     // Etat de synchronisation fiable (v3) : charge l'accuse cumulatif + trous
@@ -281,11 +283,17 @@ void setup() {
     // Annonce de MeteoHub sur le LAN. La capacite « web_ui » est declaree : un
     // observateur peut alors proposer un lien vers l'interface sans rien
     // connaitre de MeteoHub. Le detail est servi par GET /status.
+    // Les champs restent renseignés même si l'émission est coupée : GET /status
+    // s'en sert pour décrire MeteoHub.
     presence.appName    = PROJECT_NAME;
     presence.version    = PROJECT_VERSION;
     presence.statusPort = 80;
     presence.webUi      = true;
+#if MORF_ECOSYSTEM_ENABLED
     presence.begin();
+#else
+    LOG_WARNING("morfSystem neutralise (MORF_ECOSYSTEM_ENABLED=0) : pas de heartbeat morfBeacon");
+#endif
 
     // Lancement des modules principaux
     forecast.begin();
@@ -353,7 +361,9 @@ void loop() {
     // Persiste l'etat de synchro (accuse cumulatif + trous) modifie pendant le
     // traitement des trames, pour survivre a un reboot du hub sans re-archiver.
     meteoSync.persistDirty();
+#if MORF_ECOSYSTEM_ENABLED
     presence.update();
+#endif
     webManager.handle();
 
     // Gestion LED Status (toutes les 500ms)

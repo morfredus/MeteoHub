@@ -1,5 +1,6 @@
 #include "encoder.h"
 #include "board_config.h"
+#if !defined(UI_SINGLE_BUTTON)
 
 int Encoder::getStepCount() const {
     return stepQueue;
@@ -79,3 +80,4 @@ void Encoder::clearQueue() {
 }
 
 //
+#endif

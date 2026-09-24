@@ -1,4 +1,8 @@
 #pragma once
+#include "board_config.h"
+// Encodeur rotatif : DevKitC seulement. Sur carte à bouton unique
+// (UI_SINGLE_BUTTON), ni ce module ni la lib ESP32Encoder ne sont compilés.
+#if !defined(UI_SINGLE_BUTTON)
 #include <Arduino.h>
 #include <ESP32Encoder.h>
  
@@ -28,3 +32,4 @@ private:
     bool clickFlag = false;
     unsigned long lastClickMs = 0;
 };
+#endif

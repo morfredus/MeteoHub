@@ -1,4 +1,11 @@
-# PIN MAPPING - ESP32‑S3 DevKitC‑1 N16R8
+# PIN MAPPING
+
+Deux cartes, sélectionnées dans `include/board_config.h` par le define de l'env PlatformIO :
+
+- [ESP32-S3 DevKitC-1 N16R8](#esp32-s3-devkitc-1-n16r8-env-esp32-s3-oled) (`esp32-s3-oled`)
+- [ESP32-S3 Super Mini](#esp32-s3-super-mini-env-esp32-s3-supermini) (`esp32-s3-supermini`)
+
+# ESP32-S3 DevKitC-1 N16R8 (env esp32-s3-oled)
 Version basée sur le câblage réel (`include/board_config.h`), révisé après le
 diagnostic SD du 02/07/2026.
 
@@ -92,7 +99,14 @@ Aucun conflit avec les broches de strapping.
 | CS      | **10** | DAT3 | Aucun rôle boot sur S3 |
 | DET     | **40** | Détection carte | LOW = présente (ligne lente, routage long OK) |
 
-> D1 et DAT2 : **ne pas câbler** (pull-up 10kΩ → 3V3).
+| DAT2    | **3**  | via R 10 kΩ | Strap JTAG, jamais piloté par le firmware |
+| D1      | **46** | via R 10 kΩ | Strap, jamais piloté par le firmware |
+
+> D1 et DAT2 du module SD : reliés à GPIO 3 / GPIO 46 via 10 kΩ lors du diagnostic du
+> 02/07/2026, en même temps que le changement de broches SPI (21/47/38/39 → 13/12/11/10).
+> Très probablement superflu : le module (Adafruit 4682) porte déjà ses pull-up et la
+> Super Mini fonctionne sans (testé le 24/09/2026). Pour trancher : retirer les deux
+> résistances et vérifier le montage SD. Ne jamais réutiliser GPIO 3 / 46 (straps).
 
 SPI totalement isolé des broches sensibles → aucun blocage au boot. Le lecteur doit être
 monté à distance du régulateur d'alimentation (voir contraintes de montage ci-dessus).
@@ -107,14 +121,71 @@ monté à distance du régulateur d'alimentation (voir contraintes de montage ci
 | Boutons      | 0, 15, 1      | ✔️ |
 | Encodeur     | 42, 2, 41     | ✔️ |
 | NeoPixel     | 48            | ✔️ |
-| SD SPI (éloigné alim.) | 13, 12, 11, 10, 40 | ✔️ |
+| SD SPI (éloigné alim.) | 13, 12, 11, 10, 40 ; 3, 46 via 10 kΩ (DAT2, D1) | ✔️ |
 
 ---
 
 ## 🟦 Notes importantes
 
-- Aucune broche de strapping n'est utilisée en sortie.
+- Aucune broche de strapping n'est utilisée en sortie. GPIO 3 et 46 (straps) sont reliés à DAT2 / D1 du module SD via 10 kΩ, mais restent en haute impédance : le firmware ne les configure jamais.
 - CS SD sur GPIO39 est **safe sur ESP32‑S3** (contrairement à l'ESP32 classique).
 - Le capteur est éloigné thermiquement (zone froide) pour éviter les erreurs de mesure dues à la chaleur résiduelle des modules voisins.
 - Le lecteur SD est éloigné physiquement de l'alimentation pour limiter le bruit électrique sur le bus SPI.
 - Le mapping reflète la carte **réelle**, déjà soudée (`include/board_config.h`).
+
+---
+
+# ESP32-S3 Super Mini (env esp32-s3-supermini)
+
+Depuis la v1.43.0. Carte identique à la sonde MeteoHubSensor : 4 Mo flash, 2 Mo PSRAM
+quad, USB natif, LED RGB WS2812 et bouton BOOT soudés. OLED 0,96" JMD0.96D-1 (SSD1306),
+un seul bouton de navigation. Câblage et alimentation des modules :
+[hardware_wiring.md](hardware_wiring.md#esp32-s3-super-mini-env-esp32-s3-supermini).
+
+## I²C - AHT20 + BMP280 + OLED SSD1306 (JMD0.96D-1)
+
+| Fonction | GPIO | Notes |
+|---------|------|-------|
+| SDA     | **8** | Mêmes GPIO que la sonde |
+| SCL     | **9** | Pas de strapping |
+
+Adresses : AHT20 = 0x38, BMP280 = 0x76/0x77, OLED = 0x3C.
+
+---
+
+## Module SD - SPI (FSPI)
+
+| Fonction | GPIO | Rôle SD | Notes |
+|---------|------|----------|-------|
+| CS      | **10** | DAT3 | |
+| MOSI    | **11** | CMD  | |
+| MISO    | **12** | DAT0 | |
+| CLK     | **13** | SCK  | |
+| DET     | **6** (option) | Détection carte | Désactivée par défaut (`SD_DET_PIN = -1`) |
+
+Brochage SPI identique à l'ancienne carte DevKitC : le module se recâble tel quel.
+
+---
+
+## Bouton et signalisation
+
+| Fonction | GPIO | Notes |
+|---------|------|-------|
+| Bouton navigation | **5**  | Poussoir vers GND, pull-up interne. Court = suivant, long = menu / valider |
+| BOOT (soudé)      | **0**  | Strapping. Maintenu au boot = formatage LittleFS |
+| LED RGB WS2812    | **48** | Soudée sur la carte |
+
+---
+
+## Résumé
+
+| Sous-système | GPIO utilisés | Boot safe |
+|--------------|---------------|-----------|
+| I²C          | 8, 9          | ✔️ |
+| SD SPI       | 10, 11, 12, 13 (+6 option) | ✔️ |
+| Bouton       | 5 (+0 BOOT)   | ✔️ |
+| LED RGB      | 48            | ✔️ |
+
+Réservées / à laisser libres : **19, 20** (USB), **3, 45, 46** (straps).
+D1 et DAT2 du module SD : non connectées (pull-up déjà sur le module, testé).
+Libres pour évolutions : 1, 2, 4, 7, 43 (TX), 44 (RX).
