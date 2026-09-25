@@ -11,6 +11,7 @@
 #include <time.h>
 #include "pages_oled.h"
 #include "config.h"
+#include "battery_alert.h"
 #include "espnow_receiver.h"
 #include "../utils/logs.h"
 #include "../utils/system.h"
@@ -257,7 +258,10 @@ void pageWeather_oled(DisplayInterface& d, SensorManager& sensors, ForecastManag
 		}
 		if (live.has_battery) {
 			outBatPct = live.battery_percent;
-			outBatLow = (live.battery_percent <= OUTDOOR_BATTERY_LOW_PCT);
+			// Même règle que la page web : % sous le seuil OU palier d'alerte en
+			// tension (celui qui déclenche la notification morfNotify).
+			outBatLow = (live.battery_percent <= OUTDOOR_BATTERY_LOW_PCT)
+			            || batteryAlert.level() >= mhbat::LEVEL_LOW;
 		}
 	}
 	const bool hasOut = (outState != MeteoSourceState::UNAVAILABLE);

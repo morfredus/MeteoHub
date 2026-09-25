@@ -73,13 +73,23 @@ void AnalyticsBeacon::update() {
                     // On cherche la CAPACITÉ, pas le nom : le service peut
                     // s'appeler comme son propriétaire le souhaite.
                     bool hasCapability = false;
+                    bool hasNotify = false;
                     JsonArrayConst caps = doc["capabilities"].as<JsonArrayConst>();
                     for (JsonVariantConst c : caps) {
-                        if (strcmp(c.as<const char*>() ? c.as<const char*>() : "",
-                                   ANALYTICS_CAPABILITY) == 0) {
-                            hasCapability = true;
-                            break;
-                        }
+                        const char* cap = c.as<const char*>() ? c.as<const char*>() : "";
+                        if (strcmp(cap, ANALYTICS_CAPABILITY) == 0) hasCapability = true;
+                        if (strcmp(cap, NOTIFY_CAPABILITY) == 0)    hasNotify = true;
+                    }
+                    const int port = doc["status_port"] | 0;
+                    if (hasNotify && port > 0) {
+                        // IP source du datagramme : joignable à coup sûr depuis ici.
+                        _notifyIp         = s_udp.remoteIP().toString().c_str();
+                        _notifyPort       = port;
+                        _notifyLastSeenMs = millis();
+                        if (!_notifyEverSeen)
+                            LOG_INFO("AnalyticsBeacon: morfNotify detecte sur " + _notifyIp
+                                     + ":" + std::to_string(port));
+                        _notifyEverSeen   = true;
                     }
                     if (hasCapability) {
                         _name       = doc["app"] | "";   // libellé affiché
@@ -110,6 +120,16 @@ bool AnalyticsBeacon::isAvailable() const {
     return !_manualUrl.empty() || isDetected();
 }
 
+bool AnalyticsBeacon::isNotifyDetected() const {
+    if (!_notifyEverSeen) return false;
+    return (millis() - _notifyLastSeenMs) < static_cast<unsigned long>(ANALYTICS_TIMEOUT_MS);
+}
+
+std::string AnalyticsBeacon::notifyUrl() const {
+    if (!isNotifyDetected() || _notifyIp.empty() || _notifyPort <= 0) return "";
+    return "http://" + _notifyIp + ":" + std::to_string(_notifyPort) + "/notify";
+}
+
 std::string AnalyticsBeacon::effectiveUrl() const {
     // L'adresse manuelle prime : elle n'est renseignée que si l'utilisateur a
     // constaté que la découverte automatique ne fonctionnait pas chez lui.
@@ -127,6 +147,8 @@ void AnalyticsBeacon::setManualUrl(const std::string&) {}
 bool AnalyticsBeacon::isDetected() const { return false; }
 bool AnalyticsBeacon::isAvailable() const { return false; }
 std::string AnalyticsBeacon::effectiveUrl() const { return ""; }
+bool AnalyticsBeacon::isNotifyDetected() const { return false; }
+std::string AnalyticsBeacon::notifyUrl() const { return ""; }
 long AnalyticsBeacon::lastSeenAgoSec() const { return -1; }
 
 #endif

@@ -46,6 +46,7 @@ static const char METEOHUB_API_JSON[] PROGMEM =
     "]}";
 #include "modules/neopixel_status.h"
 #include "modules/analytics_beacon.h"
+#include "modules/battery_alert.h"
 #include "project_config.h"
 #include "config.h"
 #include "web_pages.h"
@@ -369,8 +370,17 @@ void WebManager::_setupApi() {
         if (outData.has_battery) {
             out["battery_pct"] = outData.battery_percent;
             out["battery_v"] = outData.battery_voltage;
-            out["battery_low"] = (outData.battery_percent <= OUTDOOR_BATTERY_LOW_PCT);
+            // Faible sous le seuil en % OU dès le palier d'alerte en tension : la
+            // page dit « pile faible » au même moment que la notification.
+            out["battery_low"] = (outData.battery_percent <= OUTDOOR_BATTERY_LOW_PCT)
+                                 || batteryAlert.level() >= mhbat::LEVEL_LOW;
         }
+        // Alerte « accu à changer » : 0 = OK, 1 = faible, 2 = critique ; `pending`
+        // = notification due mais pas encore acceptée par morfNotify ; `notify_available` =
+        // morfNotify découvert sur le réseau (sinon rien ne part).
+        out["battery_alert"] = (int)batteryAlert.level();
+        out["battery_alert_pending"] = batteryAlert.isPending();
+        out["notify_available"] = _analytics && _analytics->isNotifyDetected();
 
         // Résout chaque grandeur en gardant la provenance (OUT frais / OUT
         // périmé / secours IN / indisponible). Point unique de décision, partagé

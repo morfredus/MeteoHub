@@ -1,3 +1,39 @@
+# [1.45.0] - 2026-09-25
+
+### Added
+
+- **"Probe battery to replace" notification through morfNotify, before the
+  cut-off.** MeteoHub now warns on the phone when the outdoor probe's Li-ion cell
+  runs low: a `warning` at 3.40 V ("replace within the next days"), an `error` at
+  3.20 V ("replace now"), and a `success` once a fresh cell is seen (>= 3.80 V),
+  confirming the watch is re-armed. Thresholds are in VOLTS on purpose: the probe's
+  percentage is linear over 2.6-4.2 V, so its 20 % is 2.9 V, already nearly empty
+  for a Li-ion (protection cut-off at 2.4 V).
+- **Debounce and hysteresis.** A level is only crossed after 3 consecutive NEW live
+  measurements (~15 min), so a single sag during a radio burst never alerts, and a
+  retransmitted or duplicated frame is never counted. Back to OK only above 3.80 V.
+  The already-notified level is persisted in NVS (`bat_notified`): a hub reboot
+  does not resend the alert.
+- **morfNotify found by capability, never by name.** The existing morfBeacon
+  listener now also records a heartbeat announcing `notification` and keeps the
+  datagram's source IP (the `host` field is a name the ESP32 may not resolve). The
+  POST carries no `targets`: morfNotify (>= 0.6.0) applies its default routing.
+- **Sent only right after a live frame**, while the probe sleeps: the short
+  blocking POST (2 s connect, 3 s total) can never make the hub miss the ESP-NOW
+  reply window. A failed send is retried at the next frame; the alert is delayed,
+  never lost. Without morfNotify (or with `MORF_ECOSYSTEM_ENABLED=0`) nothing is
+  sent and MeteoHub stays fully standalone.
+- Decision logic is pure and host-tested (`include/battery_alert_logic.h`,
+  `test/test_native_battery`, 9 cases).
+
+### Changed
+
+- The OLED and the web page now show "low battery" as soon as the voltage alert
+  level is reached (in addition to the historical 20 % rule), so the screen and
+  the phone agree. `GET /api/live` outdoor block gains `battery_alert` (0/1/2),
+  `battery_alert_pending` and `notify_available`.
+- README badges realigned on the actual version (they had stayed at 1.42.0).
+
 # [1.44.0] - 2026-09-24
 
 ### Fixed

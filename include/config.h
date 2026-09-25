@@ -86,6 +86,15 @@
 // En dessous, l'OLED et l'interface web signalent une pile faible.
 #define OUTDOOR_BATTERY_LOW_PCT    20
 
+// Notification « accu à changer » (via morfNotify), en TENSION : le % de la sonde
+// est linéaire 2,6-4,2 V, alors qu'un Li-ion s'effondre sous ~3,4 V (20 % linéaire
+// = 2,9 V, déjà presque vide ; coupure de protection à 2,4 V). Voir
+// battery_alert_logic.h pour l'anti-rebond et l'hystérésis.
+#define BATTERY_ALERT_WARN_V       3.40f  // « à remplacer dans les prochains jours »
+#define BATTERY_ALERT_CRIT_V       3.20f  // « à remplacer maintenant »
+#define BATTERY_ALERT_REARM_V      3.80f  // accu changé : surveillance réarmée
+#define BATTERY_ALERT_CONFIRM      3      // trames live consécutives (~15 min à 5 min)
+
 // ===============
 // Monitoring réseau (logs par UDP)
 // ===============

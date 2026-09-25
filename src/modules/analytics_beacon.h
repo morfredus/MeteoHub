@@ -26,12 +26,21 @@
 //
 // MeteoHub reste la source de vérité : ce module ne fait que CONSTATER une
 // présence, il n'interroge jamais le service.
+//
+// --- morfNotify (capacité `notification`) -----------------------------------------
+// Le même écouteur repère aussi un service de notification : un seul socket sur
+// le port du parc, plutôt que deux modules qui se disputeraient le port 45454.
+// L'adresse retenue est l'IP SOURCE du datagramme, pas le champ `host` (un nom
+// d'hôte que l'ESP32 ne sait pas forcément résoudre).
 // -----------------------------------------------------------------------------
 
 // Capacité recherchée. Identifiant stable du protocole morfBeacon, à ne pas
 // confondre avec le nom d'une application.
 #ifndef ANALYTICS_CAPABILITY
 #define ANALYTICS_CAPABILITY "advanced_analysis"
+#endif
+#ifndef NOTIFY_CAPABILITY
+#define NOTIFY_CAPABILITY "notification"
 #endif
 
 class AnalyticsBeacon {
@@ -58,7 +67,16 @@ public:
     std::string effectiveUrl() const;  // adresse à ouvrir, "" si aucune
     bool isManual() const { return !_manualUrl.empty(); }
 
+    // --- Service de notification (morfNotify) --------------------------------
+    bool isNotifyDetected() const;     // heartbeat `notification` récent ?
+    std::string notifyUrl() const;     // "http://IP:port/notify", "" si aucun
+
 private:
+    bool _notifyEverSeen = false;
+    unsigned long _notifyLastSeenMs = 0;
+    std::string _notifyIp;
+    int _notifyPort = 0;
+
     bool _started = false;
     bool _everSeen = false;
     unsigned long _lastSeenMs = 0;

@@ -14,6 +14,7 @@
 #include "modules/neopixel_status.h"
 #include "modules/sensors.h"
 #include "modules/analytics_beacon.h"
+#include "modules/battery_alert.h"
 #include "modules/espnow_receiver.h"
 #include "modules/meteo_sync_service.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
@@ -222,6 +223,9 @@ void setup() {
     // No-op si MORF_ECOSYSTEM_ENABLED = 0 (banc de test, voir config.h).
     analytics.begin();
 
+    // Alerte « accu à changer » : reprend le palier déjà notifié (NVS).
+    batteryAlert.begin();
+
     // Etat de synchronisation fiable (v3) : charge l'accuse cumulatif + trous
     // persistes (reprise apres reboot hub, sans re-archiver ni redemander).
     meteoSync.begin();
@@ -261,6 +265,14 @@ void setup() {
             // Doublon mais trame live : on rafraichit tout de meme la valeur
             // « live » (affichage/fraicheur) sans ré-archiver.
             history.refreshOutdoorLive(outdoor);
+        }
+
+        // 4) Surveillance de l'accu : mesures LIVE et NOUVELLES seulement. Une
+        //    retransmission rejoue une tension passée ; un doublon live est la même
+        //    mesure réémise, qui ne doit pas compter deux fois dans l'anti-rebond.
+        //    L'envoi éventuel se fait plus tard, dans loop().
+        if (d.isLive && d.archive && outdoor.has_battery) {
+            batteryAlert.onLiveReading(outdoor.battery_voltage);
         }
 
         char buf[208];
@@ -358,6 +370,9 @@ void loop() {
     ui.update();
     analytics.update();
     espNowReceiver.update();
+    // Notification « accu à changer » : vide si morfNotify n'est pas sur le réseau
+    // (ou écosystème neutralisé), auquel cas rien ne part.
+    batteryAlert.update(analytics.notifyUrl());
     // Persiste l'etat de synchro (accuse cumulatif + trous) modifie pendant le
     // traitement des trames, pour survivre a un reboot du hub sans re-archiver.
     meteoSync.persistDirty();

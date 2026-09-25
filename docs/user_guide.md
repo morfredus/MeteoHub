@@ -162,6 +162,14 @@ Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Stati
 - API : `GET /api/analytics` (`{available, mode, effective_url, capability, manual_url, detected:{found,name,version,host,status_port,last_seen_s}}`) et `POST /api/analytics/config` (`manual_url`). Réglages dans `include/config.h` (`ANALYTICS_BEACON_*`).
 - Principe : **MeteoHub écrit, morfAnalytics lit - jamais l'inverse**. MeteoHub demeure la source de vérité ; morfAnalytics travaille sur une copie de l'historique et ne renvoie que des résultats synthétiques.
 
+#### Alerte « accu de la sonde à changer » (via morfNotify)
+- Si un service de notification (morfNotify ≥ 0.6.0) est présent sur le réseau, MeteoHub prévient **avant** que l'accu de la sonde extérieure ne coupe : un avertissement à **3,40 V** (« à remplacer dans les prochains jours »), une alerte à **3,20 V** (« à remplacer maintenant »), puis une confirmation quand un accu neuf est vu (**≥ 3,80 V**).
+- Seuils en **tension**, pas en pourcentage : le % de la sonde est linéaire entre 2,6 et 4,2 V, alors qu'un accu Li-ion s'effondre sous ~3,4 V. À 20 %, soit 2,9 V, il serait déjà presque vide (coupure de protection à 2,4 V).
+- **Anti-rebond** : un palier n'est franchi qu'après 3 mesures consécutives (~15 min) ; une retransmission ou un doublon ne compte pas. **Une seule notification par palier**, même après un redémarrage du hub (palier mémorisé en NVS).
+- morfNotify est trouvé **par sa capacité** `notification` (annonce morfBeacon), jamais par son nom. MeteoHub n'indique aucune destination : morfNotify applique ses destinations par défaut (`/etc/morfsystem/alert-targets` sur le Pi).
+- L'envoi se fait juste après une trame de la sonde, pendant qu'elle dort : il ne gêne jamais la radio. Un échec est retenté à la trame suivante. Sans morfNotify, rien ne part, mais l'OLED et la page web signalent toujours la pile faible (dès le même seuil).
+- État dans `GET /api/live` (bloc extérieur) : `battery_alert` (0 = OK, 1 = faible, 2 = critique), `battery_alert_pending` (notification due, pas encore acceptée), `notify_available` (morfNotify détecté). Seuils dans `include/config.h` (`BATTERY_ALERT_*`).
+
 #### Recopie de l'historique par le serveur d'analyse
 - Deux API **en lecture seule** permettent au serveur de recopier l'historique sans jamais rien modifier sur MeteoHub :
   - `GET /api/history/days` - liste des journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ; accepte `ctx=in|out` (intérieur par défaut) ;
