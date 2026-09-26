@@ -50,12 +50,33 @@ public:
     void begin() {
         _prefs.begin("mhsync", /*readOnly=*/false);
         for (uint8_t i = 0; i < HUB_MAX_NODES; i++) loadNode(i);
+        _haveAssoc = _prefs.getBytesLength("assoc") == 6
+                  && _prefs.getBytes("assoc", _assoc, 6) == 6;
     }
 
-    // Traite une trame recue. `nowReal` = heure reelle du hub (time(NULL)).
-    Decision onPacket(uint8_t nodeId, uint32_t seq, uint32_t sensorTs,
+    // --- Sonde associee ------------------------------------------------------
+    // La sonde qui a CONFIRME un appairage avec ce hub. Une fois connue, le hub
+    // n'archive plus qu'elle : une sonde d'etabli (tests, flash) a portee ne
+    // peut plus melanger ses mesures a celles de dehors. Tant qu'aucune sonde
+    // n'a confirme d'appairage (hub neuf, sonde ancienne), toutes sont acceptees.
+    bool hasAssociated() const { return _haveAssoc; }
+    const uint8_t* associatedMac() const { return _assoc; }
+    bool isAccepted(const uint8_t* mac) const {
+        return !_haveAssoc || memcmp(mac, _assoc, 6) == 0;
+    }
+    void setAssociated(const uint8_t* mac) {
+        if (_haveAssoc && memcmp(mac, _assoc, 6) == 0) return;
+        memcpy(_assoc, mac, 6);
+        _haveAssoc = true;
+        _prefs.putBytes("assoc", _assoc, 6);
+    }
+
+    // Traite une trame recue de la sonde `mac`. `nowReal` = heure reelle du hub.
+    // Le suivi est tenu PAR MAC : deux sondes partageant un node_id ne se
+    // melangent plus. `nodeId` n'est repris que dans la reponse.
+    Decision onPacket(const uint8_t* mac, uint8_t nodeId, uint32_t seq, uint32_t sensorTs,
                       uint8_t frameType, uint32_t oldestSeq, int64_t nowReal) {
-        Node& n = node(nodeId);
+        Node& n = node(mac);
         Decision d;
         d.isLive = (frameType == FRAME_LIVE);
 
@@ -124,7 +145,7 @@ public:
         }
     }
 
-    uint32_t ackContiguousOf(uint8_t nodeId) { return node(nodeId).tracker.ackContiguous(); }
+    uint32_t ackContiguousOf(const uint8_t* mac) { return node(mac).tracker.ackContiguous(); }
 
     // Appairage : la sonde vient de choisir CE hub. `baseSeq` = dernier seq accuse
     // par son ancien hub. Tout ce qui est <= baseSeq a ete livre ailleurs : on ne
@@ -132,8 +153,8 @@ public:
     // renverra jamais, puisqu'elle les sait deja livres). On ne reclame donc que
     // ce qui est encore en attente cote sonde. N'a d'effet que vers l'avant :
     // re-appairer le MEME hub ne lui fait rien oublier.
-    void adoptBaseline(uint8_t nodeId, uint32_t baseSeq) {
-        Node& n = node(nodeId);
+    void adoptBaseline(const uint8_t* mac, uint32_t baseSeq) {
+        Node& n = node(mac);
         n.tracker.noteSensorOldest(baseSeq + 1);
         n.dirty = true;
     }
@@ -142,58 +163,76 @@ private:
     struct Node {
         bool used = false;
         bool dirty = false;
-        uint8_t id = 0;
+        uint8_t mac[6] = {0, 0, 0, 0, 0, 0};
         SyncTracker tracker;
         TimeAnchor anchor;
     };
 
-    Node& node(uint8_t nodeId) {
-        // Cherche un slot existant pour ce node_id.
+    Node& node(const uint8_t* mac) {
+        // Cherche un slot existant pour cette sonde.
         for (uint8_t i = 0; i < HUB_MAX_NODES; i++)
-            if (_nodes[i].used && _nodes[i].id == nodeId) return _nodes[i];
+            if (_nodes[i].used && memcmp(_nodes[i].mac, mac, 6) == 0) return _nodes[i];
         // Sinon, prend un slot libre.
         for (uint8_t i = 0; i < HUB_MAX_NODES; i++) {
-            if (!_nodes[i].used) { _nodes[i].used = true; _nodes[i].id = nodeId; return _nodes[i]; }
+            if (!_nodes[i].used) {
+                _nodes[i] = Node();
+                _nodes[i].used = true;
+                memcpy(_nodes[i].mac, mac, 6);
+                return _nodes[i];
+            }
         }
-        // Parc plein (jamais en pratique) : reutilise le slot 0.
+        // Parc plein (jamais en pratique) : reutilise le slot 0, remis a neuf.
+        _nodes[0] = Node();
+        _nodes[0].used = true;
+        memcpy(_nodes[0].mac, mac, 6);
         return _nodes[0];
     }
 
-    // --- Persistance NVS : cle "n<slot>" -> blob {ack, count, seqs[]} --------
+    // --- Persistance NVS : cle "n<slot>" -> blob {magic, mac, ack, ahead[]} ------
+    // Format 2 (1.47.0) : la sonde est identifiee par sa MAC. Un blob de l'ancien
+    // format (identifie par node_id, sans magic) est ignore : il melangeait
+    // potentiellement plusieurs sondes, le suivi repart proprement.
+    static constexpr uint32_t kNodeMagic = 0x3243414Du; // 'MAC2'
+    static constexpr uint32_t kHeadWords = 4;           // magic, mac(2 mots), ack
+
     void keyFor(uint8_t slot, char* out, size_t sz) { snprintf(out, sz, "n%u", (unsigned)slot); }
 
     void loadNode(uint8_t slot) {
         char key[8]; keyFor(slot, key, sizeof(key));
         const size_t len = _prefs.getBytesLength(key);
-        if (len < sizeof(uint32_t) * 2) return; // rien de valide persiste
-        static uint8_t buf[sizeof(uint32_t) * (2 + HUB_PERSIST_AHEAD_MAX)];
-        const size_t got = _prefs.getBytes(key, buf, sizeof(buf));
-        if (got < sizeof(uint32_t) * 2) return;
-        const uint32_t* w = reinterpret_cast<const uint32_t*>(buf);
-        const uint32_t nodeId = w[0];
+        if (len < sizeof(uint32_t) * kHeadWords) return; // rien de valide persiste
+        static uint32_t w[kHeadWords + HUB_PERSIST_AHEAD_MAX];
+        const size_t got = _prefs.getBytes(key, w, sizeof(w));
+        if (got < sizeof(uint32_t) * kHeadWords || w[0] != kNodeMagic) return;
+        uint8_t mac[6];
+        memcpy(mac, &w[1], 6);
         SyncTracker::State st;
-        st.ackContiguous = w[1];
-        const uint32_t count = (got / sizeof(uint32_t)) >= 2 ? (got / sizeof(uint32_t)) - 2 : 0;
-        for (uint32_t i = 0; i < count; i++) st.ahead.push_back(w[2 + i]);
+        st.ackContiguous = w[3];
+        const uint32_t count = (uint32_t)(got / sizeof(uint32_t)) - kHeadWords;
+        for (uint32_t i = 0; i < count; i++) st.ahead.push_back(w[kHeadWords + i]);
         _nodes[slot].used = true;
-        _nodes[slot].id = (uint8_t)nodeId;
+        memcpy(_nodes[slot].mac, mac, 6);
         _nodes[slot].tracker.importState(st);
     }
 
     void saveNode(uint8_t slot) {
         char key[8]; keyFor(slot, key, sizeof(key));
         const SyncTracker::State st = _nodes[slot].tracker.exportState();
-        static uint32_t w[2 + HUB_PERSIST_AHEAD_MAX];
-        w[0] = _nodes[slot].id;
-        w[1] = st.ackContiguous;
+        static uint32_t w[kHeadWords + HUB_PERSIST_AHEAD_MAX];
+        w[0] = kNodeMagic;
+        w[1] = 0; w[2] = 0;
+        memcpy(&w[1], _nodes[slot].mac, 6);
+        w[3] = st.ackContiguous;
         uint32_t count = st.ahead.size();
         if (count > HUB_PERSIST_AHEAD_MAX) count = HUB_PERSIST_AHEAD_MAX;
-        for (uint32_t i = 0; i < count; i++) w[2 + i] = st.ahead[i];
-        _prefs.putBytes(key, w, (2 + count) * sizeof(uint32_t));
+        for (uint32_t i = 0; i < count; i++) w[kHeadWords + i] = st.ahead[i];
+        _prefs.putBytes(key, w, (kHeadWords + count) * sizeof(uint32_t));
     }
 
     Preferences _prefs;
     Node _nodes[HUB_MAX_NODES];
+    uint8_t _assoc[6] = {0, 0, 0, 0, 0, 0};
+    bool _haveAssoc = false;
 };
 
 } // namespace mhsync

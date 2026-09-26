@@ -59,6 +59,12 @@ struct OutdoorData {
     uint8_t frame_type;
     uint32_t oldest_seq;
     uint8_t node_id;
+    // MAC de la sonde qui a emis la trame : identite REELLE d'une sonde (deux
+    // sondes peuvent partager le meme node_id), cle du suivi de synchro.
+    uint8_t src_mac[6] = {0, 0, 0, 0, 0, 0};
+    // Secondes ecoulees depuis le reveil de la sonde a l'envoi : sur une
+    // retransmission, dit combien de temps la sonde est restee eveillee.
+    uint32_t uptime_sec = 0;
 
     OutdoorData() : temperature(0), humidity(0), pressure(0), valid(false),
                     wind_speed(0), wind_gust(0), wind_direction_deg(0),

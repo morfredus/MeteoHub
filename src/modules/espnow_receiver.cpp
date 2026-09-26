@@ -15,6 +15,10 @@ EspNowReceiver* EspNowReceiver::_self = nullptr;
 // si loop() est occupé un instant (OTA, lecture SD).
 static QueueHandle_t s_packetQueue = nullptr;
 
+// Trame de mesure + MAC de son emetteur : la MAC voyage AVEC la trame dans la
+// file, pour que loop() sache sans ambiguite quelle sonde l'a envoyee.
+struct RxPacket { uint8_t mac[6]; MeteoPacket packet; };
+
 // Trames d'appairage (demande / confirmation d'une sonde), mises de cote par le
 // callback radio et traitees dans loop() : on n'emet ni n'ajoute de peer depuis
 // la tache Wi-Fi.
@@ -30,7 +34,7 @@ void meteoEspNowRecv(const uint8_t* mac, const uint8_t* data, int len) {
         memcpy(EspNowReceiver::_self->_lastSrcMac, mac, 6);
         EspNowReceiver::_self->_haveSrcMac = true;
     }
-    EspNowReceiver::enqueueRaw(data, len);
+    EspNowReceiver::enqueueRaw(mac, data, len);
 }
 
 EspNowReceiver::EspNowReceiver() {
@@ -95,7 +99,7 @@ bool EspNowReceiver::begin() {
         s_pairQueue = xQueueCreate(4, sizeof(PairRx));
     }
     if (s_packetQueue == nullptr) {
-        s_packetQueue = xQueueCreate(4, sizeof(MeteoPacket));
+        s_packetQueue = xQueueCreate(4, sizeof(RxPacket));
         if (s_packetQueue == nullptr) {
             LOG_ERROR("ESP-NOW: Packet queue allocation failed");
             return false;
@@ -127,12 +131,12 @@ void EspNowReceiver::setOutdoorDataCallback(OutdoorDataCallback callback) {
     _outdoorCallback = callback;
 }
 
-bool EspNowReceiver::sendControl(SyncControl& ctrl) {
+bool EspNowReceiver::sendControl(SyncControl& ctrl, const uint8_t* mac) {
     // Voie inverse : accuse cumulatif + trou a combler, renvoye a la sonde qui
     // vient d'emettre. On finalise magic/version + CRC ici, on (re)declare la MAC
     // de la sonde comme peer unicast, puis on emet. La fenetre d'ecoute de la
     // sonde etant courte, cet envoi doit suivre de pres la reception de sa trame.
-    if (!_initialized || !_haveSrcMac) return false;
+    if (!_initialized || mac == nullptr) return false;
 
     ctrl.magic[0] = METEO_CONTROL_MAGIC_0;
     ctrl.magic[1] = METEO_CONTROL_MAGIC_1;
@@ -141,12 +145,12 @@ bool EspNowReceiver::sendControl(SyncControl& ctrl) {
     ctrl.crc16 = calculateCrc16(reinterpret_cast<const uint8_t*>(&ctrl), lenForCrc);
 
     // Peer unicast vers la sonde (channel 0 = suit le canal radio courant).
-    if (!ensurePeer(_lastSrcMac)) {
+    if (!ensurePeer(mac)) {
         LOG_WARNING("ESP-NOW: add sensor peer failed (SyncControl)");
         return false;
     }
 
-    const esp_err_t r = esp_now_send(_lastSrcMac, reinterpret_cast<const uint8_t*>(&ctrl),
+    const esp_err_t r = esp_now_send(mac, reinterpret_cast<const uint8_t*>(&ctrl),
                                      sizeof(SyncControl));
     if (r != ESP_OK) {
         LOG_WARNING("ESP-NOW: SyncControl send error " + std::to_string((int)r));
@@ -279,7 +283,7 @@ void EspNowReceiver::processPairFrames() {
     }
 }
 
-void EspNowReceiver::enqueueRaw(const uint8_t* data, int len) {
+void EspNowReceiver::enqueueRaw(const uint8_t* mac, const uint8_t* data, int len) {
     if (_self == nullptr || s_packetQueue == nullptr) {
         return;
     }
@@ -294,12 +298,13 @@ void EspNowReceiver::enqueueRaw(const uint8_t* data, int len) {
 
     // On copie ce qui rentre, même si la taille diverge : le CRC dira si la
     // trame est la nôtre. Un rejet strict sur sizeof() rendait l'échec silencieux.
-    MeteoPacket packet;
-    memset(&packet, 0, sizeof(packet));
+    RxPacket rx;
+    memset(&rx, 0, sizeof(rx));
+    if (mac) memcpy(rx.mac, mac, 6);
     const size_t copyLen = std::min(static_cast<size_t>(len), sizeof(MeteoPacket));
-    memcpy(&packet, data, copyLen);
+    memcpy(&rx.packet, data, copyLen);
 
-    if (xQueueSend(s_packetQueue, &packet, 0) != pdTRUE) {
+    if (xQueueSend(s_packetQueue, &rx, 0) != pdTRUE) {
         _self->_packetsInvalid++;
     }
 }
@@ -309,8 +314,9 @@ void EspNowReceiver::processQueuedPackets() {
         return;
     }
 
-    MeteoPacket packet;
-    while (xQueueReceive(s_packetQueue, &packet, 0) == pdTRUE) {
+    RxPacket rx;
+    while (xQueueReceive(s_packetQueue, &rx, 0) == pdTRUE) {
+        const MeteoPacket& packet = rx.packet;
         if (!validatePacket(packet)) {
             _packetsInvalid++;
             continue;
@@ -318,6 +324,7 @@ void EspNowReceiver::processQueuedPackets() {
 
         _packetsValid++;
         OutdoorData outdoor = convertToOutdoorData(packet);
+        memcpy(outdoor.src_mac, rx.mac, 6);
         if (_outdoorCallback) {
             _outdoorCallback(outdoor);
         }
@@ -388,6 +395,7 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
     outdoor.frame_type = packet.frame_type;
     outdoor.oldest_seq = packet.oldest_seq;
     outdoor.node_id = packet.node_id;
+    outdoor.uptime_sec = packet.uptime_sec;
 
     const bool flagged = (packet.valid_fields
                           & (FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_PRESSURE)) != 0;

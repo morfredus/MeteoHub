@@ -36,10 +36,11 @@ public:
 
     bool isReady() const { return _initialized; }
 
-    // Voie inverse (v3) : renvoie un SyncControl a la DERNIERE sonde vue (unicast
-    // vers _lastSrcMac). Renvoie false si aucune sonde connue ou envoi impossible.
-    // Le CRC est calcule ici ; l'appelant remplit ack_seq/want_*.
-    bool sendControl(SyncControl& ctrl);
+    // Voie inverse (v3) : renvoie un SyncControl a la sonde `mac` (celle dont on
+    // traite la trame, et non « la derniere vue » : deux sondes peuvent emettre
+    // presque en meme temps). Le CRC est calcule ici ; l'appelant remplit
+    // ack_seq/want_*.
+    bool sendControl(SyncControl& ctrl, const uint8_t* mac);
 
     uint32_t getPacketsReceived() const { return _packetsReceived; }
     uint32_t getPacketsValid() const { return _packetsValid; }
@@ -73,7 +74,7 @@ private:
     uint8_t _lastSrcMac[6]{};
     bool _haveSrcMac = false;
 
-    static void enqueueRaw(const uint8_t* data, int len);
+    static void enqueueRaw(const uint8_t* mac, const uint8_t* data, int len);
     static bool enqueuePair(const uint8_t* mac, const uint8_t* data, int len);
     void processQueuedPackets();
     void processPairFrames();

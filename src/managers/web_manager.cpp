@@ -47,6 +47,8 @@ static const char METEOHUB_API_JSON[] PROGMEM =
 #include "modules/neopixel_status.h"
 #include "modules/analytics_beacon.h"
 #include "modules/battery_alert.h"
+#include "modules/meteo_sync_service.h"
+extern mhsync::MeteoSyncService meteoSync; // defini dans main.cpp
 #include "project_config.h"
 #include "config.h"
 #include "web_pages.h"
@@ -381,6 +383,17 @@ void WebManager::_setupApi() {
         out["battery_alert"] = (int)batteryAlert.level();
         out["battery_alert_pending"] = batteryAlert.isPending();
         out["notify_available"] = _analytics && _analytics->isNotifyDetected();
+        // Sonde associee (celle qui a confirme un appairage) : seule archivee.
+        // null tant qu'aucune n'a confirme (toutes les sondes sont alors acceptees).
+        if (meteoSync.hasAssociated()) {
+            const uint8_t* m = meteoSync.associatedMac();
+            char mac[18];
+            snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     m[0], m[1], m[2], m[3], m[4], m[5]);
+            out["sensor_mac"] = mac;
+        } else {
+            out["sensor_mac"] = nullptr;
+        }
 
         // Résout chaque grandeur en gardant la provenance (OUT frais / OUT
         // périmé / secours IN / indisponible). Point unique de décision, partagé

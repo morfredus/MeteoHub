@@ -49,6 +49,14 @@ morfbeacon::Emitter presence;
 
 bool ota_started = false;
 
+// MAC courte d'une sonde pour les logs (« E2:C7:D4 ») : les 3 derniers octets
+// suffisent a distinguer les sondes du parc.
+static std::string shortMac(const uint8_t* m) {
+    char b[9];
+    snprintf(b, sizeof(b), "%02X:%02X:%02X", m[3], m[4], m[5]);
+    return b;
+}
+
 // Traduit le code esp_reset_reason() rapporte par la sonde (paquet v2) en nom
 // lisible. BROWNOUT/POWERON apres un trou = coupure d'alimentation ; DEEPSLEEP =
 // reveil normal ; PANIC/WDT = plantage firmware.
@@ -235,17 +243,31 @@ void setup() {
     espNowReceiver.setOutdoorDataCallback([&](const OutdoorData& outdoor) {
         if (!outdoor.valid) return;
 
+        // Sonde associee (celle qui a confirme un appairage) : les trames d'une
+        // AUTRE sonde a portee (etabli, tests) sont ignorees, ni archivees ni
+        // accusees. Un log au plus toutes les 10 min par hub, pour rester lisible.
+        if (!meteoSync.isAccepted(outdoor.src_mac)) {
+            static unsigned long lastIgnoredLog = 0;
+            if (lastIgnoredLog == 0 || millis() - lastIgnoredLog > 600000UL) {
+                lastIgnoredLog = millis();
+                LOG_INFO("[OUT] trame ignoree : sonde " + shortMac(outdoor.src_mac)
+                         + " non associee (associee : "
+                         + shortMac(meteoSync.associatedMac()) + ")");
+            }
+            return;
+        }
+
         // --- Synchronisation fiable (v3) -----------------------------------
         // 1) Le service decide : mesure nouvelle ou doublon, live ou historique,
         //    et l'HEURE DE MESURE reconstruite (jamais l'heure d'arrivee).
         const int64_t nowReal = (int64_t)time(NULL);
         const uint8_t nodeId = outdoor.node_id ? outdoor.node_id : 1;
         const mhsync::MeteoSyncService::Decision d = meteoSync.onPacket(
-            nodeId, outdoor.sequence, outdoor.sensor_ts, outdoor.frame_type,
-            outdoor.oldest_seq, nowReal);
+            outdoor.src_mac, nodeId, outdoor.sequence, outdoor.sensor_ts,
+            outdoor.frame_type, outdoor.oldest_seq, nowReal);
 
         if (d.counterRestart) {
-            LOG_WARNING("[OUT] Sonde node=" + std::to_string(nodeId)
+            LOG_WARNING("[OUT] Sonde " + shortMac(outdoor.src_mac)
                         + " repartie de seq=" + std::to_string(outdoor.sequence)
                         + " (ancien max " + std::to_string(d.previousMax)
                         + ") : suivi de synchro remis a zero");
@@ -259,7 +281,7 @@ void setup() {
         bool replySent = false;
         if (d.haveReply) {
             SyncControl reply = d.reply;
-            replySent = espNowReceiver.sendControl(reply);
+            replySent = espNowReceiver.sendControl(reply, outdoor.src_mac);
         }
 
         // 3) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
@@ -282,12 +304,15 @@ void setup() {
             batteryAlert.onLiveReading(outdoor.battery_voltage);
         }
 
-        char buf[208];
+        char buf[240];
         snprintf(buf, sizeof(buf),
-                 "[OUT] %s seq=%u %s wake=%u reset=%s t=%.1f h=%.0f p=%.1f ack<=%u want=%u/%u reply=%d",
+                 "[OUT] %s %s seq=%u %s wake=%u up=%us reset=%s t=%.1f h=%.0f p=%.1f "
+                 "ack<=%u want=%u/%u reply=%d",
+                 shortMac(outdoor.src_mac).c_str(),
                  (outdoor.frame_type == FRAME_RETRANSMIT) ? "retx" : "live",
                  (unsigned)outdoor.sequence, d.archive ? "new" : "dup",
-                 (unsigned)outdoor.wake_count, resetReasonName(outdoor.reset_reason),
+                 (unsigned)outdoor.wake_count, (unsigned)outdoor.uptime_sec,
+                 resetReasonName(outdoor.reset_reason),
                  outdoor.temperature, outdoor.humidity, outdoor.pressure,
                  (unsigned)d.reply.ack_seq, (unsigned)d.reply.want_from_seq,
                  (unsigned)d.reply.want_count, replySent ? 1 : 0);
@@ -296,8 +321,12 @@ void setup() {
     // Appairage : une sonde a choisi CE hub. On reprend apres le dernier seq
     // accuse par son ancien hub, pour ne reclamer que ce qui est encore en
     // attente (persiste par meteoSync.persistDirty() dans loop()).
-    espNowReceiver.setPairedCallback([&](uint8_t nodeId, const uint8_t*, uint32_t baseSeq) {
-        meteoSync.adoptBaseline(nodeId ? nodeId : 1, baseSeq);
+    // La sonde qui confirme devient la sonde ASSOCIEE : seules ses trames seront
+    // archivees desormais.
+    espNowReceiver.setPairedCallback([&](uint8_t, const uint8_t* sensorMac, uint32_t baseSeq) {
+        meteoSync.adoptBaseline(sensorMac, baseSeq);
+        meteoSync.setAssociated(sensorMac);
+        LOG_INFO("[OUT] Sonde associee : " + shortMac(sensorMac));
     });
     if (espNowReceiver.begin()) {
         LOG_INFO("ESP-NOW receiver initialized");

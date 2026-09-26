@@ -1,3 +1,29 @@
+# [1.47.0] - 2026-09-26
+
+### Fixed
+
+- **Two probes no longer mix into one sync state.** Seen in the field: the
+  outdoor probe and a bench probe both used `node_id=1`, so the hub merged two
+  sequence series. The bench probe's `oldest_seq` could push the shared ack past
+  the outdoor probe's pending measurements, which the probe then considered
+  delivered: permanent gaps (23/09, 25/09). The sync state is now kept **per
+  sensor MAC**. The source MAC travels with each frame through the receive queue,
+  and the SyncControl reply is sent to that MAC (not to "the last one seen").
+  NVS format bumped ('MAC2' blobs); old node-keyed state, possibly mixed, is
+  ignored and tracking restarts cleanly.
+- The 1.46.1 "counter restart" reset now applies per sensor, where it is
+  meaningful, instead of flip-flopping between two probes.
+
+### Added
+
+- **Associated probe.** The probe that confirms a pairing becomes the hub's
+  probe (persisted in NVS); from then on only its frames are archived and
+  acknowledged, others are ignored with a rate-limited log. No association yet
+  = all probes accepted (backward compatible). `GET /api/live` exposes
+  `out.sensor_mac`.
+- `[OUT]` log lines show the probe's MAC suffix and its awake time at send
+  (`up=…s`), to diagnose awake durations without USB.
+
 # [1.46.1] - 2026-09-26
 
 ### Fixed
