@@ -151,6 +151,7 @@ bool SdManager::ensureHistoryDirectory() {
 
 bool SdManager::begin() {
     LOG_INFO("=== SD Init ===");
+    _mount_task = xTaskGetCurrentTaskHandle();
     logPinMapping();
     _available = false;
     SD.end();
@@ -188,6 +189,12 @@ bool SdManager::isAvailable() {
 
 bool SdManager::ensureMounted() {
     if (_available) return true;
+    // Remontage RÉSERVÉ à la tâche propriétaire (loop). Sans carte, une cascade
+    // de montage bloque ~5 s (4 fréquences, délais SD.begin). Lancée depuis une
+    // requête web, elle bloquait la tâche async_tcp, surveillée par le watchdog
+    // (5 s, panic) : le hub redémarrait. Les autres tâches voient simplement la
+    // SD comme absente ; loop() la remontera au prochain accès.
+    if (_mount_task != nullptr && xTaskGetCurrentTaskHandle() != _mount_task) return false;
     const unsigned long now = millis();
     if (now - _last_reconnect_attempt_ms < _reconnect_cooldown_ms) return false;
 

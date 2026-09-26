@@ -1,3 +1,19 @@
+# [1.48.1] - 2026-09-27
+
+### Fixed
+
+- **Hub reboots when the SD card is missing.** Without a card, one mount
+  cascade (four SPI frequencies, `SD.begin` timeouts) blocks for about 5 s, and
+  it was retried on demand every 30 s to 2 min. Web requests (`/api/system`
+  from every page footer, `/api/history`, `/api/stats`, file APIs) could run
+  that cascade inside the `async_tcp` task, which is watched by the task
+  watchdog (5 s, panic): the hub rebooted, and every reboot reset the OUTDOOR
+  display to "unavailable" until the next live frame. Seen on a bench hub
+  without SD. Remounting is now reserved to the task that called
+  `SdManager::begin()` (the main loop); other tasks simply see the card as
+  absent until the loop remounts it. One central check, so every current and
+  future route is covered.
+
 # [1.48.0] - 2026-09-26
 
 ### Added

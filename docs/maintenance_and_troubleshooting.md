@@ -56,3 +56,7 @@ Au démarrage, MeteoHub monte la carte à la **fréquence SPI la plus élevée q
 
 - Si l'historique se charge lentement, vérifier dans les logs la fréquence retenue : une valeur basse (1-4 MHz) indique un câblage SPI marginal (fils trop longs, mauvaises soudures, alimentation). Raccourcir/fiabiliser le câblage permet d'atteindre des fréquences plus élevées.
 - Le repli automatique garantit qu'une carte/wiring lent reste fonctionnel (aucune régression), au prix d'une lecture plus lente.
+
+### Fonctionnement sans carte SD
+
+Sans carte, chaque tentative de montage (la cascade ci-dessus) bloque environ 5 s, et MeteoHub réessaie toutes les 30 s à 2 min. Depuis la version 1.48.1, seule la boucle principale retente le montage : une page web qui interroge l'historique ou `/api/system` voit simplement la SD absente, sans bloquer le serveur web (avant, ce blocage déclenchait le watchdog et redémarrait le hub). L'affichage peut en revanche marquer une pause de quelques secondes à chaque tentative : mettre une carte, ou accepter ce léger à-coup.
