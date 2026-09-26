@@ -42,12 +42,15 @@ static const char METEOHUB_API_JSON[] PROGMEM =
       "{\"method\":\"GET\",\"path\":\"/api/stats\",\"summary\":\"statistiques agregees\"},"
       "{\"method\":\"GET\",\"path\":\"/api/analytics\",\"summary\":\"analyses meteo embarquees\"},"
       "{\"method\":\"GET\",\"path\":\"/api/alert\",\"summary\":\"alerte meteo courante\"},"
-      "{\"method\":\"GET\",\"path\":\"/api/system\",\"summary\":\"etat systeme de l'appareil\"}"
+      "{\"method\":\"GET\",\"path\":\"/api/system\",\"summary\":\"etat systeme de l'appareil\"},"
+      "{\"method\":\"GET\",\"path\":\"/api/quarantine\",\"summary\":\"mesures exterieures ecartees de l'historique (CSV brut)\"}"
     "]}";
 #include "modules/neopixel_status.h"
 #include "modules/analytics_beacon.h"
 #include "modules/battery_alert.h"
 #include "modules/meteo_sync_service.h"
+#include "modules/outdoor_quarantine.h"
+#include <SD.h>
 extern mhsync::MeteoSyncService meteoSync; // defini dans main.cpp
 #include "project_config.h"
 #include "config.h"
@@ -571,6 +574,20 @@ void WebManager::_setupApi() {
 
     // API Analytics : présence du service morfAnalytics (détection LAN optionnelle).
     // Toujours disponible ; renvoie simplement l'état constaté. MeteoHub n'en dépend pas.
+    // Quarantaine : mesures exterieures recues et accusees mais tenues hors de
+    // l'historique (1re mesure apres demarrage a froid de la sonde). CSV brut,
+    // en lecture seule, pour examen (morfAnalytics, diagnostic). 404 si vide.
+    _server.on("/api/quarantine", HTTP_GET, [](AsyncWebServerRequest *request) {
+        bool onSd = false;
+        const char* path = outdoorQuarantine.currentPath(onSd);
+        if (!path[0]) {
+            request->send(404, "text/plain", "aucune mesure en quarantaine");
+            return;
+        }
+        if (onSd) request->send(SD, path, "text/csv");
+        else      request->send(LittleFS, path, "text/csv");
+    });
+
     _server.on("/api/analytics", HTTP_GET, [this](AsyncWebServerRequest *request) {
         if (!_analytics) {
             request->send(200, "application/json", "{\"available\":false}");

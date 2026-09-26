@@ -15,6 +15,7 @@
 #include "modules/sensors.h"
 #include "modules/analytics_beacon.h"
 #include "modules/battery_alert.h"
+#include "modules/outdoor_quarantine.h"
 #include "modules/espnow_receiver.h"
 #include "modules/meteo_sync_service.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
@@ -72,6 +73,10 @@ static const char* resetReasonName(uint8_t r) {
         case 8:  return "DEEPSLEEP";
         case 9:  return "BROWNOUT";
         case 10: return "SDIO";
+        // Causes ajoutees par les ESP32-S3 recents (ESP-IDF 5) : un moniteur
+        // serie qui se reconnecte redemarre la sonde par l'USB.
+        case 11: return "USB";
+        case 12: return "JTAG";
         default: return "UNKNOWN";
     }
 }
@@ -226,6 +231,7 @@ void setup() {
     delay(800);
     
     history.begin(&sdCard); // Injection de la dépendance SD
+    outdoorQuarantine.begin(&sdCard);
 
     // Détection optionnelle de morfAnalytics (écoute passive du beacon LAN).
     // No-op si MORF_ECOSYSTEM_ENABLED = 0 (banc de test, voir config.h).
@@ -284,10 +290,28 @@ void setup() {
             replySent = espNowReceiver.sendControl(reply, outdoor.src_mac);
         }
 
-        // 3) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
+        // 3) Premiere mesure LIVE apres un demarrage a froid de la sonde (reset
+        //    autre que la sortie de veille, wake <= 1) : apres un flash ou un
+        //    passage sur l'USB, la carte restee eveillee a chauffe ses capteurs.
+        //    Elle est ACCUSEE (etape 2, la sonde peut la retirer de son buffer
+        //    sans perte) mais tenue HORS de l'historique meteo, conservee brute
+        //    en quarantaine. Trames LIVE seulement : une retransmission porte le
+        //    contexte du reveil EN COURS, pas celui de sa mesure d'origine.
+        constexpr uint8_t kResetDeepSleep = 8; // esp_reset_reason() ESP_RST_DEEPSLEEP
+        const bool coldBoot = d.isLive
+            && outdoor.reset_reason != kResetDeepSleep && outdoor.wake_count <= 1;
+
+        // 4) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
         //    pas ré-archivé. Une trame live met a jour l'affichage ; une
         //    retransmission n'archive que l'historique, a son heure d'origine.
-        if (d.archive) {
+        if (coldBoot) {
+            if (d.archive) {
+                const bool kept = outdoorQuarantine.add(outdoor, (time_t)d.measurementTs,
+                                                        "cold_boot");
+                LOG_INFO(std::string("[OUT] 1re mesure apres demarrage a froid : quarantaine ")
+                         + (kept ? "(conservee, hors historique)" : "(ECHEC d'ecriture)"));
+            }
+        } else if (d.archive) {
             if (d.isLive) history.addOutdoorLive(outdoor, (time_t)d.measurementTs);
             else          history.addOutdoorHistorical(outdoor, (time_t)d.measurementTs);
         } else if (d.isLive) {
@@ -296,7 +320,7 @@ void setup() {
             history.refreshOutdoorLive(outdoor);
         }
 
-        // 4) Surveillance de l'accu : mesures LIVE et NOUVELLES seulement. Une
+        // 5) Surveillance de l'accu : mesures LIVE et NOUVELLES seulement. Une
         //    retransmission rejoue une tension passée ; un doublon live est la même
         //    mesure réémise, qui ne doit pas compter deux fois dans l'anti-rebond.
         //    L'envoi éventuel se fait plus tard, dans loop().

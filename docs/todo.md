@@ -10,6 +10,9 @@ Version minimale valide : 1.9.0
 - [ ] Ajouter une petite API de diagnostic d’affichage (FPS courant, durée du dernier rendu, compteur d’erreurs I2C) exposée dans `/api/system`.
 - [ ] Ajouter un flag de build optionnel pour compiler uniquement un backend contrôleur OLED (`SH1106` ou `SSD1306`) afin de réduire la taille binaire.
 - [ ] Ajouter des tests unitaires côté hôte pour les fonctions utilitaires pures de `pages_oled.cpp` (formatage, génération des titres, traduction des alertes).
+- [ ] Sondes non associées : ne plus journaliser chaque trame reçue (`ESP-NOW: packet node=…`) d'une sonde ignorée, garder seulement le rappel `trame ignoree` toutes les 10 min. À faire hors période de test (les logs complets servent tant qu'on teste avec la sonde d'établi).
+- [x] Table des causes de redémarrage de la sonde (`resetReasonName`) : ajouter la cause USB des ESP32-S3, affichée aujourd'hui « UNKNOWN » quand un moniteur série redémarre la sonde.
+- [ ] « Mode appairage » côté hub : n'accepter une NOUVELLE sonde associée que si le hub a été mis en mode appairage (appui long ou page web, ~2 min), pour qu'un appairage de test ne déloge pas la sonde de production.
 
 ## TODO expérience utilisateur
 - [ ] Ajouter une page de réglages OLED rapide (contraste + aperçu adresse I2C) directement sur l’appareil.

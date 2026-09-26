@@ -1,3 +1,23 @@
+# [1.48.0] - 2026-09-26
+
+### Added
+
+- **Outdoor quarantine for the first measurement after a probe cold boot.**
+  After a flash or a USB session, the probe stayed awake and warmed its own
+  sensors: the first reading after such a restart showed spikes (seen on
+  26/09: +7 hPa, humidity dip). A LIVE frame with `reset_reason != DEEPSLEEP`
+  and `wake_count <= 1` is still ACKNOWLEDGED (the probe may drop it from its
+  buffer, the ack chain is untouched) but kept OUT of the weather history: it
+  is appended raw to `/history/outdoor_quarantine.csv` on the SD (bounded
+  LittleFS fallback without SD) with its reason (`cold_boot`), and logged.
+  Nothing is destroyed; morfAnalytics can examine it later. Applies to LIVE
+  frames only: a retransmission carries the context of the CURRENT wake, not
+  of its original measurement. No ESP-NOW protocol change.
+- `GET /api/quarantine`: the quarantined measurements as raw CSV (404 if none),
+  listed in the `/status` API description.
+- Reset-cause table knows the ESP32-S3 `USB` (11) and `JTAG` (12) causes,
+  previously logged as `UNKNOWN` when a serial monitor restarted the probe.
+
 # [1.47.0] - 2026-09-26
 
 ### Fixed
