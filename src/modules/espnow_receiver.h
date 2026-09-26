@@ -25,6 +25,12 @@ public:
     using OutdoorDataCallback = std::function<void(const OutdoorData&)>;
     void setOutdoorDataCallback(OutdoorDataCallback callback);
 
+    // Appairage : appele depuis loop() quand une sonde CONFIRME avoir choisi ce
+    // hub (node_id, MAC de la sonde, dernier seq accuse par son ancien hub).
+    using PairedCallback = std::function<void(uint8_t nodeId, const uint8_t* sensorMac,
+                                              uint32_t baseSeq)>;
+    void setPairedCallback(PairedCallback callback) { _pairedCallback = callback; }
+
     // Vide la file de réception et relance begin() si besoin.
     void update();
 
@@ -47,6 +53,7 @@ private:
     static EspNowReceiver* _self;
 
     OutdoorDataCallback _outdoorCallback;
+    PairedCallback _pairedCallback;
     bool _initialized = false;
     bool _wifiWasConnected = false;
     unsigned long _lastBeginAttemptMs = 0;
@@ -67,7 +74,10 @@ private:
     bool _haveSrcMac = false;
 
     static void enqueueRaw(const uint8_t* data, int len);
+    static bool enqueuePair(const uint8_t* mac, const uint8_t* data, int len);
     void processQueuedPackets();
+    void processPairFrames();
+    bool ensurePeer(const uint8_t* mac);
     bool addBroadcastPeer();
     void disableWifiSleep();
     void refreshChannel();

@@ -103,6 +103,22 @@ void test_native_anchor_refreshes() {
     TEST_ASSERT_EQUAL_INT64(1700000000LL, anchor.reconstruct(10000));
 }
 
+// --- Appairage : le nouveau hub reprend apres le dernier seq de l'ancien ------
+// (MeteoSyncService::adoptBaseline s'appuie sur noteSensorOldest(base + 1)).
+void test_native_pairing_baseline() {
+    SyncTracker t;                       // hub neuf : n'a jamais vu cette sonde
+    t.noteSensorOldest(1000 + 1);        // base_seq = 1000, deja livre a l'ancien hub
+    TEST_ASSERT_EQUAL_UINT32(1000, t.ackContiguous());
+    TEST_ASSERT_FALSE(t.hasGap());       // ne reclame PAS l'historique deja livre
+    TEST_ASSERT_TRUE(t.markReceived(1003)); // live courant, 1001-1002 en attente
+    TEST_ASSERT_EQUAL_UINT32(1001, t.firstMissing()); // seules les attentes sont reclamees
+    t.markReceived(1001); t.markReceived(1002);
+    TEST_ASSERT_EQUAL_UINT32(1003, t.ackContiguous());
+    // Re-appairer le MEME hub avec une base plus ancienne ne fait rien oublier.
+    t.noteSensorOldest(500 + 1);
+    TEST_ASSERT_EQUAL_UINT32(1003, t.ackContiguous());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_native_inorder_ack_advances);
@@ -112,5 +128,6 @@ int main(int, char**) {
     RUN_TEST(test_native_state_roundtrip);
     RUN_TEST(test_native_time_reconstruction);
     RUN_TEST(test_native_anchor_refreshes);
+    RUN_TEST(test_native_pairing_baseline);
     return UNITY_END();
 }

@@ -15,8 +15,17 @@ EspNowReceiver* EspNowReceiver::_self = nullptr;
 // si loop() est occupé un instant (OTA, lecture SD).
 static QueueHandle_t s_packetQueue = nullptr;
 
+// Trames d'appairage (demande / confirmation d'une sonde), mises de cote par le
+// callback radio et traitees dans loop() : on n'emet ni n'ajoute de peer depuis
+// la tache Wi-Fi.
+struct PairRx { uint8_t mac[6]; MeteoPairFrame frame; };
+static QueueHandle_t s_pairQueue = nullptr;
+
 // Callback C : la pile ESP-NOW attend une convention C, pas une méthode C++.
 void meteoEspNowRecv(const uint8_t* mac, const uint8_t* data, int len) {
+    // Trame d'appairage : file dediee, et surtout PAS de mise a jour de
+    // _lastSrcMac (la voie inverse SyncControl vise la sonde qui MESURE).
+    if (EspNowReceiver::enqueuePair(mac, data, len)) return;
     if (EspNowReceiver::_self != nullptr && mac != nullptr) {
         memcpy(EspNowReceiver::_self->_lastSrcMac, mac, 6);
         EspNowReceiver::_self->_haveSrcMac = true;
@@ -82,6 +91,9 @@ bool EspNowReceiver::begin() {
         esp_wifi_set_channel(_wifiChannel, WIFI_SECOND_CHAN_NONE);
     }
 
+    if (s_pairQueue == nullptr) {
+        s_pairQueue = xQueueCreate(4, sizeof(PairRx));
+    }
     if (s_packetQueue == nullptr) {
         s_packetQueue = xQueueCreate(4, sizeof(MeteoPacket));
         if (s_packetQueue == nullptr) {
@@ -129,16 +141,9 @@ bool EspNowReceiver::sendControl(SyncControl& ctrl) {
     ctrl.crc16 = calculateCrc16(reinterpret_cast<const uint8_t*>(&ctrl), lenForCrc);
 
     // Peer unicast vers la sonde (channel 0 = suit le canal radio courant).
-    if (!esp_now_is_peer_exist(_lastSrcMac)) {
-        esp_now_peer_info_t peer{};
-        memcpy(peer.peer_addr, _lastSrcMac, 6);
-        peer.channel = 0;
-        peer.ifidx = WIFI_IF_STA;
-        peer.encrypt = false;
-        if (esp_now_add_peer(&peer) != ESP_OK) {
-            LOG_WARNING("ESP-NOW: add sensor peer failed (SyncControl)");
-            return false;
-        }
+    if (!ensurePeer(_lastSrcMac)) {
+        LOG_WARNING("ESP-NOW: add sensor peer failed (SyncControl)");
+        return false;
     }
 
     const esp_err_t r = esp_now_send(_lastSrcMac, reinterpret_cast<const uint8_t*>(&ctrl),
@@ -169,6 +174,7 @@ void EspNowReceiver::update() {
     _wifiWasConnected = wifiUp;
 
     processQueuedPackets();
+    processPairFrames();
 
     // Le refresh de canal reste frequent (15 s) pour suivre une migration du hub ;
     // le LOG, lui, n'est emis que s'il APPORTE une info : compteurs changes (une
@@ -202,6 +208,73 @@ void EspNowReceiver::update() {
                      + " bad=" + std::to_string(_packetsInvalid)
                      + " last_len=" + std::to_string(_lastRxLen)
                      + " src=" + std::string(src));
+        }
+    }
+}
+
+bool EspNowReceiver::ensurePeer(const uint8_t* mac) {
+    if (esp_now_is_peer_exist(mac)) return true;
+    esp_now_peer_info_t peer{};
+    memcpy(peer.peer_addr, mac, 6);
+    peer.channel = 0;          // suit le canal radio courant
+    peer.ifidx = WIFI_IF_STA;
+    peer.encrypt = false;
+    return esp_now_add_peer(&peer) == ESP_OK;
+}
+
+bool EspNowReceiver::enqueuePair(const uint8_t* mac, const uint8_t* data, int len) {
+    // Trame d'appairage = taille 44 o + magic 'M','P' + version + CRC valides
+    // (isValidPairFrame, quelques µs). Une trame de mesure (63 o) ou de controle
+    // (20 o) n'est jamais concernee et poursuit son chemin habituel.
+    if (mac == nullptr || s_pairQueue == nullptr) return false;
+    PairRx rx;
+    if (!isValidPairFrame(data, len, &rx.frame)) return false;
+    memcpy(rx.mac, mac, 6);
+    xQueueSend(s_pairQueue, &rx, 0); // file pleine : la sonde redemande
+    return true;
+}
+
+// Appairage cote hub : repondre a TOUTE demande valide (c'est l'utilisateur qui
+// choisit le hub, en ne laissant allume que lui pendant la procedure), puis
+// enregistrer la reprise quand la sonde confirme.
+void EspNowReceiver::processPairFrames() {
+    if (s_pairQueue == nullptr) return;
+    PairRx rx;
+    while (xQueueReceive(s_pairQueue, &rx, 0) == pdTRUE) {
+        const MeteoPairFrame& f = rx.frame;
+        char src[18];
+        snprintf(src, sizeof(src), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 rx.mac[0], rx.mac[1], rx.mac[2], rx.mac[3], rx.mac[4], rx.mac[5]);
+        // La MAC annoncee doit etre celle qui emet (trame coherente).
+        if (memcmp(f.sta_mac, rx.mac, 6) != 0) continue;
+
+        if (f.type == PAIR_REQUEST) {
+            if (!_initialized || !ensurePeer(rx.mac)) {
+                LOG_WARNING(std::string("ESP-NOW: appairage, peer sonde impossible ") + src);
+                continue;
+            }
+            MeteoPairFrame resp;
+            memset(&resp, 0, sizeof(resp));
+            resp.type = PAIR_RESPONSE;
+            resp.node_id = f.node_id;
+            resp.nonce = f.nonce;                  // relie la reponse a CETTE demande
+            WiFi.macAddress(resp.sta_mac);         // cible unicast des mesures
+            WiFi.softAPmacAddress(resp.ap_mac);    // BSSID « MH-NOW » de CE hub
+            refreshChannel();
+            resp.channel = _wifiChannel;
+            strncpy(resp.name, WEB_MDNS_HOSTNAME, sizeof(resp.name) - 1);
+            sealPairFrame(resp);
+            const esp_err_t r = esp_now_send(rx.mac, reinterpret_cast<const uint8_t*>(&resp),
+                                             sizeof(resp));
+            LOG_INFO(std::string("ESP-NOW: demande d'appairage de ") + src
+                     + " node=" + std::to_string(f.node_id)
+                     + (r == ESP_OK ? " -> reponse envoyee ch=" + std::to_string(_wifiChannel)
+                                    : " -> envoi reponse KO " + std::to_string((int)r)));
+        } else if (f.type == PAIR_CONFIRM) {
+            LOG_INFO(std::string("ESP-NOW: sonde appairee ") + src
+                     + " node=" + std::to_string(f.node_id)
+                     + " reprise apres seq=" + std::to_string(f.base_seq));
+            if (_pairedCallback) _pairedCallback(f.node_id, rx.mac, f.base_seq);
         }
     }
 }

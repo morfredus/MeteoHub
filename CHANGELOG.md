@@ -1,3 +1,26 @@
+# [1.46.0] - 2026-09-26
+
+### Added
+
+- **Answers probe pairing requests** (MeteoHubSensor >= 0.23.0, long press on
+  BOOT). A `MeteoPairFrame` REQUEST (magic 'M','P', 44 bytes, broadcast) is
+  answered in unicast with the hub identity: STA MAC (unicast target), SoftAP
+  BSSID (lets the probe find THIS hub's channel when several "MH-NOW" coexist),
+  current channel and name. Pairing frames go through their own queue and never
+  overwrite the last measuring probe's MAC used by the SyncControl reverse path;
+  replies and peer additions are done from `loop()`, not from the Wi-Fi task.
+- **Seamless takeover on CONFIRM.** The probe's confirmation carries the last
+  sequence acknowledged by its previous hub; `MeteoSyncService::adoptBaseline`
+  starts from there (forward only), so a newly paired hub only asks for the
+  measurements still pending instead of waiting forever for a 30-day backlog the
+  probe knows is already delivered. Persisted like the rest of the sync state.
+- Host test for the takeover (`test_native_pairing_baseline`).
+
+### Changed
+
+- `meteo_packet.h` (kept identical to MeteoHubSensor's) gains the pairing frame
+  and compiles natively (Arduino include only under `ARDUINO`).
+
 # [1.45.0] - 2026-09-25
 
 ### Added

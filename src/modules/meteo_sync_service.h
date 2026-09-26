@@ -113,6 +113,18 @@ public:
 
     uint32_t ackContiguousOf(uint8_t nodeId) { return node(nodeId).tracker.ackContiguous(); }
 
+    // Appairage : la sonde vient de choisir CE hub. `baseSeq` = dernier seq accuse
+    // par son ancien hub. Tout ce qui est <= baseSeq a ete livre ailleurs : on ne
+    // le reclame pas (sinon on attendrait 30 jours d'historique que la sonde ne
+    // renverra jamais, puisqu'elle les sait deja livres). On ne reclame donc que
+    // ce qui est encore en attente cote sonde. N'a d'effet que vers l'avant :
+    // re-appairer le MEME hub ne lui fait rien oublier.
+    void adoptBaseline(uint8_t nodeId, uint32_t baseSeq) {
+        Node& n = node(nodeId);
+        n.tracker.noteSensorOldest(baseSeq + 1);
+        n.dirty = true;
+    }
+
 private:
     struct Node {
         bool used = false;

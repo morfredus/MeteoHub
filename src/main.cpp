@@ -286,6 +286,12 @@ void setup() {
                  (unsigned)d.reply.want_count, replySent ? 1 : 0);
         LOG_INFO(std::string(buf));
     });
+    // Appairage : une sonde a choisi CE hub. On reprend apres le dernier seq
+    // accuse par son ancien hub, pour ne reclamer que ce qui est encore en
+    // attente (persiste par meteoSync.persistDirty() dans loop()).
+    espNowReceiver.setPairedCallback([&](uint8_t nodeId, const uint8_t*, uint32_t baseSeq) {
+        meteoSync.adoptBaseline(nodeId ? nodeId : 1, baseSeq);
+    });
     if (espNowReceiver.begin()) {
         LOG_INFO("ESP-NOW receiver initialized");
     } else {
