@@ -1,3 +1,18 @@
+# [1.46.1] - 2026-09-26
+
+### Fixed
+
+- **A probe that restarts its numbering from seq=1 is no longer taken for a
+  flood of duplicates.** Seen on hardware: after the probe's NVS was reset, the
+  hub still remembered up to seq 945, so every new live frame (seq 3, 4, 5...)
+  was logged `dup`, NOT archived, yet acknowledged (`ack<=945`): outdoor data
+  would have been silently lost for ~3 days, until the probe passed 945. A live
+  frame always carries the probe's newest measurement, so a live seq below the
+  highest seq ever seen can only mean a counter restart (a retried live repeats
+  the same seq, never a smaller one). The hub now resets that node's sync state
+  (tracker + time anchor) and logs `Sonde node=N repartie de seq=S (ancien max
+  M)`. No protocol change. Host test `test_native_counter_restart_detected`.
+
 # [1.46.0] - 2026-09-26
 
 ### Added

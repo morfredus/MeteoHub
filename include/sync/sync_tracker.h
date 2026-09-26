@@ -63,6 +63,20 @@ public:
     }
 
     uint32_t ackContiguous() const { return _ackContiguous; }
+
+    // Plus grand seq jamais vu (accuse ou en avance). 0 = aucun historique.
+    uint32_t maxSeen() const { return _ahead.empty() ? _ackContiguous : _ahead.back(); }
+
+    // Une trame LIVE porte toujours la mesure la plus recente de la sonde : son
+    // seq est >= a tout ce qu'elle a deja emis (une re-emission du meme live
+    // repete le MEME seq, jamais un plus petit). Un live PLUS PETIT que le
+    // maximum deja vu ne s'explique donc que par une sonde qui a REPRIS sa
+    // numerotation a 1 (NVS effacee, carte remplacee). Sans cette detection, le
+    // hub prendrait toutes ses nouvelles mesures pour des doublons (non archivees,
+    // mais accusees) jusqu'a ce que la sonde depasse l'ancien maximum.
+    bool isCounterRestart(uint32_t liveSeq) const {
+        return liveSeq != 0 && liveSeq < maxSeen();
+    }
     bool hasGap() const { return !_ahead.empty(); }
     // Premier seq manquant (celui a reclamer en priorite). 0 si aucun trou et
     // rien au-dela.

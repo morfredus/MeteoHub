@@ -119,6 +119,23 @@ void test_native_pairing_baseline() {
     TEST_ASSERT_EQUAL_UINT32(1003, t.ackContiguous());
 }
 
+// --- Sonde repartie de seq=1 : detectee, pas prise pour des doublons ---------
+void test_native_counter_restart_detected() {
+    SyncTracker t;
+    for (uint32_t s = 1; s <= 945; s++) t.markReceived(s);
+    TEST_ASSERT_FALSE(t.isCounterRestart(946));  // live suivant : normal
+    TEST_ASSERT_FALSE(t.isCounterRestart(945));  // re-emission du meme live
+    TEST_ASSERT_TRUE(t.isCounterRestart(3));     // NVS effacee : seq repart a 1
+    TEST_ASSERT_FALSE(t.isCounterRestart(0));
+    SyncTracker fresh;                            // hub neuf : jamais de faux positif
+    TEST_ASSERT_FALSE(fresh.isCounterRestart(3));
+    // Seq en avance (trou) : le max vu est pris en compte, pas seulement l'accuse.
+    SyncTracker gap;
+    gap.markReceived(1); gap.markReceived(10);
+    TEST_ASSERT_EQUAL_UINT32(10, gap.maxSeen());
+    TEST_ASSERT_TRUE(gap.isCounterRestart(5));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_native_inorder_ack_advances);
@@ -129,5 +146,6 @@ int main(int, char**) {
     RUN_TEST(test_native_time_reconstruction);
     RUN_TEST(test_native_anchor_refreshes);
     RUN_TEST(test_native_pairing_baseline);
+    RUN_TEST(test_native_counter_restart_detected);
     return UNITY_END();
 }

@@ -244,6 +244,13 @@ void setup() {
             nodeId, outdoor.sequence, outdoor.sensor_ts, outdoor.frame_type,
             outdoor.oldest_seq, nowReal);
 
+        if (d.counterRestart) {
+            LOG_WARNING("[OUT] Sonde node=" + std::to_string(nodeId)
+                        + " repartie de seq=" + std::to_string(outdoor.sequence)
+                        + " (ancien max " + std::to_string(d.previousMax)
+                        + ") : suivi de synchro remis a zero");
+        }
+
         // 2) Voie inverse D'ABORD : la fenetre d'ecoute de la sonde est courte
         //    (~300 ms). On renvoie l'accuse cumulatif + le trou a combler AVANT
         //    l'archivage (une ecriture SD peut etre lente et ferait manquer la

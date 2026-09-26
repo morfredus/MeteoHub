@@ -43,6 +43,8 @@ public:
         int64_t measurementTs = 0;// heure de MESURE reconstruite (epoch s)
         SyncControl reply{};      // accuse cumulatif + trou a combler (a renvoyer)
         bool haveReply = false;   // false si l'etat ne permet pas encore de repondre
+        bool counterRestart = false; // la sonde a repris sa numerotation (etat remis a zero)
+        uint32_t previousMax = 0;    // plus grand seq connu avant la remise a zero
     };
 
     void begin() {
@@ -56,6 +58,17 @@ public:
         Node& n = node(nodeId);
         Decision d;
         d.isLive = (frameType == FRAME_LIVE);
+
+        // 0) Sonde repartie de seq=1 (NVS effacee, carte remplacee) : l'ancien
+        //    suivi ne veut plus rien dire. On repart d'un etat vierge pour ce
+        //    node, sinon ses nouvelles mesures seraient toutes vues comme des
+        //    doublons (perdues ET accusees) pendant des jours.
+        if (d.isLive && n.tracker.isCounterRestart(seq)) {
+            d.counterRestart = true;
+            d.previousMax = n.tracker.maxSeen();
+            n.tracker = SyncTracker();
+            n.anchor = TimeAnchor();
+        }
 
         // 1) Une trame LIVE ancre l'horloge (elle vaut « maintenant »). Une
         //    retransmission NE touche PAS l'ancre (elle porte un vieux sensor_ts).
