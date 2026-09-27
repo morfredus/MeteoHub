@@ -1,8 +1,7 @@
 # Captures d'écran de la documentation
 
-Ce dossier contient les images référencées par la documentation. Les fichiers
-listés ci-dessous sont **attendus mais absents** : les liens correspondants
-apparaissent cassés tant qu'ils ne sont pas déposés ici.
+Ce dossier contient les images référencées par la documentation. Les consignes
+ci-dessous servent à les **refaire** à l'identique quand l'interface change.
 
 ## Conseils communs
 
@@ -14,7 +13,7 @@ apparaissent cassés tant qu'ils ne sont pas déposés ici.
   n'a pas de valeur en dehors du réseau. En revanche, éviter de laisser paraître
   un nom de réseau Wi-Fi ou un identifiant personnel.
 
-## Images attendues
+## Images
 
 ### `menu-analyse.png`
 **Où** : n'importe quelle page de MeteoHub, une fois un service d'analyse détecté.
@@ -24,8 +23,8 @@ Système. L'important est de montrer que l'entrée s'insère **avant** « Systè
 
 ### `retour-meteohub.png`
 **Où** : la page du service d'analyse (`http://<serveur>:8799/`).
-**Cadrage** : le haut de la page, montrant le lien **« ← Retour à MeteoHub »**
-au-dessus du titre. Inutile de descendre plus bas dans la page.
+**Cadrage** : le haut de la page, montrant les liens **« ← morfAnalytics »** et
+**« ← Retour à MeteoHub »** au-dessus du titre. Inutile de descendre plus bas.
 
 ### `systeme-detecte.png`
 **Où** : page **Système** de MeteoHub, service d'analyse allumé et détecté.
@@ -39,7 +38,7 @@ indiquant le nom, la version et la machine du service détecté. Le bloc
 et le bouton Enregistrer. Idéalement avec une adresse d'exemple saisie dans le
 champ, pour que le lecteur voie la forme attendue.
 
-## Après avoir déposé les images
+## Après avoir refait une image
 
 Vérifier que les liens fonctionnent en ouvrant
 [docs/analyse_avancee.md](../analyse_avancee.md) dans un afficheur Markdown

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.51.2] - 2026-09-27
+
+### Added
+
+- **The four screenshots of `docs/analyse_avancee.md`** (menu entry, return links,
+  System page card detected and with the manual address unfolded). They were listed
+  as expected but missing, so the page showed broken images. Taken from the live hub
+  and morfAnalytics 0.60.0; the example address is only typed, never saved.
+
+### Changed
+
+- The guide now describes the two return links morfAnalytics shows since 0.60.0
+  (to morfAnalytics and to MeteoHub); `docs/images/README.md` becomes the recipe to
+  redo the screenshots. Documentation only: no reflash needed.
+
 ## [1.51.1] - 2026-09-27
 
 ### Fixed

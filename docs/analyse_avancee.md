@@ -56,15 +56,14 @@ tout aurait cessé de fonctionner au premier renommage.
 Quand un service est trouvé, une entrée supplémentaire apparaît dans le menu de
 MeteoHub, juste avant « Système ». Elle porte le nom que le service annonce.
 
-<!-- CAPTURE : menu-analyse.png -->
 ![Le menu de MeteoHub avec l'entrée d'analyse avancée](images/menu-analyse.png)
 
 Cette entrée ouvre le service **dans le même onglet**, comme un lien normal. On
-passe d'une application à l'autre sans accumuler les onglets. Pour revenir, le
-service affiche en haut de sa page un lien **« ← Retour à MeteoHub »**.
+passe d'une application à l'autre sans accumuler les onglets. En haut de ses pages
+météo, le service propose deux retours : **« ← morfAnalytics »**, vers ses autres
+analyses, et **« ← Retour à MeteoHub »**, vers la station.
 
-<!-- CAPTURE : retour-meteohub.png -->
-![Le lien de retour vers MeteoHub](images/retour-meteohub.png)
+![Les liens de retour vers morfAnalytics et vers MeteoHub](images/retour-meteohub.png)
 
 Les deux programmes restent malgré tout indépendants : chacun a sa propre
 adresse, ses propres mises à jour, et l'un peut être arrêté sans gêner l'autre.
@@ -75,7 +74,6 @@ adresse, ses propres mises à jour, et l'un peut être arrêté sans gêner l'au
 
 La page **Système** indique en permanence si un service est trouvé.
 
-<!-- CAPTURE : systeme-detecte.png -->
 ![La section Analyse avancée de la page Système](images/systeme-detecte.png)
 
 Trois messages possibles :
@@ -106,7 +104,6 @@ causes les plus courantes :
 Dans ce cas, l'adresse peut être saisie à la main. Ouvrir la page **Système**,
 section **Analyse avancée**, puis déplier **« Adresse manuelle (optionnel) »**.
 
-<!-- CAPTURE : systeme-adresse-manuelle.png -->
 ![Le champ d'adresse manuelle déplié](images/systeme-adresse-manuelle.png)
 
 Saisir l'adresse complète du service, **en commençant par `http://`** :
