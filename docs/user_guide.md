@@ -21,13 +21,13 @@ Version minimale valide : 1.9.0
 
 L'appui long réagit dès que le seuil est atteint, sans attendre le relâchement ; les
 actions destructives exigent toujours un appui long volontaire. Sans molette, la page
-**Logs** défile seule (toutes les 3 s) et la page **Prévisions** alterne ses trois vues
+**Logs** défile seule (toutes les 3 s) et la page **Prévisions** alterne ses quatre vues
 (toutes les 5 s).
 
 
 Pages principales (dans l'ordre de défilement) :
 - **Météo** : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT** (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
-- **Prévisions** : min/max et description du jour et du lendemain, et l'éventuelle alerte météo.
+- **Prévisions** : min/max et description du jour et du lendemain, l'éventuelle alerte météo, puis l'écran **Météo** de la page 1 (1.50.0). Les quatre vues tournent toutes les 5 s, sur les deux cartes (sur la DevKitC, le bouton Confirm passe aussi à la vue suivante) : laissée sur cette page, la station montre donc à la fois les prévisions et les mesures en direct. La page 1 reste inchangée ; dans la rotation, son en-tête porte le numéro de la page Prévisions (`Meteo 2/N`).
 - **Graphes** : courbes intérieur et extérieur (température, humidité, pression), tracées sur les dernières **24 h** lues sur la carte SD (et non la seule mémoire vive), reliées en continu et coupées uniquement en cas de vrai silence capteur.
 - **Réseau** : SSID, IP, **canal Wi-Fi**, RSSI et **MAC STA du hub**. La sonde scanne `MH-NOW` pour trouver le canal, puis émet en **unicast** vers cette MAC (accusé de réception matériel).
 - **Appairage de la sonde** (MeteoHubSensor ≥ 0.23.0) : la sonde n'a plus la MAC du hub en dur. Pour la rattacher à ce hub, ne laisser allumé que lui, puis maintenir **BOOT ~3 s** sur la sonde (LED bleue fixe). MeteoHub répond à la demande avec son identité, sa MAC et son canal ; la sonde confirme, et le hub reprend après le dernier numéro de mesure accusé par l'ancien hub (il ne réclame que les mesures encore en attente). Les logs affichent `demande d'appairage de …` puis `sonde appairee … reprise apres seq=…`. MeteoHub répond à toute demande valide : c'est le fait de ne laisser allumé que le hub voulu qui désigne le récepteur. Si deux hubs répondent, la sonde refuse et garde son association.

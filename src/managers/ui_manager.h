@@ -27,6 +27,17 @@ enum Page {
     PAGE_COUNT
 };
 
+// Vues qui tournent sur la page Prévisions (page 2). La 4e reprend l'écran de la
+// page 1 (IN/OUT en direct) : laissée seule sur la page 2, la station affiche
+// ainsi aussi les mesures courantes, sans toucher à la page 1 elle-même.
+enum ForecastView {
+    FORECAST_VIEW_TODAY,
+    FORECAST_VIEW_TOMORROW,
+    FORECAST_VIEW_ALERTS,
+    FORECAST_VIEW_WEATHER,
+    FORECAST_VIEW_COUNT
+};
+
 enum MenuItem {
     MENU_EXIT,
     MENU_REBOOT,

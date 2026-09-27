@@ -1,3 +1,14 @@
+# [1.50.0] - 2026-09-27
+
+### Added
+
+- **Weather screen in the Forecast page rotation.** Page 2 now cycles through
+  four views instead of three: today, tomorrow, alerts, then the page 1 screen
+  (IN/OUT live readings), every 5 s on both boards (the DevKitC Confirm button
+  still steps to the next view). A station left on page 2 thus shows the live
+  readings too. Page 1 itself is unchanged; in the rotation its header carries
+  the Forecast page number (`Meteo 2/N`).
+
 # [1.49.0] - 2026-09-27
 
 ### Added

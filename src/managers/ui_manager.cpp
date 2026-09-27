@@ -93,10 +93,10 @@ void UiManager::update() {
     }
     
     // Avec un seul bouton, les vues secondaires défilent seules : la prévision
-    // alterne ses 3 vues, et la page Logs fait défiler ses lignes.
+    // alterne ses vues (dont la page Météo), et la page Logs fait défiler ses lignes.
     if (page == PAGE_FORECAST && !menuMode) {
         if (millis() - lastForecastViewSwitch > 5000) {
-            forecastViewIndex = (forecastViewIndex + 1) % 3;
+            forecastViewIndex = (forecastViewIndex + 1) % FORECAST_VIEW_COUNT;
             lastForecastViewSwitch = millis();
             drawPage();
         }
@@ -270,7 +270,7 @@ void UiManager::update() {
     
     if (page == PAGE_FORECAST && !menuMode) {
         if (millis() - lastForecastViewSwitch > 5000) {
-            forecastViewIndex = (forecastViewIndex + 1) % 3;
+            forecastViewIndex = (forecastViewIndex + 1) % FORECAST_VIEW_COUNT;
             lastForecastViewSwitch = millis();
             drawPage();
         }
@@ -383,7 +383,7 @@ void UiManager::handleButtons() {
             drawPage();
         } else if (btnConfirm) {
             if (page == PAGE_FORECAST) {
-                forecastViewIndex = (forecastViewIndex + 1) % 3;
+                forecastViewIndex = (forecastViewIndex + 1) % FORECAST_VIEW_COUNT;
                 lastForecastViewSwitch = millis();
                 drawPage();
             } else if (page == PAGE_LOGS) {
@@ -494,7 +494,15 @@ void UiManager::drawPage() {
 #if defined(ESP32_S3_OLED)
     switch(page) {
         case PAGE_WEATHER: pageWeather_oled(*d, *sensors, *forecast, *history, page + 1, pCount); break;
-        case PAGE_FORECAST: pageForecast_oled(*d, *forecast, forecastViewIndex, page + 1, pCount); break;
+        case PAGE_FORECAST:
+            // Vue Météo : même rendu que la page 1, mais numérotée 2/N pour que
+            // l'en-tête indique bien qu'on est toujours sur la page Prévisions.
+            if (forecastViewIndex == FORECAST_VIEW_WEATHER) {
+                pageWeather_oled(*d, *sensors, *forecast, *history, page + 1, pCount);
+            } else {
+                pageForecast_oled(*d, *forecast, forecastViewIndex, page + 1, pCount);
+            }
+            break;
         case PAGE_GRAPH_IN_TEMP:  pageGraph_oled(*d, *history, 0, page + 1, pCount, false); break;
         case PAGE_GRAPH_IN_HUM:   pageGraph_oled(*d, *history, 1, page + 1, pCount, false); break;
         case PAGE_GRAPH_IN_PRES:  pageGraph_oled(*d, *history, 2, page + 1, pCount, false); break;

@@ -509,6 +509,7 @@ void pageGraph_oled(DisplayInterface& d, HistoryManager& history, int type, int 
 }
 
 // 9. Page prévisions : affiche prévisions aujourd'hui, demain, alertes
+//    (la 4e vue de la rotation, l'écran Météo, est rendue par pageWeather_oled)
 void pageForecast_oled(DisplayInterface& d, ForecastManager& forecast, int view, int pageIndex, int pageCount) {
     d.clear();
     d.text(0, OLED_HEADER_Y, getHeader("Prev.", pageIndex, pageCount));
