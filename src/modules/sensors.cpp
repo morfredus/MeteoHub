@@ -12,6 +12,10 @@
 #define SENSOR_RECOVER_AFTER  5   // échecs consécutifs avant réinitialisation du bus
 #define I2C_TIMEOUT_MS        50  // évite un blocage long si le bus est coincé
 
+void SensorManager::setCalibration(mhcal::Offsets offsets) {
+    _cal = mhcal::sanitize(offsets);
+}
+
 void SensorManager::applyBmpSampling() {
     // Suréchantillonnage + filtre IIR : lectures de pression plus stables.
     bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,
@@ -102,8 +106,12 @@ SensorData SensorManager::read() {
 
     SensorData data;
     if (ok) {
-        data.temperature = t;
-        data.humidity = ahtFound ? h : 0.0f; // pas d'humidité sans AHT20
+        // Calibration appliquée ici, une seule fois : tout l'aval (écran,
+        // historique, API, morfSystem) voit la même valeur corrigée.
+        _rawTemp = t;
+        _rawHum = ahtFound ? h : NAN;
+        data.temperature = mhcal::correctTemperature(t, _cal);
+        data.humidity = ahtFound ? mhcal::correctHumidity(h, _cal) : 0.0f; // pas d'humidité sans AHT20
         data.pressure = bmpFound ? p : 0.0f;
         data.valid = true;
         _lastTemp = data.temperature;

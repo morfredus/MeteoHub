@@ -27,11 +27,11 @@ L'arborescence est **symétrique entre l'intérieur (IN) et l'extérieur (OUT)**
 
 ## Acquisition et qualité des données
 
-- `SensorManager` (AHT20 + BMP280 sur I2C) : lecture validée (succès I2C + plausibilité), réessais, récupération du bus après échecs, conservation de la dernière valeur valide. Ces mesures sont le contexte **IN** (intérieur).
-- `EspNowReceiver` : réception des trames `MeteoPacket` de la sonde extérieure (ESP-NOW). Décodage et archivage dans `loop()`, pas dans le callback radio. Ces mesures sont le contexte **OUT**. La pression affichée sur l'OLED est toujours OUT.
+- `SensorManager` (AHT20 + BMP280 sur I2C) : lecture validée (succès I2C + plausibilité), réessais, récupération du bus après échecs, conservation de la dernière valeur valide. Ces mesures sont le contexte **IN** (intérieur). La calibration intérieure (décalages T/H, `include/sensor_calibration.h`) est appliquée à chaque lecture.
+- `EspNowReceiver` : réception des trames `MeteoPacket` de la sonde extérieure (ESP-NOW). Décodage et archivage dans `loop()`, pas dans le callback radio. Ces mesures sont le contexte **OUT**. La pression affichée sur l'OLED est toujours OUT. La calibration extérieure est appliquée au décodage de chaque trame (directe ou rattrapée), après le contrôle de plausibilité : la sonde reste brute.
 - Filtrage des valeurs aberrantes à l'exploitation, par grandeur : cohérence temporelle pour les graphes (`queryRange`), filtre robuste médiane/MAD pour les statistiques (`getRecentStats`). Les données brutes ne sont pas modifiées.
 
 ## Interface web
 
 - Pages : Tableau de bord (`/`), Statistiques (`/stats.html`), Historique (`/longterm.html`), Système (`/system.html`), plus les outils Fichiers (`/files.html`) et Logs (`/logs`) accessibles depuis Système.
-- API principales : `/api/live` (blocs `in`/`out`/`effective` avec provenance et fraîcheur), `/api/history` (accepte `ctx=in|out`), `/api/history/summary`, `/api/history/export.csv`, `/api/history/days`, `/api/history/raw`, `/api/history/clear` (POST, efface tout), `/api/forecast/history` (prévisions archivées), `/api/stats`, `/api/alert`, `/api/system`, `/api/led`, `/api/config/export`, `/api/files/*`, `/api/ota/update`, `/api/logs`, `/api/analytics`, `/api/analytics/config`.
+- API principales : `/api/live` (blocs `in`/`out`/`effective` avec provenance et fraîcheur), `/api/history` (accepte `ctx=in|out`), `/api/history/summary`, `/api/history/export.csv`, `/api/history/days`, `/api/history/raw`, `/api/history/clear` (POST, efface tout), `/api/forecast/history` (prévisions archivées), `/api/stats`, `/api/alert`, `/api/system`, `/api/led`, `/api/config/export`, `/api/files/*`, `/api/ota/update`, `/api/logs`, `/api/analytics`, `/api/analytics/config`, `/api/sensor/calibration` (décalages des capteurs, persistés en NVS par `modules/calibration_store`).

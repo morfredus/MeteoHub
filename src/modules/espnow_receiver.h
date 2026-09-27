@@ -4,6 +4,7 @@
 #include <functional>
 #include "meteo_context.h"
 #include "meteo_packet.h"
+#include "sensor_calibration.h"
 
 // ============================================================================
 // Récepteur ESP-NOW pour MeteoHub
@@ -50,8 +51,22 @@ public:
 
     static EspNowReceiver* instance() { return _self; }
 
+    // Calibration de la sonde extérieure (voir sensor_calibration.h), appliquée à
+    // CHAQUE trame décodée, directe comme rattrapée : tout l'aval (historique,
+    // affichage, API) voit la valeur corrigée. La sonde, elle, reste brute.
+    mhcal::Offsets calibration() const { return _cal; }
+    void setCalibration(mhcal::Offsets offsets) { _cal = mhcal::sanitize(offsets); }
+
+    // Dernière trame reçue, BRUTE (avant calibration), pour régler contre une
+    // référence. NAN tant qu'aucune trame n'est arrivée depuis le démarrage.
+    float rawTemperature() const { return _rawTemp; }
+    float rawHumidity() const { return _rawHum; }
+
 private:
     static EspNowReceiver* _self;
+
+    mhcal::Offsets _cal;
+    float _rawTemp = NAN, _rawHum = NAN;
 
     OutdoorDataCallback _outdoorCallback;
     PairedCallback _pairedCallback;

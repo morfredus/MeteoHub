@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.51.0] - 2026-09-27
+
+### Added
+
+- **Sensor calibration, indoor and outdoor.** A "Calibration des capteurs" card on
+  the System page sets a temperature offset (°C, ±10) and a humidity offset (%RH
+  points, ±20) for the hub's AHT20 and for the outdoor probe, next to their latest
+  raw and corrected readings. Offsets are stored in NVS (`sensor_cal`), survive
+  reboots and OTA, and apply to the display, the history, the API and what
+  morfAnalytics reads. API: `GET`/`POST /api/sensor/calibration`; also included in
+  the configuration export.
+- The outdoor probe is corrected **on the hub**, when each frame is decoded (live or
+  catch-up), after the plausibility check: the probe keeps sending raw values and
+  needs no reflash.
+- Temperature and humidity offsets are **independent**. Recomputing humidity from
+  the corrected temperature is only right when the sensor sits in truly warmer air;
+  the field case that prompted this (hub 26.8 °C / 67 %, thermostat 24.0 °C / 67 %)
+  shows a temperature-reading bias with a correct humidity.
+- Pure logic in `include/sensor_calibration.h`, persistence in
+  `modules/calibration_store`, host tests in `test/test_native_calibration`.
+
+### Notes
+
+- Archived measurements are not rewritten: history and morfAnalytics show a step at
+  the moment an offset is set.
+
 ## [1.50.4] - 2026-09-27
 
 ### Changed

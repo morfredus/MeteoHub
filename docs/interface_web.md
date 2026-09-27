@@ -38,7 +38,7 @@ est le rôle de morfAnalytics.
 ## Système
 
 Réglages et maintenance : détection du service d'analyse avancée, luminosité de
-la LED, export CSV / configuration, mise à jour du firmware (OTA) et accès aux
+la LED, calibration des capteurs intérieur et extérieur, export CSV / configuration, mise à jour du firmware (OTA) et accès aux
 outils.
 
 ![Page Système (données d'exemple)](pictures/interface-systeme.png)

@@ -141,12 +141,38 @@ MeteoHub peut diffuser ses logs sur le réseau local en UDP, ce qui permet de le
 ### Page Système
 Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Statistiques**, **Historique** et **Système**. La page Système regroupe :
 - **Luminosité de la LED** : réglage de la NeoLED (0-255), appliqué immédiatement et conservé au redémarrage (persisté en NVS). API : `GET`/`POST /api/led`.
+- **Calibration des capteurs** : décalages de température et d'humidité, pour le capteur intérieur et pour la sonde extérieure (voir ci-dessous). API : `GET`/`POST /api/sensor/calibration`.
 - **Export** :
   - Historique au format **CSV** (dernières 24 h / 7 j / 30 j / tout), pour Excel/LibreOffice - API `GET /api/history/export.csv?from=&to=` ;
   - **Configuration** effective au format JSON - API `GET /api/config/export`.
 - **Mise à jour du firmware (OTA)** : upload d’un fichier `.bin`, reboot automatique après succès. API : `/api/ota/update`. (L’ancienne URL `/ota.html` redirige vers `/system.html`.)
 - **Historique** : bouton « Vider tout l'historique » (double confirmation) qui efface toutes les mesures enregistrées, intérieures et extérieures, en mémoire interne et sur la carte SD, pour repartir sur des mesures propres. API : `POST /api/history/clear`.
 - **Outils** : accès au **gestionnaire de fichiers** (`/files.html`) et aux **logs système** (`/logs`), qui ne figurent plus dans le menu principal.
+
+### Calibrer les capteurs
+
+Un capteur d'entrée de gamme comme l'AHT20 peut lire avec quelques degrés d'écart, et
+chaque exemplaire a le sien. La carte « Calibration des capteurs » de la page Système
+corrige cet écart, séparément pour le capteur intérieur du hub et pour la sonde
+extérieure. La sonde, elle, continue d'envoyer ses mesures brutes : la correction est
+appliquée par le hub à la réception, sans reflasher la sonde.
+
+1. Placer une référence fiable (thermostat, hygromètre) **au même endroit** que le
+   capteur, et laisser le tout se stabiliser plusieurs heures.
+2. Lire sur la carte la **lecture brute** du capteur, et la valeur de la référence.
+3. Saisir l'écart : **référence moins lecture brute**. Exemple : thermostat à
+   24,0 °C, lecture brute à 26,8 °C, décalage de **-2,8**.
+4. Enregistrer. La valeur corrigée s'affiche aussitôt ; elle est appliquée à
+   l'affichage, à l'historique, à l'API et à ce qu'exploite morfAnalytics.
+
+Température et humidité se corrigent **indépendamment**. Un capteur logé dans un air
+réellement plus chaud (chaleur de la carte) lirait aussi une humidité trop basse ; s'il
+affiche la même humidité que la référence, c'est seulement sa lecture de température
+qui est décalée, et l'humidité ne doit pas être touchée. Les décalages sont bornés
+(±10 °C, ±20 points) : au-delà, le capteur est défectueux ou mal placé.
+
+Les mesures déjà archivées ne sont pas réécrites : l'historique garde une marche au
+moment du réglage.
 
 ### Acquisition capteur (AHT20 + BMP280, bus I2C)
 - Une mesure est enregistrée à la **cadence configurée** (5 minutes par défaut, `INDOOR_MEASUREMENT_INTERVAL_SECONDS` dans `include/config.h`), la même pour l'intérieur et l'extérieur pour des séries homogènes. L'**affichage** reste en temps réel (il relit la dernière mesure sans créer d'entrée d'historique). Chaque lecture est **vérifiée** (succès de la communication I2C + plausibilité) : en cas d'échec, le cycle est **sauté** plutôt que d'enregistrer une valeur erronée.

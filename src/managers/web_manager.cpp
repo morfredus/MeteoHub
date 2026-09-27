@@ -50,8 +50,11 @@ static const char METEOHUB_API_JSON[] PROGMEM =
 #include "modules/battery_alert.h"
 #include "modules/meteo_sync_service.h"
 #include "modules/outdoor_quarantine.h"
+#include "modules/calibration_store.h"
+#include "modules/espnow_receiver.h"
 #include <SD.h>
 extern mhsync::MeteoSyncService meteoSync; // defini dans main.cpp
+extern EspNowReceiver espNowReceiver;      // defini dans main.cpp (calibration exterieure)
 #include "project_config.h"
 #include "config.h"
 #include "web_pages.h"
@@ -705,15 +708,97 @@ void WebManager::_setupApi() {
         request->send(200, "application/json", buf);
     });
 
+    // API Calibration des capteurs (voir include/sensor_calibration.h) : décalages
+    // température / humidité du capteur intérieur (AHT20 du hub) et de la sonde
+    // extérieure. GET renvoie, pour chacun, les décalages et la dernière lecture
+    // brute ET corrigée, pour régler contre une référence (thermostat, hygromètre).
+    // Aucune lecture I2C ici : les valeurs en cache suffisent et évitent un accès
+    // concurrent au bus depuis le serveur.
+    _server.on("/api/sensor/calibration", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        if (!_sensors) {
+            request->send(503, "application/json", "{\"ok\":false,\"message\":\"capteur indisponible\"}");
+            return;
+        }
+        // Un bloc JSON par capteur. Une valeur encore inconnue sort en null.
+        auto block = [](char* out, size_t n, const mhcal::Offsets& o, float rt, float rh) {
+            char rawT[16], rawH[16], corT[16], corH[16];
+            if (isnan(rt)) { strcpy(rawT, "null"); strcpy(corT, "null"); }
+            else {
+                snprintf(rawT, sizeof(rawT), "%.2f", rt);
+                snprintf(corT, sizeof(corT), "%.2f", mhcal::correctTemperature(rt, o));
+            }
+            if (isnan(rh)) { strcpy(rawH, "null"); strcpy(corH, "null"); }
+            else {
+                snprintf(rawH, sizeof(rawH), "%.1f", rh);
+                snprintf(corH, sizeof(corH), "%.1f", mhcal::correctHumidity(rh, o));
+            }
+            snprintf(out, n,
+                "{\"temp_offset\":%.2f,\"hum_offset\":%.1f,"
+                "\"raw_temperature\":%s,\"raw_humidity\":%s,"
+                "\"temperature\":%s,\"humidity\":%s}",
+                (double)o.temperature, (double)o.humidity, rawT, rawH, corT, corH);
+        };
+        char in[192], out[192];
+        block(in, sizeof(in), _sensors->calibration(),
+              _sensors->rawTemperature(), _sensors->rawHumidity());
+        block(out, sizeof(out), espNowReceiver.calibration(),
+              espNowReceiver.rawTemperature(), espNowReceiver.rawHumidity());
+        char buf[480];
+        snprintf(buf, sizeof(buf),
+            "{\"indoor\":%s,\"outdoor\":%s,\"temp_offset_max\":%.1f,\"hum_offset_max\":%.1f}",
+            in, out, (double)mhcal::kTempOffsetMax, (double)mhcal::kHumOffsetMax);
+        request->send(200, "application/json", buf);
+    });
+    // POST : in_temp, in_hum, out_temp, out_hum (un paramètre absent garde sa
+    // valeur). Une valeur non numérique est refusée plutôt que lue comme 0.
+    _server.on("/api/sensor/calibration", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (!_sensors) {
+            request->send(503, "application/json", "{\"ok\":false,\"message\":\"capteur indisponible\"}");
+            return;
+        }
+        CalibrationSet set;
+        set.indoor = _sensors->calibration();
+        set.outdoor = espNowReceiver.calibration();
+        auto parse = [request](const char* name, float& out) -> bool {
+            if (!request->hasParam(name, true)) return true;   // absent : inchangé
+            const String v = request->getParam(name, true)->value();
+            char* end = nullptr;
+            const float f = strtof(v.c_str(), &end);
+            if (v.length() == 0 || end == v.c_str() || *end != '\0' || isnan(f)) return false;
+            out = f;
+            return true;
+        };
+        if (!parse("in_temp", set.indoor.temperature) || !parse("in_hum", set.indoor.humidity)
+            || !parse("out_temp", set.outdoor.temperature) || !parse("out_hum", set.outdoor.humidity)) {
+            request->send(400, "application/json", "{\"ok\":false,\"message\":\"decalage non numerique\"}");
+            return;
+        }
+        // Persister d'abord (valeurs bornées), puis appliquer ce qui a été retenu.
+        set = saveCalibration(set);
+        _sensors->setCalibration(set.indoor);
+        espNowReceiver.setCalibration(set.outdoor);
+        LOG_INFO("Calibration set: IN T " + std::to_string(set.indoor.temperature)
+                 + " H " + std::to_string(set.indoor.humidity)
+                 + " / OUT T " + std::to_string(set.outdoor.temperature)
+                 + " H " + std::to_string(set.outdoor.humidity));
+        char buf[160];
+        snprintf(buf, sizeof(buf),
+            "{\"ok\":true,\"in_temp\":%.2f,\"in_hum\":%.1f,\"out_temp\":%.2f,\"out_hum\":%.1f}",
+            (double)set.indoor.temperature, (double)set.indoor.humidity,
+            (double)set.outdoor.temperature, (double)set.outdoor.humidity);
+        request->send(200, "application/json", buf);
+    });
+
     // API Config Export : configuration effective au format JSON (téléchargement).
-    _server.on("/api/config/export", HTTP_GET, [](AsyncWebServerRequest *request) {
-        char buf[768];
+    _server.on("/api/config/export", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        char buf[1024];   // marge : un export tronqué serait un JSON invalide
         snprintf(buf, sizeof(buf),
             "{\n"
             "  \"project\": {\"name\": \"%s\", \"version\": \"%s\", \"build_date\": \"%s\", \"build_time\": \"%s\", \"git_commit\": \"%s\"},\n"
             "  \"network\": {\"mdns_host\": \"%s\"},\n"
             "  \"graph\": {\"scale_mode\": %d, \"scale_margin_pct\": %d, \"temp_min\": %.1f, \"temp_max\": %.1f, \"hum_min\": %.1f, \"hum_max\": %.1f, \"pres_min\": %.1f, \"pres_max\": %.1f},\n"
             "  \"led\": {\"brightness\": %u},\n"
+            "  \"sensor_calibration\": {\"indoor\": {\"temp_offset\": %.2f, \"hum_offset\": %.1f}, \"outdoor\": {\"temp_offset\": %.2f, \"hum_offset\": %.1f}},\n"
             "  \"sampling_interval_s\": 60\n"
             "}\n",
             PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_TIME, GIT_COMMIT,
@@ -722,7 +807,11 @@ void WebManager::_setupApi() {
             (double)GRAPH_TEMP_MIN, (double)GRAPH_TEMP_MAX,
             (double)GRAPH_HUM_MIN, (double)GRAPH_HUM_MAX,
             (double)GRAPH_PRES_MIN, (double)GRAPH_PRES_MAX,
-            neoGetBrightness());
+            neoGetBrightness(),
+            (double)(_sensors ? _sensors->calibration().temperature : 0.0f),
+            (double)(_sensors ? _sensors->calibration().humidity : 0.0f),
+            (double)espNowReceiver.calibration().temperature,
+            (double)espNowReceiver.calibration().humidity);
         AsyncWebServerResponse *response = request->beginResponse(200, "application/json", buf);
         response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-config.json\"");
         request->send(response);

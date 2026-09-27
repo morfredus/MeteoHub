@@ -48,6 +48,53 @@
             <div id="ledResult" class="sys-hint">Réglage appliqué immédiatement et conservé au redémarrage.</div>
         </div>
 
+        <!-- Calibration des capteurs (intérieur du hub, sonde extérieure) -->
+        <div class="card sys-card">
+            <h2>🌡️ Calibration des capteurs</h2>
+            <h3 style="margin:8px 0 4px;font-size:1rem;">Intérieur (capteur du hub)</h3>
+            <div class="sys-row">
+                <label>Lecture brute :</label>
+                <span id="calInRaw" class="sys-value">-</span>
+            </div>
+            <div class="sys-row">
+                <label>Valeur corrigée :</label>
+                <span id="calInCorrected" class="sys-value">-</span>
+            </div>
+            <div class="sys-row">
+                <label for="calInTemp">Décalage température (°C) :</label>
+                <input type="number" id="calInTemp" step="0.1" min="-10" max="10" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
+                <label for="calInHum">Décalage humidité (points de %) :</label>
+                <input type="number" id="calInHum" step="0.5" min="-20" max="20" value="0" style="width:6em;">
+            </div>
+            <h3 style="margin:14px 0 4px;font-size:1rem;">Extérieur (sonde)</h3>
+            <div class="sys-row">
+                <label>Dernière trame brute :</label>
+                <span id="calOutRaw" class="sys-value">-</span>
+            </div>
+            <div class="sys-row">
+                <label>Valeur corrigée :</label>
+                <span id="calOutCorrected" class="sys-value">-</span>
+            </div>
+            <div class="sys-row">
+                <label for="calOutTemp">Décalage température (°C) :</label>
+                <input type="number" id="calOutTemp" step="0.1" min="-10" max="10" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
+                <label for="calOutHum">Décalage humidité (points de %) :</label>
+                <input type="number" id="calOutHum" step="0.5" min="-20" max="20" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
+                <button type="button" id="calSave" class="btn">Enregistrer</button>
+            </div>
+            <div id="calResult" class="sys-hint">Comparer à une référence fiable (thermostat,
+                hygromètre) placée au même endroit, après plusieurs heures de stabilité, puis
+                saisir l'écart : référence moins lecture brute. Température et humidité se
+                corrigent séparément. Appliqué à l'affichage, à l'historique et à l'API ; les
+                mesures déjà archivées ne sont pas modifiées.</div>
+        </div>
+
         <!-- Export des données et de la configuration -->
         <div class="card sys-card">
             <h2>⬇️ Export</h2>
@@ -226,6 +273,78 @@
             const v = ledRange.value;
             ledTimer = setTimeout(() => applyBrightness(v), 150);
         });
+
+        // --- Calibration des capteurs ---
+        const cal = {
+            inTemp: document.getElementById('calInTemp'),
+            inHum: document.getElementById('calInHum'),
+            outTemp: document.getElementById('calOutTemp'),
+            outHum: document.getElementById('calOutHum'),
+        };
+        const calResult = document.getElementById('calResult');
+        let calLoaded = false;
+
+        function fmtReading(t, h) {
+            if (typeof t !== 'number') return '-';
+            let s = t.toFixed(1) + ' °C';
+            if (typeof h === 'number') s += ' · ' + h.toFixed(0) + ' %';
+            return s;
+        }
+
+        function showSensor(prefix, s) {
+            if (!s) return;
+            document.getElementById(prefix + 'Raw').textContent = fmtReading(s.raw_temperature, s.raw_humidity);
+            document.getElementById(prefix + 'Corrected').textContent = fmtReading(s.temperature, s.humidity);
+        }
+
+        // Relit les mesures régulièrement, mais ne réécrit les champs de saisie
+        // qu'au premier chargement : une frappe en cours n'est jamais écrasée.
+        function refreshCalibration() {
+            fetch('/api/sensor/calibration')
+                .then((r) => r.json())
+                .then((d) => {
+                    showSensor('calIn', d.indoor);
+                    showSensor('calOut', d.outdoor);
+                    if (!calLoaded && d.indoor && d.outdoor) {
+                        cal.inTemp.value = d.indoor.temp_offset;
+                        cal.inHum.value = d.indoor.hum_offset;
+                        cal.outTemp.value = d.outdoor.temp_offset;
+                        cal.outHum.value = d.outdoor.hum_offset;
+                        calLoaded = true;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        document.getElementById('calSave').addEventListener('click', () => {
+            const body = new URLSearchParams({
+                in_temp: String(cal.inTemp.value || '0'),
+                in_hum: String(cal.inHum.value || '0'),
+                out_temp: String(cal.outTemp.value || '0'),
+                out_hum: String(cal.outHum.value || '0'),
+            });
+            fetch('/api/sensor/calibration', { method: 'POST', body })
+                .then((r) => r.json())
+                .then((d) => {
+                    if (d && d.ok) {
+                        // Valeurs éventuellement bornées par le hub : afficher les siennes.
+                        cal.inTemp.value = d.in_temp;
+                        cal.inHum.value = d.in_hum;
+                        cal.outTemp.value = d.out_temp;
+                        cal.outHum.value = d.out_hum;
+                        calResult.textContent = 'Calibration enregistrée. Intérieur : '
+                            + d.in_temp + ' °C, ' + d.in_hum + ' pts ; extérieur : '
+                            + d.out_temp + ' °C, ' + d.out_hum + ' pts.';
+                        refreshCalibration();
+                    } else {
+                        calResult.textContent = (d && d.message) ? d.message : 'Réglage refusé.';
+                    }
+                })
+                .catch(() => { calResult.textContent = "Erreur lors de l'enregistrement."; });
+        });
+
+        refreshCalibration();
+        setInterval(refreshCalibration, 30000);
 
         // --- Export ---
         document.getElementById('exportCsvBtn').addEventListener('click', () => {

@@ -323,6 +323,8 @@ void EspNowReceiver::processQueuedPackets() {
         }
 
         _packetsValid++;
+        _rawTemp = packet.temperature;
+        _rawHum = (packet.valid_fields & FIELD_HUMIDITY) ? packet.humidity : NAN;
         OutdoorData outdoor = convertToOutdoorData(packet);
         memcpy(outdoor.src_mac, rx.mac, 6);
         if (_outdoorCallback) {
@@ -404,6 +406,13 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
     const bool plausible = (packet.temperature > -40.0f && packet.temperature < 85.0f
                             && packet.humidity >= 0.0f && packet.humidity <= 100.0f);
     outdoor.valid = flagged || plausible;
+
+    // Calibration APRÈS le contrôle de plausibilité, qui juge la mesure brute du
+    // capteur. L'humidité n'est corrigée que si la sonde l'a réellement mesurée.
+    outdoor.temperature = mhcal::correctTemperature(outdoor.temperature, _cal);
+    if (packet.valid_fields & FIELD_HUMIDITY) {
+        outdoor.humidity = mhcal::correctHumidity(outdoor.humidity, _cal);
+    }
 
     return outdoor;
 }

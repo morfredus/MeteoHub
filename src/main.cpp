@@ -16,6 +16,7 @@
 #include "modules/analytics_beacon.h"
 #include "modules/battery_alert.h"
 #include "modules/outdoor_quarantine.h"
+#include "modules/calibration_store.h"
 #include "modules/espnow_receiver.h"
 #include "modules/meteo_sync_service.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
@@ -181,6 +182,21 @@ void setup() {
     drawBootProgress_oled(*display, 1, 5, "Init Capteurs...");
 #endif
     sensors.begin();
+
+    // Calibrations réglées depuis la page Système (NVS) : intérieur appliqué par
+    // SensorManager, extérieur par le récepteur ESP-NOW, avant toute mesure.
+    {
+        const CalibrationSet cal = loadCalibration();
+        sensors.setCalibration(cal.indoor);
+        espNowReceiver.setCalibration(cal.outdoor);
+        if (cal.indoor.temperature != 0.0f || cal.indoor.humidity != 0.0f
+            || cal.outdoor.temperature != 0.0f || cal.outdoor.humidity != 0.0f) {
+            LOG_INFO("Calibration: IN T " + std::to_string(cal.indoor.temperature)
+                     + " H " + std::to_string(cal.indoor.humidity)
+                     + " / OUT T " + std::to_string(cal.outdoor.temperature)
+                     + " H " + std::to_string(cal.outdoor.humidity));
+        }
+    }
     delay(200); // Petit delai visuel
 
     // Etape 3 : WiFi
