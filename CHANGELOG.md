@@ -1,3 +1,26 @@
+# [1.49.0] - 2026-09-27
+
+### Added
+
+- **Hub reset reason logged at boot** (`Hub reset reason: ...`, same names as
+  for the probe: `TASK_WDT`/`PANIC` = firmware crash, `USB` = serial monitor
+  reconnected, `POWERON` = power, `SW` = deliberate restart). It is what would
+  have shown the SD watchdog reboots of 1.48.1 right away.
+- **`SD_CARD_ENABLED`** (`config.h`, default `1`): `0` for a build without an SD
+  reader. No mount is ever attempted, which also removes the ~5 s main-loop
+  stall of each retry that 1.48.1 still left.
+- **Test-bench build environment `esp32-s3-oled-test`.** Same source as
+  production, only the configuration differs, set by `-D` flags (the related
+  `config.h` values are now `#ifndef`-guarded): mDNS `meteohub-test`, UDP logs
+  on 5006, morfSystem ecosystem off, no SD. It replaces a separate copy of the
+  project for the bench, which kept drifting. No packaging target: a bench is
+  flashed by hand.
+
+### Changed
+
+- **Default build environment is now `esp32-s3-supermini`**, the production
+  board since the hub swap of 2026-09-27 (the DevKitC N16R8 became the bench).
+
 # [1.48.1] - 2026-09-27
 
 ### Fixed

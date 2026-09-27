@@ -1,5 +1,6 @@
 #include "sd_manager.h"
 #include "board_config.h"
+#include "config.h" // SD_CARD_ENABLED
 #include "../utils/logs.h"
 #include <Arduino.h>
 #include <algorithm>
@@ -152,6 +153,11 @@ bool SdManager::ensureHistoryDirectory() {
 bool SdManager::begin() {
     LOG_INFO("=== SD Init ===");
     _mount_task = xTaskGetCurrentTaskHandle();
+#if !SD_CARD_ENABLED
+    _available = false;
+    LOG_WARNING("SD desactivee (SD_CARD_ENABLED=0) : aucun montage tente");
+    return false;
+#endif
     logPinMapping();
     _available = false;
     SD.end();
@@ -189,6 +195,9 @@ bool SdManager::isAvailable() {
 
 bool SdManager::ensureMounted() {
     if (_available) return true;
+#if !SD_CARD_ENABLED
+    return false; // SD désactivée : jamais de tentative de montage
+#endif
     // Remontage RÉSERVÉ à la tâche propriétaire (loop). Sans carte, une cascade
     // de montage bloque ~5 s (4 fréquences, délais SD.begin). Lancée depuis une
     // requête web, elle bloquait la tâche async_tcp, surveillée par le watchdog
@@ -214,6 +223,10 @@ bool SdManager::ensureMounted() {
 
 bool SdManager::format() {
     LOG_WARNING("=== SD Format ===");
+#if !SD_CARD_ENABLED
+    LOG_WARNING("SD desactivee (SD_CARD_ENABLED=0) : formatage impossible");
+    return false;
+#endif
     _available = false;
     SD.end();
     delay(500);

@@ -28,6 +28,9 @@ Version minimale valide : 1.9.0
 - `WIFI_RETRY_DELAY_MS` : Délai entre tentatives WiFi (ms)
 - `ENABLE_PING_TEST` : Activer le test de ping (1=activé)
 
+### Carte SD
+- `SD_CARD_ENABLED` : `1` par défaut ; `0` pour un montage sans lecteur SD (aucune tentative de montage, voir [Fonctionnement sans carte SD](maintenance_and_troubleshooting.md#fonctionnement-sans-carte-sd))
+
 ### Paramètres système
 - `DASHBOARD_REFRESH_MS` : Fréquence de rafraîchissement du dashboard (ms)
 - `BUTTON_GUARD_MS` : Anti-rebond pour l'encodeur et les boutons (DevKitC, ms)
@@ -38,7 +41,17 @@ Version minimale valide : 1.9.0
 - `UDP_LOG_ENABLED` : diffuser les logs par UDP sur le réseau (1 = activé)
 - `UDP_LOG_PORT` : port UDP d'écoute côté PC (défaut 5005)
 - `UDP_LOG_HOST` : IP du PC récepteur, ou `255.255.255.255` pour un broadcast local
+- Au démarrage, le hub journalise la raison de son dernier redémarrage (`Hub reset reason: …`) : `TASK_WDT`/`PANIC` = plantage, `USB` = moniteur série reconnecté, `POWERON` = alimentation, `SW` = redémarrage volontaire.
 - Détails et réception (Tabby) : voir le [Guide utilisateur](user_guide.md#monitoring-des-logs-par-udp-sans-câble-série-ex-avec-tabby).
+
+## Banc de test : env `esp32-s3-oled-test`
+Le banc compile **le même code** que la production ; seule la configuration change, imposée par des `-D` dans `platformio.ini` (prioritaires sur les `#ifndef` de `config.h`) :
+- `WEB_MDNS_HOSTNAME` = `meteohub-test` ;
+- `UDP_LOG_PORT` = `5006` (morfMonitor écoute 5005) ;
+- `MORF_ECOSYSTEM_ENABLED` = `0` (morfAnalytics ne découvre pas ce hub) ;
+- `SD_CARD_ENABLED` = `0` (pas de SD sur ce montage).
+
+Cible matérielle : DevKitC-1 N16R8 (même carte que `esp32-s3-oled`). Pas de cible de livraison : un banc se flashe à la main, `platformio run -e esp32-s3-oled-test -t upload`. Effacer la flash au premier passage d'une carte de la prod au banc (ou l'inverse) : NVS et LittleFS sont propres à chaque rôle.
 
 ## Réglages persistés à l'exécution (NVS)
 Certains réglages se modifient directement depuis l'interface web (page **Système**) et sont conservés au redémarrage, sans recompilation :

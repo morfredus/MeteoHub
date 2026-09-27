@@ -58,9 +58,10 @@ static std::string shortMac(const uint8_t* m) {
     return b;
 }
 
-// Traduit le code esp_reset_reason() rapporte par la sonde (paquet v2) en nom
-// lisible. BROWNOUT/POWERON apres un trou = coupure d'alimentation ; DEEPSLEEP =
-// reveil normal ; PANIC/WDT = plantage firmware.
+// Traduit un code esp_reset_reason() en nom lisible. Sert pour la sonde (code
+// rapporte dans le paquet v2) ET pour le hub lui-meme (log au boot). BROWNOUT/
+// POWERON apres un trou = coupure d'alimentation ; DEEPSLEEP = reveil normal de la
+// sonde ; PANIC/WDT = plantage firmware ; USB = moniteur serie reconnecte.
 static const char* resetReasonName(uint8_t r) {
     switch (r) {
         case 1:  return "POWERON";
@@ -88,6 +89,11 @@ void setup() {
     // logs applicatifs ET ceux du cœur ESP (SD, capteurs, WiFi…). Les lignes sont
     // bufferisées jusqu'à la connexion WiFi, puis rejouées dans l'ordre.
     udpLogBegin();
+
+    // Raison du dernier redemarrage DU HUB : TASK_WDT/INT_WDT/PANIC = plantage
+    // firmware, USB = moniteur serie qui s'est reconnecte, POWERON = alimentation,
+    // SW = redemarrage volontaire (OTA, garde-fou heap).
+    LOG_INFO(std::string("Hub reset reason: ") + resetReasonName((uint8_t)esp_reset_reason()));
 
 #if defined(ESP32_S3_OLED)
     static OledDisplay oled;

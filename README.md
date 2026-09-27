@@ -2,7 +2,7 @@
 
 *Read in another language: **English** (this document) · [Français](README.fr.md).*
 
-[![Version](https://img.shields.io/badge/version-1.48.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.49.0-blue)](CHANGELOG.md)
 
 > **Minimum supported version: 1.9.0**
 
@@ -36,7 +36,7 @@ Wiring: [docs/hardware_wiring.md](docs/hardware_wiring.md).
 ## Building the Project
 
 * Install PlatformIO in Visual Studio Code
-* Select your board's environment: `esp32-s3-oled` or `esp32-s3-supermini` (first flash of the Super Mini over USB: its 4 MB partition table cannot be applied by OTA)
+* Select your board's environment: `esp32-s3-oled` or `esp32-s3-supermini` (default; first flash of the Super Mini over USB: its 4 MB partition table cannot be applied by OTA). `esp32-s3-oled-test` builds the same code with the test-bench configuration (see docs/configuration.md)
 * Build:
 
 ```bash

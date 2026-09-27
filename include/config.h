@@ -32,7 +32,11 @@
 // ===============
 // Paramètres réseau
 // ===============
+// Les réglages protégés par #ifndef peuvent être imposés par l'env de build
+// (ex. esp32-s3-oled-test, banc de test : voir platformio.ini).
+#ifndef WEB_MDNS_HOSTNAME
 #define WEB_MDNS_HOSTNAME        "meteohub" // Accessible via http://meteohub.local
+#endif
 #define WIFI_RETRY_DELAY_MS      5000
 #define ENABLE_PING_TEST         1
 
@@ -101,8 +105,22 @@
 // Diffuse les logs (applicatifs + cœur ESP : WiFi, I2C, watchdog…) par UDP, pour
 // les suivre à distance sans câble série (ex. dans Tabby). Voir docs/user_guide.md.
 #define UDP_LOG_ENABLED          1                     // 1 = activer, 0 = désactiver
-#define UDP_LOG_PORT             5005                  // port UDP d'écoute côté PC
+#ifndef UDP_LOG_PORT
+#define UDP_LOG_PORT             5005                  // port UDP d'écoute côté PC (banc : 5006)
+#endif
 #define UDP_LOG_HOST             "255.255.255.255"     // IP du PC récepteur, ou 255.255.255.255 pour un broadcast sur le réseau local
+
+// ===============
+// Carte SD
+// ===============
+// 0 = montage sans lecteur/carte SD (ex. banc de test) : le hub ne tente AUCUN
+// montage. Sans carte, chaque tentative bloque ~5 s (cascade de 4 fréquences
+// SPI) et se répète toutes les 30 s à 2 min, dans la boucle principale.
+// Historique long terme et quarantaine se replient alors sur LittleFS (borné)
+// ou sont ignorés.
+#ifndef SD_CARD_ENABLED
+#define SD_CARD_ENABLED          1
+#endif
 
 // ===============
 // Auto-récupération mémoire (garde-fou contre le figeage web)
