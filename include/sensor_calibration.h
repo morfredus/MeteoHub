@@ -1,19 +1,21 @@
 #pragma once
 
 // -----------------------------------------------------------------------------
-// Calibration du capteur intérieur (AHT20) : deux corrections additives,
-// indépendantes, réglées par l'utilisateur contre une référence (thermostat,
-// hygromètre étalonné). Logique pure (ni Arduino, ni NVS) : testée sur l'hôte
-// (pio test -e native) ; la persistance et l'application vivent dans SensorManager.
+// Calibration des capteurs (AHT20 du hub, sonde extérieure) : deux corrections
+// additives et indépendantes par capteur, réglées par l'utilisateur contre une
+// référence (thermostat, hygromètre étalonné). Logique pure (ni Arduino, ni NVS) : testée sur l'hôte
+// (pio test -e native). Persistance : modules/calibration_store ; application :
+// SensorManager (intérieur) et EspNowReceiver (sonde extérieure).
 //
 // Pourquoi deux décalages indépendants, et pas un recalcul de l'humidité à partir
-// de la température corrigée : ce recalcul n'est juste que si le capteur baigne
-// dans un air RÉELLEMENT plus chaud (auto-échauffement de la carte). Dans ce cas,
-// il lit aussi une humidité relative trop basse, et les deux erreurs sont liées.
-// Constat de terrain du 27/09/2026 : 26,8 °C / 67 % au hub contre 24,0 °C / 67 %
-// au thermostat. L'humidité concorde : l'air autour du capteur est le même, c'est
-// la LECTURE de température qui est décalée. Recalculer l'humidité l'aurait
-// faussée (67 % -> ~78 %). Chaque grandeur a donc sa propre correction.
+// de la température corrigée : ce recalcul suppose que TOUT l'écart vient d'un air
+// réellement plus chaud autour du capteur (chaleur de la carte), qui fait aussi
+// lire une humidité relative trop basse. Rien ne garantit que ce soit la seule
+// cause (biais propre du capteur, placement de la référence). Constat de terrain du
+// 27/09/2026 : 26,8 °C / 60 % au hub contre 24,0 °C / 67 % au thermostat.
+// L'humidité basse confirme un air réchauffé, mais le recalcul physique donnerait
+// ~71 % et non 67 % : il surcorrige. Deux décalages mesurés (-2,8 °C, +7 points)
+// collent exactement à la référence. Chaque grandeur a donc sa propre correction.
 //
 // Les bornes limitent l'effet d'une saisie aberrante : un écart supérieur trahit
 // un capteur défectueux ou mal placé, qu'une correction ne doit pas masquer.

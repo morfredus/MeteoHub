@@ -165,11 +165,17 @@ appliquée par le hub à la réception, sans reflasher la sonde.
 4. Enregistrer. La valeur corrigée s'affiche aussitôt ; elle est appliquée à
    l'affichage, à l'historique, à l'API et à ce qu'exploite morfAnalytics.
 
-Température et humidité se corrigent **indépendamment**. Un capteur logé dans un air
-réellement plus chaud (chaleur de la carte) lirait aussi une humidité trop basse ; s'il
-affiche la même humidité que la référence, c'est seulement sa lecture de température
-qui est décalée, et l'humidité ne doit pas être touchée. Les décalages sont bornés
-(±10 °C, ±20 points) : au-delà, le capteur est défectueux ou mal placé.
+Température et humidité se corrigent **indépendamment**, chacune par son propre
+écart mesuré. Un capteur logé dans un air réchauffé par la carte lit une température
+trop haute **et** une humidité trop basse : il faut alors corriger les deux. Exemple
+réel : hub à 26,8 °C / 60 %, thermostat à 24,0 °C / 67 %, soit **-2,8 °C** et
+**+7 points**. Si l'humidité du capteur est déjà égale à celle de la référence, laisser
+son décalage à 0. Les décalages sont bornés (±10 °C, ±20 points) : au-delà, le capteur
+est défectueux ou mal placé.
+
+Un décalage fixe suppose un écart stable. Comparer les valeurs corrigées à la
+référence à plusieurs moments de la journée : si l'écart dérive nettement (activité
+du Wi-Fi, de l'écran), la vraie correction est d'éloigner le capteur de la carte.
 
 Les mesures déjà archivées ne sont pas réécrites : l'historique garde une marche au
 moment du réglage.

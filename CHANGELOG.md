@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.51.1] - 2026-09-27
+
+### Fixed
+
+- **The 1.51.0 rationale misreported the field case.** It said the hub and the
+  thermostat agreed on humidity (67 %); the actual reading was hub 26.8 °C / 60 %
+  against thermostat 24.0 °C / 67 %. The low humidity does point to air warmed by
+  the board, but recomputing humidity from the corrected temperature would give
+  ~71 % instead of 67 %: two measured, independent offsets (-2.8 °C, +7 points)
+  remain the right tool. Corrected in `include/sensor_calibration.h` (whose header
+  also named the old persistence owner), the user guide and the host tests, which
+  now cover this case. Documentation and tests only: no firmware behaviour change,
+  no reflash needed.
+
 ## [1.51.0] - 2026-09-27
 
 ### Added

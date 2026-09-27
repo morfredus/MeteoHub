@@ -15,13 +15,22 @@ void test_native_default_is_identity() {
     TEST_ASSERT_EQUAL_FLOAT(67.0f, correctHumidity(67.0f, o));
 }
 
-// --- Cas de terrain : température décalée, humidité juste -------------------
+// --- Un décalage de température ne touche pas l'humidité ---------------------
 void test_native_temperature_only() {
     Offsets o;
     o.temperature = -2.8f;
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 24.0f, correctTemperature(26.8f, o));
     // L'humidité n'est PAS recalculée à partir de la température corrigée.
-    TEST_ASSERT_EQUAL_FLOAT(67.0f, correctHumidity(67.0f, o));
+    TEST_ASSERT_EQUAL_FLOAT(60.0f, correctHumidity(60.0f, o));
+}
+
+// --- Cas de terrain : hub 26,8 °C / 60 %, thermostat 24,0 °C / 67 % ----------
+void test_native_field_case_both_offsets() {
+    Offsets o;
+    o.temperature = -2.8f;
+    o.humidity = 7.0f;
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 24.0f, correctTemperature(26.8f, o));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 67.0f, correctHumidity(60.0f, o));
 }
 
 // --- L'humidité corrigée reste une humidité relative plausible --------------
@@ -51,6 +60,7 @@ int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_native_default_is_identity);
     RUN_TEST(test_native_temperature_only);
+    RUN_TEST(test_native_field_case_both_offsets);
     RUN_TEST(test_native_humidity_clamped);
     RUN_TEST(test_native_sanitize_bounds);
     return UNITY_END();
