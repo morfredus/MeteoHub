@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * project_config.h — Réglages globaux du framework.
+ * project_config.h - Réglages globaux du framework.
  *
  * PROJECT_NAME / PROJECT_VERSION / BUILD_DATE / BUILD_TIME / GIT_COMMIT sont
  * normalement injectés par tools/build_info.py et tools/version_generator.py
@@ -59,7 +59,7 @@
 #define ENABLE_MDNS
 // #define ENABLE_TIME_SYNC
 
-// BootLog — journal de redémarrage (raison du reset, derniers logs, état
+// BootLog - journal de redémarrage (raison du reset, derniers logs, état
 // système avant crash). Module de débogage optionnel et autonome, voir
 // src/modules/boot_log/boot_log.h pour le détail et la procédure de retrait.
 #define ENABLE_BOOT_LOG

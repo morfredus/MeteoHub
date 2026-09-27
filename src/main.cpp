@@ -44,7 +44,7 @@ mhsync::MeteoSyncService meteoSync; // suivi reception / dedup / horodatage / vo
 // Annonce de presence sur le LAN (protocole morfbeacon/1). MeteoHub ECOUTAIT
 // deja ce protocole pour reperer un service d'analyse ; il l'EMET desormais, et
 // devient donc decouvrable par le meme mecanisme que les services Linux et
-// Windows du parc — sans qu'aucun consommateur ait a connaitre son adresse ni
+// Windows du parc - sans qu'aucun consommateur ait a connaitre son adresse ni
 // son nom mDNS a l'avance.
 morfbeacon::Emitter presence;
 

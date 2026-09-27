@@ -273,7 +273,7 @@ public:
     // (jour, index) forme donc un curseur strictement monotone, contrairement à
     // un horodatage, qui peut reculer ou se répéter lors d'un changement d'heure
     // ou d'un recalage NTP. Un collecteur mémorise (jour, index) et ne demande
-    // que les enregistrements suivants — jamais de doublon, jamais de trou.
+    // que les enregistrements suivants - jamais de doublon, jamais de trou.
 
     // Journées présentes sur la carte SD, triées par date croissante.
     // Version par défaut = flux IN (legacy) ; version OUT = flux extérieur.

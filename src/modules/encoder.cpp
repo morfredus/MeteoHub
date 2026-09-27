@@ -51,24 +51,6 @@ void Encoder::update() {
 
 }
 
-bool Encoder::rotatedCW() {
-    if (stepQueue > 0) {
-        stepQueue--;
-        return true;
-    }
-
-    return false;
-}
-
-bool Encoder::rotatedCCW() {
-    if (stepQueue < 0) {
-        stepQueue++;
-        return true;
-    }
-
-    return false;
-}
-
 bool Encoder::clicked() {
     if (clickFlag) { clickFlag = false; return true; }
     return false;

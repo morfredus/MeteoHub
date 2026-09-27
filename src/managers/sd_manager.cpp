@@ -239,17 +239,3 @@ bool SdManager::format() {
     _available = true;
     return true;
 }
-
-bool SdManager::openFileSafe(const char* path, const char* mode, File& out_file) {
-    std::lock_guard<std::mutex> lock(_sd_mutex);
-    if (!isAvailable()) return false;
-    out_file = SD.open(path, mode);
-    return (bool)out_file;
-}
-
-void SdManager::closeFileSafe(File& file) {
-    if (file) {
-        file.flush();
-        file.close();
-    }
-}

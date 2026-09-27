@@ -54,7 +54,7 @@ static bool isTemporalOutlier(float prev, float cur, float next, float floor) {
 // à une mesure par sa position (recherche dichotomique), sans relire ce qui
 // précède. Les fichiers sont rangés par jour : /history/AAAA/MM/AAAA-MM-JJ.bin
 // avec, à côté, un fichier .stats contenant les statistiques déjà calculées.
-#define BIN_STATS_MAGIC 0x53544231u // "1BTS" — identifie/versionne un fichier .stats
+#define BIN_STATS_MAGIC 0x53544231u // "1BTS" - identifie/versionne un fichier .stats
 
 struct __attribute__((packed)) BinRecord {
     uint32_t ts; // horodatage Unix (secondes)
@@ -775,7 +775,7 @@ void HistoryManager::saveToSdBinary(const HistoryRecord& record) {
     af.write(reinterpret_cast<const uint8_t*>(&br), sizeof(br));
     af.flush(); af.close();
 
-    // Met à jour l'en-tête (compteur + horodatages) — best effort, sans blocage
+    // Met à jour l'en-tête (compteur + horodatages) - best effort, sans blocage
     // si le mode "r+" n'est pas supporté (les lecteurs recalculent nrec via la taille).
     hdr.recordCount += 1;
     hdr.lastTimestamp = static_cast<uint64_t>(record.timestamp);
@@ -982,7 +982,7 @@ std::vector<HistoryPoint> HistoryManager::queryRangeImpl(time_t from, time_t to,
     // 1) Source SD : lit les fichiers binaires journaliers couvrant [from, to].
     //    Grâce aux enregistrements de taille fixe et chronologiques, on saute
     //    directement (dichotomie) au premier enregistrement >= from, puis on lit
-    //    séquentiellement jusqu'à dépasser to — sans relire tout le fichier.
+    //    séquentiellement jusqu'à dépasser to - sans relire tout le fichier.
     //    Repli sur l'ancien CSV plat si un .bin n'existe pas encore.
     //
     // On monte via ensureMounted() (comme /api/history/raw et /days) et NON via
@@ -1767,7 +1767,7 @@ MeteoTrend HistoryManager::getTrendImpl(bool outdoor) const {
 
 // --- Méthodes privées de stockage OUT ---
 // (Le stockage IN passe par les méthodes legacy : saveRecent, saveToSdBinary,
-//  updateDayStats... — décision legacy = IN, pas de chemin indoor parallèle.)
+//  updateDayStats... - décision legacy = IN, pas de chemin indoor parallèle.)
 void HistoryManager::saveOutdoorRecent(const OutdoorHistoryRecord& record) {
     // Sauvegarde des données OUT récentes dans LittleFS
     // Similaire à saveRecent mais pour OUT

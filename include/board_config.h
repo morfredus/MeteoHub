@@ -12,7 +12,7 @@
 
 // =====================================================
 // Carte : ESP32-S3 Super Mini (v0.2)
-// 4 Mo flash / 2 Mo PSRAM quad — même carte que la sonde
+// 4 Mo flash / 2 Mo PSRAM quad - même carte que la sonde
 // MeteoHubSensor (env esp32-s3-supermini).
 //
 // Montage simplifié (4 modules seulement) :
@@ -28,7 +28,7 @@
 
 
 // =====================================================
-// I2C — bus partagé AHT20 (0x38) + BMP280 (0x76/0x77)
+// I2C - bus partagé AHT20 (0x38) + BMP280 (0x76/0x77)
 // + OLED SSD1306 (0x3C). Mêmes GPIO que la sonde.
 // =====================================================
 #define I2C_SDA_PIN 8
@@ -62,7 +62,7 @@
 
 
 // =====================================================
-// Module SD — SPI (FSPI), brochage identique à l'ancienne
+// Module SD - SPI (FSPI), brochage identique à l'ancienne
 // carte : le module se recâble tel quel.
 // =====================================================
 #define SD_CLK_PIN   13   // SCK  -> broche "CLK/SCK" du module
@@ -103,7 +103,7 @@
 
 
 // =====================================================
-// I2C — bus partagé AHT20 + BMP280 + écran OLED SH1106
+// I2C - bus partagé AHT20 + BMP280 + écran OLED SH1106
 // (routage en haut de la carte, vers les capteurs,
 // puis redescend vers le connecteur de l'écran : pins
 // "SDA" et "SCL" visibles sur le connecteur 9 broches
@@ -147,7 +147,7 @@
 
 
 // =====================================================
-// Module SD (J1) — SPI secondaire "safe"
+// Module SD (J1) - SPI secondaire "safe"
 // (routage en bas à gauche sur le schéma)
 // =====================================================
 // Modules SD à 6 broches (sans DAT1/DAT2 routées) : à éviter,
@@ -159,7 +159,7 @@
 #define SD_MOSI_PIN  11   // CMD  -> broche "CMD/SI"
 #define SD_CS_PIN    10   // CS   -> broche "DAT3/CS"
 
-// D1 et DAT2 (inutilisées en mode SPI 1 bit) — câblage réel :
+// D1 et DAT2 (inutilisées en mode SPI 1 bit) - câblage réel :
 //   DAT2 -> R 10 kΩ -> GPIO 3 ;  D1 -> R 10 kΩ -> GPIO 46
 // Ajouté lors du diagnostic SD du 02/07/2026, EN MÊME TEMPS que
 // le passage des broches SPI de 21/47/38/39 à 13/12/11/10. Très

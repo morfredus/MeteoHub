@@ -41,11 +41,6 @@ void neoWifiOK() {
     neo.show();
 }
 
-void neoWifiKO() {
-    neo.setPixelColor(0, neo.Color(150, 0, 0)); // rouge
-    neo.show();
-}
-
 void neoWifiLost() {
     neo.setPixelColor(0, neo.Color(150, 0, 255)); // violet
     neo.show();

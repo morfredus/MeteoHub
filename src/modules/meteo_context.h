@@ -129,7 +129,7 @@ inline MeteoData outdoorToMeteo(const OutdoorData& out) {
 // Lecture effective : quelle valeur afficher/utiliser, SANS perdre sa provenance
 // ============================================================================
 // OUT est la référence extérieure. Quand OUT est momentanément indisponible, on
-// peut se replier sur IN pour ne pas laisser un champ vide — mais la valeur
+// peut se replier sur IN pour ne pas laisser un champ vide - mais la valeur
 // reste marquée comme provenant de IN (fallback), jamais maquillée en mesure
 // extérieure. Ce résolveur est le point unique de cette décision, partagé par
 // l'OLED et l'interface web (étapes 5 et 6).

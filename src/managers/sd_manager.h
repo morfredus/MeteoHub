@@ -14,10 +14,6 @@ public:
     bool format();
     bool isAvailable();
     bool ensureMounted();
-    
-    // Nouvelles méthodes sécurisées pour l'écriture
-    bool openFileSafe(const char* path, const char* mode, File& out_file);
-    void closeFileSafe(File& file);
 
 private:
     bool _available = false;

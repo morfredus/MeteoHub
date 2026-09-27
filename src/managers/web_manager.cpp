@@ -302,7 +302,7 @@ void WebManager::_setupApi() {
     // Rend MeteoHub lisible par un observateur du parc EXACTEMENT comme un
     // service Linux ou Windows : meme protocole, meme document, meme contrat.
     // C'est ce qui permet de retirer MeteoHub des listes statiques de
-    // morfsystem.json — il se declare lui-meme au lieu d'etre declare ailleurs.
+    // morfsystem.json - il se declare lui-meme au lieu d'etre declare ailleurs.
     _server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
         // Metriques de sante VOLATILES exposees pour le suivi FIFO de morfMonitor :
         // heap totale libre et plus gros bloc allouable (AsyncTCP a besoin de blocs

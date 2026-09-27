@@ -67,7 +67,7 @@ Depuis la v1.2.0, le placement physique des modules sur le boîtier doit respect
 
 Version minimale valide : 1.43.0
 
-Carte : **ESP32-S3 Super Mini** (v0.2, 4 Mo flash / 2 Mo PSRAM quad) — la même que
+Carte : **ESP32-S3 Super Mini** (v0.2, 4 Mo flash / 2 Mo PSRAM quad) - la même que
 la sonde MeteoHubSensor. Montage simplifié à 4 modules :
 
 - OLED 0,96" **JMD0.96D-1** (SSD1306 128x64, I2C, adresse 0x3C)

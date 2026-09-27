@@ -1,4 +1,47 @@
-# [1.50.0] - 2026-09-27
+# Changelog
+
+All notable changes to MeteoHub are recorded in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
+file at the repository root).
+
+## [1.50.4] - 2026-09-27
+
+### Changed
+
+- `include/meteo_packet.h`: the header comment named the sender an ESP32-C3; the
+  probe is an ESP32-S3 (comment only, file kept identical to MeteoHubSensor's).
+
+## [1.50.3] - 2026-09-27
+
+### Changed
+
+- Re-vendored the morfBeacon Arduino emitter (`third_party/morf/beacon-arduino`) to
+  morfBeacon 0.7.2 (comment punctuation only).
+
+## [1.50.2] - 2026-09-27
+
+### Changed
+
+- Em dashes replaced by `-` in the project's own files (code comments, UI
+  placeholders, docs), per the parc punctuation rule.
+
+## [1.50.1] - 2026-09-27
+
+### Changed
+
+- **CHANGELOG headings normalised to `## [x.y.z]`.** Every version used a level-one
+  heading (`# [x.y.z]`), which `package-all.py` does not recognise: MeteoHub releases
+  were published without their summary. A standard `# Changelog` title was added.
+
+### Removed
+
+- **Dead code with no caller:** `SdManager::openFileSafe`/`closeFileSafe` (never
+  adopted), `Encoder::rotatedCW`/`rotatedCCW` (the UI reads `getStepCount()`), and
+  `neoWifiKO()`. Both boards still build.
+
+## [1.50.0] - 2026-09-27
 
 ### Added
 
@@ -9,7 +52,7 @@
   readings too. Page 1 itself is unchanged; in the rotation its header carries
   the Forecast page number (`Meteo 2/N`).
 
-# [1.49.0] - 2026-09-27
+## [1.49.0] - 2026-09-27
 
 ### Added
 
@@ -32,7 +75,7 @@
 - **Default build environment is now `esp32-s3-supermini`**, the production
   board since the hub swap of 2026-09-27 (the DevKitC N16R8 became the bench).
 
-# [1.48.1] - 2026-09-27
+## [1.48.1] - 2026-09-27
 
 ### Fixed
 
@@ -48,7 +91,7 @@
   absent until the loop remounts it. One central check, so every current and
   future route is covered.
 
-# [1.48.0] - 2026-09-26
+## [1.48.0] - 2026-09-26
 
 ### Added
 
@@ -68,7 +111,7 @@
 - Reset-cause table knows the ESP32-S3 `USB` (11) and `JTAG` (12) causes,
   previously logged as `UNKNOWN` when a serial monitor restarted the probe.
 
-# [1.47.0] - 2026-09-26
+## [1.47.0] - 2026-09-26
 
 ### Fixed
 
@@ -94,7 +137,7 @@
 - `[OUT]` log lines show the probe's MAC suffix and its awake time at send
   (`up=…s`), to diagnose awake durations without USB.
 
-# [1.46.1] - 2026-09-26
+## [1.46.1] - 2026-09-26
 
 ### Fixed
 
@@ -109,7 +152,7 @@
   (tracker + time anchor) and logs `Sonde node=N repartie de seq=S (ancien max
   M)`. No protocol change. Host test `test_native_counter_restart_detected`.
 
-# [1.46.0] - 2026-09-26
+## [1.46.0] - 2026-09-26
 
 ### Added
 
@@ -132,7 +175,7 @@
 - `meteo_packet.h` (kept identical to MeteoHubSensor's) gains the pairing frame
   and compiles natively (Arduino include only under `ARDUINO`).
 
-# [1.45.0] - 2026-09-25
+## [1.45.0] - 2026-09-25
 
 ### Added
 
@@ -168,7 +211,7 @@
   `battery_alert_pending` and `notify_available`.
 - README badges realigned on the actual version (they had stayed at 1.42.0).
 
-# [1.44.0] - 2026-09-24
+## [1.44.0] - 2026-09-24
 
 ### Fixed
 
@@ -185,7 +228,7 @@
 - An absent indoor recent file no longer prevents the outdoor file from loading
   at boot.
 
-# [1.43.0] - 2026-09-24
+## [1.43.0] - 2026-09-24
 
 ### Added
 
@@ -226,7 +269,7 @@
 - The outdoor recent buffer is now capped to `MAX_RECENT_RECORDS` when loaded from
   LittleFS at boot (it already was at runtime, and the indoor buffer at load).
 
-# [1.42.0] - 2026-09-22
+## [1.42.0] - 2026-09-22
 
 ### Fixed
 
@@ -239,7 +282,7 @@
   stays a gap, so the probe keeps retransmitting it (with a corrected timestamp,
   cf. MeteoHubSensor 0.22.0) until it lands.
 
-# [1.41.0] - 2026-09-22
+## [1.41.0] - 2026-09-22
 
 ### Changed
 
@@ -250,7 +293,7 @@
   fix (0.21.0) that makes gap recovery proactive rather than dependent on catching
   that reply in a tight window.
 
-# [1.40.0] - 2026-09-22
+## [1.40.0] - 2026-09-22
 
 ### Added
 
@@ -266,7 +309,7 @@
 - `SyncControl` grew from 16 to 20 bytes (added `hub_epoch`). Reflash probe and hub
   together (requires MeteoHubSensor >= 0.20.0).
 
-# [1.39.0] - 2026-09-22
+## [1.39.0] - 2026-09-22
 
 ### Added
 
@@ -303,7 +346,7 @@
 - morfAnalytics is unchanged: a late historical measurement is picked up naturally
   by its `(day, index)` cursor and reordered on read (`ORDER BY ts`).
 
-# [1.38.1] - 2026-09-16
+## [1.38.1] - 2026-09-16
 
 ### Changed
 
@@ -313,7 +356,7 @@
   only when the counters change (a frame arrived or was rejected) or as a 5 min
   heartbeat (liveness + current channel). Far cleaner in the captured logs.
 
-# [1.38.0] - 2026-09-16
+## [1.38.0] - 2026-09-16
 
 ### Added
 
@@ -326,7 +369,7 @@
   without ever plugging it in - it is deployed outdoors. Frame grows 51→54 bytes;
   the protocol version bump means the probe and the hub must be reflashed together.
 
-# [1.37.0] - 2026-09-16
+## [1.37.0] - 2026-09-16
 
 ### Added
 
@@ -339,7 +382,7 @@
   timestamps let us correlate any OUT-frame gap with a fetch window (testing the
   "fetch vs ESP-NOW reception collision" hypothesis) instead of guessing.
 
-# [1.36.0] - 2026-09-16
+## [1.36.0] - 2026-09-16
 
 ### Added
 
@@ -354,7 +397,7 @@
   `free_heap_b` and `free_block_b`, so morfMonitor can record a 48 h FIFO of heap
   and uptime and diagnose a future freeze (declining heap, moment of the break).
 
-# [1.35.0] - 2026-09-15
+## [1.35.0] - 2026-09-15
 
 ### Added
 
@@ -365,7 +408,7 @@
   battery line added in 1.34.0 overflowed the 64 px screen, so it moved to its own
   page. User guide now lists every OLED page with ASCII mockups.
 
-# [1.34.1] - 2026-09-15
+## [1.34.1] - 2026-09-15
 
 ### Fixed
 
@@ -391,7 +434,7 @@
   `ctx`-less window-mode endpoint. The live History page uses the ctx-aware
   `refreshLongterm`; these were never called.
 
-# [1.34.0] - 2026-09-15
+## [1.34.0] - 2026-09-15
 
 ### Fixed
 
@@ -421,7 +464,7 @@
   destructive "Vider tout l'historique" button appears, so a distracted click
   cannot wipe the history. The existing double confirmation is unchanged.
 
-# [1.33.3] - 2026-09-14
+## [1.33.3] - 2026-09-14
 
 ### Fixed
 
@@ -434,7 +477,7 @@
   line only on a real sensor silence (gap > max(2.5 slices, 20 min), the same rule
   as morfAnalytics). The "N slices filled by indoor" note is gone.
 
-# [1.33.2] - 2026-09-14
+## [1.33.2] - 2026-09-14
 
 ### Documentation
 
@@ -445,7 +488,7 @@
   removed), the remote wipe (`POST /api/history/clear`), the 5 min outdoor
   cadence and the forecast archive. No behaviour change.
 
-# [1.33.1] - 2026-09-14
+## [1.33.1] - 2026-09-14
 
 ### Fixed
 
@@ -462,7 +505,7 @@
 - **Removed em dashes** from the web UI (dashboard, stats, system, history), per
   house style: hyphens, colons or middots instead.
 
-# [1.33.0] - 2026-09-14
+## [1.33.0] - 2026-09-14
 
 ### Changed
 
@@ -476,7 +519,7 @@
   the mean OUT − IN gap per metric. The OUT view keeps its indoor gap-filling
   (orange-marked), and the time axis keeps adapting to the selected period.
 
-# [1.32.0] - 2026-09-14
+## [1.32.0] - 2026-09-14
 
 ### Added
 
@@ -489,7 +532,7 @@
   `GET /api/forecast/history?from=&to=` streams the archived snapshots for
   morfAnalytics to collect. Cleared by the existing full history wipe.
 
-# [1.31.0] - 2026-09-14
+## [1.31.0] - 2026-09-14
 
 ### Changed
 
@@ -502,7 +545,7 @@
   sensor had been seen still shows "sonde extérieure absente". (The OLED already
   distinguished this case with its radio-debug line.)
 
-# [1.30.0] - 2026-09-14
+## [1.30.0] - 2026-09-14
 
 ### Removed
 
@@ -519,7 +562,7 @@
 - **History chart loads faster.** The period-A, comparison-B and indoor-fill
   requests are now fetched in parallel instead of sequentially.
 
-# [1.29.0] - 2026-09-14
+## [1.29.0] - 2026-09-14
 
 ### Changed
 
@@ -536,7 +579,7 @@
   now shows a marker; a line alone cannot draw a single point, so the chart looked
   empty while Statistics showed the value.
 
-# [1.28.1] - 2026-09-14
+## [1.28.1] - 2026-09-14
 
 ### Changed
 
@@ -550,7 +593,7 @@
   continues normally in the meantime. New accessor
   `hasReceivedOutdoorSinceBoot()` exposes that state.
 
-# [1.28.0] - 2026-09-14
+## [1.28.0] - 2026-09-14
 
 ### Added
 
@@ -559,7 +602,7 @@
   behind a double confirmation. Erasing the history no longer requires the on-device
   OLED menu.
 
-# [1.27.0] - 2026-09-14
+## [1.27.0] - 2026-09-14
 
 ### Changed
 
@@ -578,7 +621,7 @@
   the whole SD `/history` tree, then recreates the empty symmetric structure.
   Previously it left the outdoor recent file and OUT RAM state behind.
 
-# [1.26.0] - 2026-09-14
+## [1.26.0] - 2026-09-14
 
 ### Added
 
@@ -588,7 +631,7 @@
   (`age_ms`) reported by `/api/live`: now minus age. Shown for both fresh and
   stale outdoor readings.
 
-# [1.25.2] - 2026-09-14
+## [1.25.2] - 2026-09-14
 
 ### Changed
 
@@ -598,7 +641,7 @@
   stays "last frame received" (it arrives by radio). Reverts the 1.25.0 cached-IN
   behaviour; a live read never creates a history entry.
 
-# [1.25.1] - 2026-09-14
+## [1.25.1] - 2026-09-14
 
 ### Fixed
 
@@ -607,7 +650,7 @@
   With the new cadence the old 90 s window marked OUT as stale between every
   frame (the sensor now sends every ~5 min).
 
-# [1.25.0] - 2026-09-14
+## [1.25.0] - 2026-09-14
 
 ### Changed
 
@@ -621,7 +664,7 @@
   acquisition on every refresh: the UI stays quasi-instant without creating a new
   measurement or history entry. A reading at boot primes the cache.
 
-# [1.24.1] - 2026-09-13
+## [1.24.1] - 2026-09-13
 
 ### Fixed
 
@@ -632,7 +675,7 @@
   outdoor weather. Stats are now bounded to the last 24 h, and `loadRecent` keeps
   only the last `MAX_RECENT_RECORDS` in RAM (the long archive lives on SD).
 
-# [1.24.0] - 2026-09-13
+## [1.24.0] - 2026-09-13
 
 ### Added
 
@@ -651,18 +694,18 @@
   as weather. It now uses the outdoor stream (`/api/stats?ctx=out` returns the OUT
   trend); the indoor and outdoor summaries stay clearly separated.
 
-# [1.23.0] - 2026-09-13
+## [1.23.0] - 2026-09-13
 
 ### Added
 
 - History page: in the OUT view, time slices with no outdoor measurement are
   filled from the indoor series and marked (orange dots on the curve, with a
-  "N slices filled from indoor" note). The fallback stays explicit — an indoor
+  "N slices filled from indoor" note). The fallback stays explicit - an indoor
   point is never shown as a real outdoor measurement.
 - Statistics page: each summary now shows its sample count, so outdoor vs indoor
   coverage is visible at a glance.
 
-# [1.22.0] - 2026-09-13
+## [1.22.0] - 2026-09-13
 
 ### Added
 
@@ -675,7 +718,7 @@
 - History page gains an OUT/IN source selector (defaults to OUT). Period and
   comparison filters apply to whichever source is selected.
 
-# [1.21.0] - 2026-09-13
+## [1.21.0] - 2026-09-13
 
 ### Changed
 
@@ -687,7 +730,7 @@
   never presented as a real outdoor measurement. The 2 h chart is labelled as
   indoor history.
 
-# [1.20.0] - 2026-09-13
+## [1.20.0] - 2026-09-13
 
 ### Added
 
@@ -702,7 +745,7 @@
   real outdoor measurement. Pressure stays outdoor-only on screen (the indoor
   pressure fallback remains available in the data layer, /api/live effective).
 
-# [1.19.0] - 2026-09-13
+## [1.19.0] - 2026-09-13
 
 ### Changed
 
@@ -713,7 +756,7 @@
   A `live` value seeded from disk at boot counts as unavailable, so old data is
   never shown as current.
 
-# [1.18.0] - 2026-09-13
+## [1.18.0] - 2026-09-13
 
 ### Added
 
@@ -724,7 +767,7 @@
   meteo_context resolver. The legacy flat `temp`/`hum`/`pres` fields are kept, so
   the current dashboard is unaffected.
 
-# [1.17.0] - 2026-09-13
+## [1.17.0] - 2026-09-13
 
 ### Added
 
@@ -736,7 +779,7 @@
   parameterized by storage root), so morfAnalytics can collect the OUT stream
   (the real weather) in addition to IN.
 
-# [1.16.0] - 2026-09-13
+## [1.16.0] - 2026-09-13
 
 ### Added
 
@@ -759,37 +802,37 @@
   save/ensure/build/update/read `*Indoor*` day methods) made redundant by the
   legacy = IN decision. The outdoor storage path is unchanged.
 
-# [1.15.6] - 2026-09-13
+## [1.15.6] - 2026-09-13
 
 ### Changed
 
 - ESP-NOW RX cleaned: STA broadcast peer, no 1 Mbps / open-AP / join hacks.
 - SoftAP `MH-NOW` is a WPA2 channel beacon; the probe does not associate.
 
-# [1.15.5] - 2026-09-13
+## [1.15.5] - 2026-09-13
 
 ### Fixed
 
 - `MH-NOW` is an open SoftAP (C3 WPA2 AUTH_EXPIRE on S3 AP).
 - ESP-NOW listen on STA interface at 1 Mbps so an unassociated C3 is heard.
 
-# [1.15.4] - 2026-09-13
+## [1.15.4] - 2026-09-13
 
 ### Fixed
 
 - SoftAP `MH-NOW` forced to WPA2-PSK after `softAP()` so C3 STA can complete
   the 4-way handshake (was AUTH_EXPIRE).
 
-# [1.15.3] - 2026-09-13
+## [1.15.3] - 2026-09-13
 
 ### Changed
 
 - ESP-NOW status log includes last source MAC and SoftAP station count so a
   C3 probe that never reaches `recv_cb` is obvious (`rx=0`).
 
-# [Non publié]
+## [Non publié]
 
-# [1.15.1] - 2026-09-12
+## [1.15.1] - 2026-09-12
 
 ### Changed
 
@@ -797,7 +840,7 @@
 - Sensor connects to MH-NOW AP for reliable ESP-NOW broadcast.
 - Receiver uses AP interface for broadcast reception.
 
-# [1.15.0] - 2026-09-12
+## [1.15.0] - 2026-09-12
 
 ### Changed
 
@@ -806,7 +849,7 @@
 - Added OLED display support for outdoor data (pressure from OUT if available).
 - Improved ESP-NOW interface selection for better communication reliability.
 
-# [1.14.9] - 2026-09-12
+## [1.14.9] - 2026-09-12
 
 ### Fixed
 
@@ -814,7 +857,7 @@
   Recreate the AP once after STA join so the handshake does not kill it.
   Probe `apsta=0` meant the AP was missing, not that ESP-NOW was "fine".
 
-# [1.14.8] - 2026-09-12
+## [1.14.8] - 2026-09-12
 
 ### Changed
 
@@ -822,7 +865,7 @@
   associate. Status log includes `apsta=` (connected probes). Flash the hub
   before the probe.
 
-# [1.14.7] - 2026-09-12
+## [1.14.7] - 2026-09-12
 
 ### Fixed
 
@@ -830,14 +873,14 @@
   with a hidden AP on the STA channel so ESP-NOW is received on the AP
   interface. OLED OUT stays `--` until `rx` increments.
 
-# [1.14.6] - 2026-09-12
+## [1.14.6] - 2026-09-12
 
 ### Added
 
 - ESP-NOW status log includes HT40 secondary (`sec=none|above|below`) next to
   the primary channel.
 
-# [1.14.5] - 2026-09-12
+## [1.14.5] - 2026-09-12
 
 ### Fixed
 
@@ -845,28 +888,28 @@
   steering): the C3 probe only transmits on 2.4 GHz. The Net. page shows
   `5GHz!` when that happens. ESP-NOW recv no longer logs from the Wi-Fi task.
 
-# [1.14.4] - 2026-09-12
+## [1.14.4] - 2026-09-12
 
 ### Added
 
 - Log every raw ESP-NOW RX length so a silent OLED can be told apart from CRC
   rejects (`NOW chX rxY okZ` on the weather page).
 
-# [1.14.3] - 2026-09-12
+## [1.14.3] - 2026-09-12
 
 ### Fixed
 
 - STA is forced to 2.4 GHz (11b/g/n) so the S3 does not join the same SSID on
   5 GHz, which made ESP-NOW from the C3 probe invisible.
 
-# [1.14.2] - 2026-09-12
+## [1.14.2] - 2026-09-12
 
 ### Added
 
 - OLED **Net.** page shows the STA Wi-Fi channel and MAC address, so the outdoor
   probe can be checked against the radio the hub actually listens on.
 
-# [1.14.1] - 2026-09-12
+## [1.14.1] - 2026-09-12
 
 ### Fixed
 
@@ -878,7 +921,7 @@
   association so it follows the AP channel. The weather page shows `NOW chX rxY
   okZ` until a valid OUT frame arrives.
 
-# [1.14.0] - 2026-09-12
+## [1.14.0] - 2026-09-12
 
 ### Added
 
@@ -908,7 +951,7 @@
   (`Update.abort()`) before opening a new one, and on write failure. Changing
   the partition table requires one USB flash; OTA then works again.
 
-# [1.13.3] - 2026-08-20
+## [1.13.3] - 2026-08-20
 
 
 ### Corrigé
@@ -916,14 +959,14 @@
 - La version est montée après les évolutions de packaging afin que le tag source
   identifie exactement le commit produisant le firmware publié.
 
-# [1.13.2] - 2026-07-31
+## [1.13.2] - 2026-07-31
 
 ### Modifié
 
 - Le lien **Analyses avancées** ouvre désormais directement l'espace météo de
   morfAnalytics (`/meteohub`) plutôt que le portail général.
 
-# [1.13.1] - 2026-07-26
+## [1.13.1] - 2026-07-26
 
 ### Ajouté
 
@@ -941,7 +984,7 @@
   est en flash (PROGMEM), sans coût mémoire notable. Nécessite morfBeacon 0.5.1
   (émetteur Arduino, re-vendoré).
 
-# [1.13.0] - 2026-07-21
+## [1.13.0] - 2026-07-21
 
 ### Ajouté
 
@@ -999,7 +1042,7 @@
 - `docs/beginner/readme.md`, page d'accueil du dossier sur GitHub, dupliquait
   `index.md` sans aucun lien : ses entrées sont désormais cliquables.
 
-# [1.12.0] - 2026-07-19
+## [1.12.0] - 2026-07-19
 ### Changed
 - **Le service d'analyse est reconnu à sa CAPACITÉ, plus à son nom.** MeteoHub cherchait un heartbeat dont le champ `app` valait exactement `morfAnalytics`. Or le projet est sous licence GPL : chacun peut renommer son service, et la détection cessait alors de fonctionner. MeteoHub cherche désormais un service annonçant la capacité **`advanced_analysis`** (nouveau champ `capabilities` du protocole morfBeacon, voir morfBeacon 0.2.0) et n'utilise le nom annoncé que comme **libellé** affiché dans le menu et la page Système. Renommer son service n'interrompt plus l'intégration.
 
@@ -1016,7 +1059,7 @@
 - La sélection explicite entre plusieurs services détectés et la personnalisation du nom affiché sont volontairement reportées : elles répondent à des besoins plus spécifiques et n'apportent rien au fonctionnement courant. En présence de plusieurs services, MeteoHub retient le dernier annoncé ; une adresse manuelle permet d'en imposer un.
 - Les emplacements de captures d'écran de `docs/analyse_avancee.md` sont **en attente des images** (voir `docs/images/README.md`, qui décrit précisément ce qu'il faut cadrer).
 
-# [1.11.2] - 2026-07-19
+## [1.11.2] - 2026-07-19
 ### Fixed
 - **`/api/history/summary` et `/api/history/export.csv` renvoyaient le JSON de l'historique** (bug préexistant, antérieur à la 1.11.0). ESPAsyncWebServer fait correspondre une route à toute URL qui **commence** par elle : `/api/history`, enregistrée avant ses sous-routes, les captait toutes. La synthèse renvoyait donc la liste des mesures, et le bouton **Export CSV** téléchargeait un fichier JSON portant l'extension `.csv`. La route générique est désormais déclarée **en dernier**, après toutes ses sous-routes (`src/managers/web_manager.cpp`).
 - **`/api/history/days` et `/api/history/raw` ne répondaient jamais**, pour la même raison : captées par `/api/history`, elles tombaient dans une branche qui n'émet aucune réponse pour leurs paramètres.
@@ -1025,13 +1068,13 @@
 
   Ces quatre défauts ne sont observables que sur le matériel : ils compilent sans le moindre avertissement.
 
-# [1.11.1] - 2026-07-19
+## [1.11.1] - 2026-07-19
 ### Fixed
 - **`GET /api/history/days` ne répondait jamais.** La route restait bloquée indéfiniment (aucune réponse, l'appareil restant par ailleurs parfaitement fonctionnel) : `HistoryManager::listDays()` **imbriquait** les parcours de répertoires, gardant ouverts en même temps les itérateurs de `/history`, `/history/AAAA` et `/history/AAAA/MM`. Maintenir plusieurs itérations de répertoires simultanées bloque la lecture de la carte SD sur ESP32. Chaque niveau est désormais **entièrement lu et refermé avant de descendre** au suivant (`listEntries()`), avec un garde-fou sur le nombre d'entrées. Les horodatages extrêmes de chaque journée sont en outre lus dans l'en-tête du fichier plutôt que par deux positionnements supplémentaires, chaque accès SD étant coûteux.
 
   Le défaut n'était pas détectable à la compilation : il ne se manifeste que sur une vraie carte SD.
 
-# [1.11.0] - 2026-07-19
+## [1.11.0] - 2026-07-19
 ### Added
 - **API de recopie de l'historique pour un serveur d'analyse (lecture seule).** Deux nouvelles routes permettent à **morfAnalytics** de constituer sa copie de travail sans jamais rien modifier sur MeteoHub, qui demeure la **source de vérité** :
   - `GET /api/history/days` - journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ;
@@ -1043,37 +1086,37 @@
 ### Notes
 - Ces deux routes ne servent qu'à un serveur d'analyse. Pour un export manuel, le **CSV** (`GET /api/history/export.csv`) reste la voie recommandée, directement exploitable dans un tableur. (Cet export était en réalité cassé jusqu'à la 1.11.2 - voir cette version.)
 
-# [1.10.0] - 2026-07-19
+## [1.10.0] - 2026-07-19
 ### Added
 - **Détection optionnelle du service morfAnalytics (écosystème morfSystem).** MeteoHub écoute passivement le heartbeat morfBeacon (`morfbeacon/1`, broadcast UDP sur le port `45454`) et signale la présence du moteur d'analyse `morfAnalytics` (`src/modules/analytics_beacon.*`, API `GET /api/analytics`). La page **Système** affiche « Analyse avancée disponible / indisponible ». **Aucune dépendance** : si aucun serveur n'est détecté, le comportement nominal de MeteoHub (mesures, historique, graphiques, exports) est strictement inchangé. MeteoHub reste la **source de vérité** ; ce module ne fait que constater une présence. Configurable dans `include/config.h` (`ANALYTICS_BEACON_ENABLED`, `ANALYTICS_BEACON_PORT`, `ANALYTICS_APP_NAME`, `ANALYTICS_TIMEOUT_MS`). Voir la vision d'ensemble dans `MORFSYSTEM_ARCHITECTURE.md` (au niveau de l'écosystème).
 
-# [1.9.1] - 2026-07-19
+## [1.9.1] - 2026-07-19
 ### Fixed
 - **Monitoring UDP : logs de démarrage manquants (dont la vitesse SPI de la carte SD).** Le module UDP était initialisé tard (après le WiFi) et la tâche d'émission **jetait** les logs tant que le réseau n'était pas connecté ; tous les messages de boot (montage SD et fréquence retenue, init capteurs, etc.) étaient donc perdus pour le moniteur UDP. Désormais : la capture est installée **dès le début du `setup()`** (au plus tôt), les logs de démarrage sont **conservés dans une file tampon** (agrandie) puis **rejoués dans l'ordre dès la connexion WiFi**, sans être jetés (`src/utils/udp_logger.cpp`, `src/main.cpp`). Le moniteur UDP reçoit ainsi la totalité des logs applicatifs et cœur ESP à partir du `setup()` (seules les quelques lignes du bootloader ROM et de l'init du cœur Arduino, émises avant `setup()`, restent propres au port série physique).
 
-# [1.9.0] - 2026-07-19
+## [1.9.0] - 2026-07-19
 ### Added
 - **Monitoring des logs par UDP (sans câble série).** Nouveau module `src/utils/udp_logger.*` : les logs applicatifs (`addLog`) **et** ceux du cœur ESP-IDF/Arduino (WiFi, I2C, watchdog…) sont diffusés en UDP sur le réseau local, pour être suivis à distance (par ex. dans **Tabby**). L'émission passe par une **file FreeRTOS + une tâche dédiée** : le contexte d'origine d'un log (y compris la pile réseau) n'émet jamais lui-même de paquet, ce qui évite tout risque de réentrance/blocage. Les logs sont aussi désormais mis en miroir sur le port série (`Serial`). Configurable dans `include/config.h` : `UDP_LOG_ENABLED`, `UDP_LOG_PORT` (5005 par défaut), `UDP_LOG_HOST` (IP du PC récepteur ou `255.255.255.255` pour un broadcast). La réception côté PC et la configuration de Tabby sont décrites dans le guide utilisateur.
 
-# [1.8.0] - 2026-07-19
+## [1.8.0] - 2026-07-19
 ### Changed
 - **Affichage de l'historique nettement plus rapide (lecture SD optimisée).** Deux optimisations, sans perte de précision :
   - **Lecture séquentielle par blocs** : `queryRange()` et l'export CSV lisaient chaque mesure une par une (un `seek` + un `read` de 16 octets par enregistrement, soit ~1440 accès pour 24 h). Un nouveau parcours `forEachBinRecordFrom()` lit désormais les enregistrements contigus par blocs de 1 Ko (un seul `seek` initial, aucun `seek` par mesure), réduisant massivement le nombre d'accès SD.
   - **Cascade de fréquence SPI de la carte SD** : la carte était systématiquement montée à **1 MHz**. `SdManager` tente maintenant, en cascade décroissante, **20 → 10 → 4 → 1 MHz** et retient la plus haute fréquence qui fonctionne réellement (montage + création de dossier + test **écriture/relecture**). Une fréquence trop élevée qui « monte » mais lit mal est rejetée et l'on redescend d'un cran ; le formatage n'est jamais déclenché par un simple échec de vitesse. En cas de matériel marginal, le repli à 1 MHz garantit l'absence de régression.
 
-# [1.7.1] - 2026-07-19
+## [1.7.1] - 2026-07-19
 ### Added
 - **Page Historique : bascule « Temps réel ».** Une case à cocher (activée par défaut), placée à côté de « Synthèse », permet d'activer/désactiver le rafraîchissement automatique du graphe (`data/longterm.html`, `data/app.js`). Le rafraîchissement automatique reste par ailleurs limité aux périodes relatives ≤ 48 h sans comparaison.
 
-# [1.7.0] - 2026-07-19
+## [1.7.0] - 2026-07-19
 ### Added
 - **Page Statistiques : option de mise à jour en temps réel.** Une bascule « Mise à jour en temps réel » (activée par défaut) permet d'activer/désactiver le rafraîchissement automatique des tableaux (`data/stats.html`, `data/app.js`). Un bouton « Actualiser » permet un rafraîchissement manuel quand l'automatique est désactivé, et l'heure de dernière mise à jour est affichée.
 
-# [1.6.3] - 2026-07-18
+## [1.6.3] - 2026-07-18
 ### Fixed
 - **Page Statistiques : minima toujours à 0 (séries de valeurs aberrantes).** Le filtre temporel de `getRecentStats()` ne repérait qu'un pic **d'un seul point** ; or les échecs I2C répétés (avant le correctif 1.6.2) ont pu enregistrer **plusieurs mesures à 0 d'affilée**, que ce filtre laissait passer (le voisin étant aussi à 0). `getRecentStats()` utilise désormais un filtre **robuste médiane/MAD** par grandeur (`robustMetric`, `src/managers/history_manager.cpp`) : le seuil de rejet est piloté par la dispersion réelle des données (médiane ± 5·1,4826·MAD, avec un plancher), ce qui écarte les valeurs aberrantes **même en série** sans toucher aux variations normales. Les mesures enregistrées depuis la 1.6.2 étant déjà propres, les anciens zéros restants disparaissent aussi des statistiques au fil de leur sortie de la fenêtre 24 h.
 
-# [1.6.2] - 2026-07-18
+## [1.6.2] - 2026-07-18
 ### Fixed
 - **Stabilité de l'acquisition capteur / valeurs à zéro à la source.** La lecture (`src/modules/sensors.cpp`) ignorait le booléen de succès de `aht.getEvent()` et forçait `valid=true` : une erreur I2C (`i2cRead returned Error -1`) faisait enregistrer une mesure à `0`. Désormais :
   - le succès **et** la plausibilité de chaque lecture sont vérifiés (rejet des `NaN`, du `0 %` d'humidité, des valeurs hors plage) ; en cas d'échec, `valid=false` et l'historique n'enregistre rien (la minute est simplement sautée) ;
@@ -1082,19 +1125,19 @@
   - la **dernière valeur valide** est renvoyée pour l'affichage temps réel quand une lecture échoue (au lieu d'afficher 0), avec `valid=false` ;
   - `Wire.setClock(100 kHz)`, `Wire.setTimeOut(50 ms)` (évite un blocage long si le bus se coince) et suréchantillonnage + filtre IIR du BMP280 (`setSampling`) pour des lectures plus stables.
 
-# [1.6.1] - 2026-07-18
+## [1.6.1] - 2026-07-18
 ### Fixed
 - **Valeurs aberrantes toujours visibles (graphe Historique) et statistiques à 0 incohérentes.** En 1.6.0, le filtrage n'agissait que côté client sur les points **déjà agrégés** (donc dilués, et sans traiter les bords), et la page **Statistiques** (`/api/stats` → `getRecentStats`) calculait min/max/moyenne sur les mesures **brutes** - d'où des minima à `0` / `-0.0` lorsqu'un capteur renvoie ponctuellement une valeur nulle. Le filtrage est désormais fait **au niveau des mesures brutes, côté serveur**, avant toute agrégation :
   - `queryRange()` applique un filtre anti-aberrations **en flux** (fenêtre glissante de 3 mesures) **par grandeur** : une mesure incohérente avec ses deux voisines est écartée de l'agrégation de la grandeur concernée (les autres restent valides). Les tranches sont désormais renvoyées avec une validité **par grandeur** (`temp`/`hum`/`pres` à `null` indépendamment) et l'API `/api/history` sérialise ces `null` séparément.
   - `getRecentStats()` (page Statistiques) écarte de la même façon les valeurs aberrantes par grandeur avant de calculer min/max/moyenne.
   - Le filtrage sur données brutes (échantillonnage 1 min) est bien plus efficace qu'au niveau des points agrégés : une valeur nulle isolée entre deux mesures normales est un pic évident. Le filtre client (`data/app.js`) est conservé comme second rempart. Les données brutes restent inchangées dans les fichiers.
 
-# [1.6.0] - 2026-07-18
+## [1.6.0] - 2026-07-18
 ### Added
 - **En-tête de fichier pour le format binaire (pérennité / compatibilité ascendante).** Chaque fichier `.bin` commence désormais par un en-tête `FileHeader` (`src/managers/history_manager.cpp`) : magic `"MTHB"`, version de format, taille d'en-tête, taille d'enregistrement, drapeaux de capteurs présents, nombre d'enregistrements et horodatages du premier/dernier relevé. MeteoHub identifie ainsi le format avant de lire et se déplace selon `recordSize` : de futurs capteurs (qualité de l'air, vent, UV…) pourront agrandir l'enregistrement **sans imposer de migrer** les anciens fichiers. La lecture (`probeBin`/`readBinRecordAt`) gère de façon transparente les fichiers avec en-tête **et** les fichiers sans en-tête de la v1.4.0 ; ces derniers sont convertis une fois lors du prochain enregistrement du jour (`upgradeLegacyBin`). La migration CSV et l'export s'appuient sur le même en-tête.
 - **Détection des valeurs aberrantes à l'exploitation.** Un pic ou un creux d'un seul point (valeur incohérente au regard des relevés qui l'entourent, suivie d'un retour immédiat à la normale) est désormais **écarté du tracé des graphiques et des statistiques**, les points valides étant reliés directement (`filterOutliers`, `spanGaps`, `data/app.js`). La détection repose sur la **cohérence temporelle** (écart fort avec les deux voisins alors que ceux-ci restent cohérents entre eux), et non sur un seuil fixe ; un plancher de bruit par grandeur évite de nettoyer les micro-variations. Les **données brutes restent conservées** dans les fichiers : seule leur exploitation est adaptée. La synthèse de la page Historique est calculée sur ces mêmes séries filtrées (statistiques plus représentatives). Appliqué aussi au tableau de bord.
 
-# [1.5.0] - 2026-07-18
+## [1.5.0] - 2026-07-18
 ### Added
 - **Page « Système » (ex-« Mise à jour OTA »), hub de gestion.** La page (`data/system.html`) regroupe désormais, en plus de la mise à jour OTA :
   - **Luminosité de la NeoLED** : curseur 0-255 appliqué en direct et **persisté en NVS** (survit au redémarrage) - module `neopixel_status` (`neoSetBrightness`/`neoGetBrightness`, `Preferences`), API `GET`/`POST /api/led`.
@@ -1107,7 +1150,7 @@
 - **Pied de page épuré** : suppression des icônes 💾 (Fichiers) et 📜 (Logs) - l'accès passe par la page Système (`data/footer.js`).
 - L'ancienne URL `/ota.html` **redirige** vers `/system.html` (`src/managers/web_manager.cpp`) ; `data/ota.html` est supprimé.
 
-# [1.4.0] - 2026-07-18
+## [1.4.0] - 2026-07-18
 ### Changed
 - **Refonte du stockage de l'historique : format binaire journalier au lieu du CSV.** Le fonctionnement interne de MeteoHub ne repose plus sur des fichiers CSV mais sur un format binaire compact, mieux adapté à l'ESP32 et à un historique appelé à grandir pendant des années. Le CSV est conservé uniquement comme format d'export (lisible dans Excel/LibreOffice).
   - **Enregistrements de taille fixe (16 octets)** : `timestamp` (uint32) + température/humidité/pression (float), soit ~2× plus compact que le CSV, et surtout un **accès direct à une mesure par sa position** (recherche dichotomique) sans relire ce qui précède (`struct BinRecord`, `src/managers/history_manager.cpp`).
@@ -1117,27 +1160,27 @@
   - **Migration automatique au démarrage** : les anciens fichiers `/history/AAAA-MM-JJ.csv` sont convertis une fois en `.bin` + `.stats`, puis renommés en `.csv.bak` pour ne pas être retraités. La lecture conserve un repli sur ces CSV tant qu'un `.bin` équivalent n'existe pas.
   - `readSdSampleNear()` (tendance 48 h de la page Statistiques) et `clearHistory()` (suppression récursive de l'arborescence) sont adaptés au nouveau format.
 
-# [1.3.2] - 2026-07-18
+## [1.3.2] - 2026-07-18
 ### Added
 - **Synthèse Historique : écart A ↔ B en comparaison.** Lorsqu'une période de comparaison est active, chaque carte de synthèse affiche en plus l'écart des moyennes `A − B` (avec flèche/couleur), pour chiffrer d'un coup d'œil de combien la période principale est plus chaude/humide/haute en pression que la période comparée (`data/app.js`, `data/style.css` : `.synth-compare`).
 
-# [1.3.1] - 2026-07-18
+## [1.3.1] - 2026-07-18
 ### Fixed
 - **Page Historique : icône du calendrier des champs de dates peu visible.** L'icône native du sélecteur `datetime-local` restait sombre sur le fond foncé. Ajout de `color-scheme: dark` (et d'un filtre `invert` de repli sur `::-webkit-calendar-picker-indicator`) pour la rendre claire et lisible (`data/style.css`).
 
-# [1.3.0] - 2026-07-18
+## [1.3.0] - 2026-07-18
 ### Added
 - **Page Historique : ligne de synthèse optionnelle au-dessus du graphe.** Une bascule « Synthèse » (masquée par défaut) affiche, pour la période sélectionnée, un résumé calculé automatiquement par grandeur (température, humidité, pression) : variation sur la période (dernier − premier point, avec flèche ▲/▼/= et couleur), minimum, maximum et moyenne. Objectif : savoir d'un coup d'œil si la période a été stable, si un front est passé, si l'humidité s'est effondrée, sans analyser les courbes. Le calcul est effectué côté client (`data/app.js`, `computeSynthesis()` / `renderSynthesis()`) à partir des points déjà renvoyés par `/api/history` - aucun nouvel endpoint. La synthèse porte sur la période principale (A) ; activer/désactiver la bascule redessine sans relancer de requête (`data/longterm.html`, `data/style.css` : `.synth-panel`).
 
-# [1.2.2] - 2026-07-18
+## [1.2.2] - 2026-07-18
 ### Changed
 - **Page Historique : couleurs des courbes de comparaison.** Les courbes de la période comparée (B) reprennent désormais les mêmes couleurs que les courbes principales (température `#00a8ff`, humidité `#00ff88`, pression `#ff00ff`) et ne se distinguent plus que par leur tracé en pointillés (`data/app.js`, `COMPARE_COLORS`).
 
-# [1.2.1] - 2026-07-18
+## [1.2.1] - 2026-07-18
 ### Fixed
 - **Reboot en boucle à la consultation de l'historique (task watchdog `async_tcp`).** La lecture des fichiers CSV sur la carte SD par `HistoryManager::queryRange()` s'exécute dans la tâche `async_tcp` (handler ESPAsyncWebServer), laquelle est surveillée par le task watchdog (`CONFIG_ASYNC_TCP_USE_WDT`). L'ancien yield coopératif (`delay(0)`) ne réarmait pas ce watchdog : une lecture un peu longue déclenchait un abort puis un redémarrage en boucle. `cooperativeYieldEvery()` (`src/utils/cooperative_yield.h`) appelle désormais `esp_task_wdt_reset()` avant de céder la main (protège aussi `readSdSampleNear()` via `/api/stats`), et la boucle de lecture SD de `queryRange()` cède la main plus souvent (toutes les 32 lignes). Côté web (`data/app.js`), le rafraîchissement automatique de la page Historique est en outre limité aux périodes ≤ 48 h pour éviter de relancer en continu un scan de plusieurs fichiers CSV.
 
-# [1.2.0] - 2026-07-18
+## [1.2.0] - 2026-07-18
 ### Added
 - **Page « Historique » (ex-« Historique 24h ») : sélection et comparaison de périodes.** La page (`data/longterm.html`, `data/app.js`) permet désormais de choisir la fenêtre affichée - dernières 24 h / 48 h / 7 jours / 30 jours, « aujourd'hui », ou une plage personnalisée (`du`/`au` via des champs date-heure) - et de comparer deux périodes de même durée (aucune, « période précédente », ou « autre période… »). La période B est superposée en traits pointillés et alignée par index sur la période A ; une ligne d'information rappelle les plages exactes affichées. Les sélecteurs de période et de comparaison sont regroupés dans une barre en haut de page ; toute modification est appliquée automatiquement (pas de bouton « Afficher »), les champs de dates personnalisés ne s'affichant que lorsque l'option correspondante est choisie.
 - **Cartouche « Chargement en cours… »** centré sur le graphe pendant la récupération des données de la page Historique (`#chartLoading`, `data/style.css`).
@@ -1148,13 +1191,13 @@
 - **Contrôle d'échelle « Élargissement » renommé « Zoom » et sémantique inversée.** Le curseur va désormais de 0 à 100 % : à `0 %` l'échelle correspond aux min/max fixes configurés (la courbe apparaît quasiment plate/unique), à `100 %` l'échelle épouse exactement l'amplitude des données (la courbe occupe toute la hauteur). En interne (`getDynamicMinMax`, mode « Mixte »), l'ancienne marge additive est remplacée par une interpolation linéaire entre l'échelle complète et l'amplitude dynamique. Valeur par défaut spécifique à chaque page, portée par l'attribut `value` du curseur : `90 %` sur le tableau de bord (`data/index.html`), `75 %` sur la page Historique (`data/longterm.html`). Le calcul d'échelle (`updateChartScale`) prend en compte l'ensemble des séries affichées, y compris la période comparée.
 - **Entrée de menu « Historique 24h » renommée « Historique »** (`data/menu.js`, titre et en-tête de `data/longterm.html`).
 
-# [1.1.5] - 2026-06-23
+## [1.1.5] - 2026-06-23
 ### Added
 - **Tendance météo sur 1h/12h/24h/48h** (page Statistiques) : `HistoryManager::getTrend()` calcule désormais le delta et la direction (hausse/baisse/stable) de la température, l'humidité et la pression sur quatre fenêtres temporelles au lieu de deux (1h et 24h auparavant). La fenêtre 12h est dérivée de l'historique RAM (24h disponibles à ~1 point/min) ; la fenêtre 48h est récupérée en lisant le fichier CSV journalier de J-2 sur la carte SD (`/history/AAAA-MM-JJ.csv`, nouvelle méthode `HistoryManager::readSdSampleNear()`) et n'est disponible que si une carte SD avec historique est présente (flag `available_48h`, affiché « N/D » sinon).
 - **Tendance générale plus fiable** : `computeGlobalTrendLabelFr()` (`src/managers/web_manager.cpp`) croise désormais la direction de la pression sur les fenêtres 1h/12h/24h(/48h) pour distinguer une vraie tendance de fond (« Amélioration durable », « Dégradation durable ») d'une simple fluctuation court terme, en plus des signaux rapides déjà existants (chute brutale de pression + humidité en hausse, etc.).
 - Page Statistiques (`data/stats.html`, `data/app.js`) : le tableau « Tendance météo » affiche désormais 4 colonnes (1h/12h/24h/48h) avec flèches de direction, et la tendance générale est affichée séparément sous le tableau.
 
-# [1.1.4] - 2026-06-23
+## [1.1.4] - 2026-06-23
 ### Fixed
 1. **Page Statistiques : tendances toujours à zéro/"stable"**
    - **Problème** : Le endpoint `/api/stats` (`src/managers/web_manager.cpp`) calculait correctement les tendances (`HistoryManager::getTrend()`) mais ne sérialisait dans la réponse JSON que `trend.global_label_fr`. Les sous-objets `trend.temp`, `trend.hum` et `trend.pres` attendus par le frontend (`data/app.js`, fonction `fetchStats`) n'existaient jamais dans la réponse, donc les deltas 1h/24h affichaient toujours `0.0` et les directions toujours `stable`, empêchant de dégager une tendance.
@@ -1166,11 +1209,11 @@
    - **Solution** : Utilisation de `file.name()` (nom de base uniquement) au lieu de `file.path()` pour le champ `"name"` de la liste de fichiers.
    - **Fichier** : `src/managers/web_manager.cpp`.
 
-# [1.1.3] - 2026-03-15
+## [1.1.3] - 2026-03-15
 ### Fixed
 - **Affichage corrompu du menu lors de la sélection des items** : Ajout d'un `d->clear()` au début du bloc de rendu du menu dans `UiManager::drawPage()`. Lors de la navigation dans le menu, l'écran n'était pas effacé avant le redessin car `screen_context_changed` était `false` (le mode menu n'avait pas changé). Les anciens items se superposaient aux nouveaux, provoquant un affichage corrompu.
 
-# [1.1.2] - 2026-03-08
+## [1.1.2] - 2026-03-08
 ### Fixed
 Correction critique de la corruption du système de fichiers et erreurs de compilation associées.
 
@@ -1196,73 +1239,73 @@ Correction critique de la corruption du système de fichiers et erreurs de compi
    - **Problème** : Échecs de montage à 10MHz et 4MHz sur cartes sensibles.
    - **Solution** : Fréquence unique fixée à 1 MHz (1000000 Hz) pour une stabilité maximale, supprimant les tentatives multi-fréquences inutiles.
 
-# [1.1.1] - 2026-03-08
+## [1.1.1] - 2026-03-08
 - Correction erreur de compilation dans `SdManager::resetSpiBus()` : la méthode `SPIClass::begin()` retournant `void` sur ESP32, la capture du retour booléen a été supprimée.
 - Simplification de la logique de montage SD : tentative unique à 1 MHz pour maximiser la stabilité.
 - Augmentation des délais d'initialisation SPI pour garantir la stabilité électrique lors du montage.
 
-# [1.1.0] - 2026-03-08
+## [1.1.0] - 2026-03-08
 - Refonte complète du `WebManager` pour utiliser exclusivement `std::string` (C++ Standard).
 - Conversion explicite aux frontières entre les types Arduino (`String`) et C++ (`std::string`).
 - Support complet de la gestion de fichiers (upload, download, suppression) et OTA.
 
-# [1.0.181] - 2026-03-07
+## [1.0.181] - 2026-03-07
 - Durcissement anti read-only: `SdManager::begin()` et `ensureMounted()` n'annoncent plus la SD disponible si création `/history` ou test d'écriture échoue.
 - `ensureHistoryDirectory()` retourne désormais un booléen et tente un fallback `/sd/history` pour les cas de mountpoint atypiques.
 - En cas d'échec d'écriture après format/remount, la SD est démontée et marquée indisponible pour éviter les erreurs répétées côté sauvegarde historique.
 
-# [1.0.180] - 2026-03-07
+## [1.0.180] - 2026-03-07
 - Ajout d'un fallback local `SD_DET_ACTIVE_LEVEL` dans `sd_manager.cpp` pour éviter toute erreur de symbole non défini selon l'ordre d'includes/toolchain.
 - Maintien de `isCardDetected()` déclaré+défini dans `SdManager` avec check non bloquant au boot.
 
-# [1.0.179] - 2026-03-07
+## [1.0.179] - 2026-03-07
 - Réintroduction explicite de `isCardDetected()` dans `SdManager` pour lever l'erreur "identificateur non défini" signalée à la compilation/IDE.
 - Vérification DET conservée non bloquante au démarrage SD (log diagnostic sans empêcher les tentatives de montage).
 
-# [1.0.178] - 2026-03-07
+## [1.0.178] - 2026-03-07
 - Correction supplémentaire de `SdManager::verifyWriteAccess()` pour supprimer définitivement les erreurs de parsing C++ (bloc unique, retours explicites, suppression fichier test centralisée).
 - Réordonnancement des includes dans `sd_manager.cpp` (`Arduino.h` avant les logs) pour éviter les effets de bord de macro selon toolchain.
 
-# [1.0.177] - 2026-03-07
+## [1.0.177] - 2026-03-07
 - Correction de compilation dans `SdManager::verifyWriteAccess()` avec réécriture plus explicite de la séquence d'ouverture/écriture/fermeture du fichier test SD.
 - Ajout de `#include <Arduino.h>` dans `sd_manager.cpp` pour fiabiliser la compilation croisée des types Arduino (`size_t`, API runtime) selon toolchain.
 
-# [1.0.176] - 2026-03-07
+## [1.0.176] - 2026-03-07
 - Réécriture complète du `SdManager` sur la méthode validée "mode stable 10MHz" : instance `FSPI` dédiée recréée avant chaque montage et `SD.begin(..., format_if_fail=...)`.
 - Suppression de la dépendance bloquante à la broche DET dans la logique de montage pour éviter les faux négatifs de détection.
 - Formatage robuste aligné sur le code de référence: remount à 10MHz avec `format_if_fail=true` puis test d'écriture critique.
 - Conservation des fonctionnalités projet liées à la SD (historique `/history`, sauvegarde, lecture, upload/suppression via APIs existantes).
 
-# [1.0.175] - 2026-03-07
+## [1.0.175] - 2026-03-07
 - Renforcement du montage SD sur ESP32-S3: ajout d'essais à 1MHz et 400kHz en plus des fréquences rapides.
 - Préparation explicite du bus SPI avant `SD.begin` (CS HIGH, MISO pull-up, clocks d'amorçage) pour améliorer la compatibilité des cartes/modules sensibles.
 - Ajustement `max_files` lors du montage SD à 10 pour limiter les échecs liés aux ouvertures de fichiers simultanées.
 
-# [1.0.174] - 2026-03-07
+## [1.0.174] - 2026-03-07
 - Correction SD_DET: la détection de carte n'est plus bloquante pour le montage (certains modules ont une polarité inversée ou un signal bruité).
 - Ajout d'un échantillonnage multi-lectures de la broche DET avec logs détaillés (LOW/HIGH) pour diagnostiquer le câblage réel.
 - Ajout du paramètre `SD_DET_ACTIVE_LEVEL` (LOW/HIGH) dans `board_config.h` pour s'adapter aux lecteurs à polarité inversée.
 - Si la carte est déjà montée, un état DET incohérent n'entraîne plus de démontage forcé; seule la vérification `SD.cardType()` décide de la disponibilité.
 
-# [1.0.173] - 2026-03-07
+## [1.0.173] - 2026-03-07
 - Refonte du gestionnaire SD pour s'aligner sur la méthode validée (SPI FSPI dédié + `SD.begin(..., format_if_fail=true)`).
 - Respect strict du mapping défini dans `board_config.h` (CLK=9, D0/MISO=10, CMD/MOSI=11, D3/CS=12, DET=14).
 - Ajout d'une détection de présence carte via `SD_DET_PIN` (LOW=présente) avant montage/réessais.
 - Conservation des fonctionnalités SD existantes: lecture/écriture, incrémentation quotidienne des fichiers CSV d'historique, suppression/upload web et formatage.
 
-# [1.0.172] - 2026-02-25
+## [1.0.172] - 2026-02-25
 - Ajout et liens croisés de la documentation débutant (EN/FR) dans tous les documents utilisateur.
 - Tous les guides, FAQ, configuration et index référencent désormais l'onboarding débutant.
 - Version minimale valide : 1.0.172
 
-# [1.0.171] - 2026-02-25
+## [1.0.171] - 2026-02-25
 - Ajout de la gestion avancée des échelles pour les graphiques température, humidité et pression.
 - Trois modes disponibles : fixe, dynamique, mixte (avec élargissement configurable).
 - Contrôles interactifs sur l'UI web pour choisir le mode et le pourcentage.
 - Aide contextuelle sous le graphique.
 - Synchronisation automatique entre config.h et l'UI web.
 
-# [1.0.170] - 2026-02-24
+## [1.0.170] - 2026-02-24
 ### Corrigé
 - Application du même schéma de zone sûre que les graphes aux autres pages OLED.
 - Conservation des titres dans la bande haute et déplacement du début de contenu prévisions/logs sous la zone haute réservée SSD1306.
