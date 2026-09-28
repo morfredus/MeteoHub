@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.51.3] - 2026-09-28
+
+### Fixed
+
+- **Outdoor frames without temperature were archived as 0 degC / 0 % / 0 hPa.**
+  The "plausible value" fallback accepted an unflagged all-zero frame (AHT20 silent
+  after condensation on the probe, night of 2026-09-28), so zeros reached the SD
+  history and morfAnalytics showed a hole. Only the probe's `FIELD_TEMPERATURE`
+  flag now decides; a real 0 degC reading carries its flag and still passes.
+- Such a frame is still acknowledged (no endless retransmission from the probe)
+  and the battery is still monitored; only archiving and display skip it. The log
+  line tags it `NO-TH(ignoree)`.
+
 ## [1.51.2] - 2026-09-27
 
 ### Added

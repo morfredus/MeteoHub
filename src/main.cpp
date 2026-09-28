@@ -269,8 +269,9 @@ void setup() {
     // Récepteur ESP-NOW : le callback est enregistré avant begin() pour que
     // les retries dans loop() n'oublient pas d'injecter les trames OUT.
     espNowReceiver.setOutdoorDataCallback([&](const OutdoorData& outdoor) {
-        if (!outdoor.valid) return;
-
+        // outdoor.valid=false (capteur T/H muet) ne coupe PAS le traitement : la
+        // trame est quand meme accusee (sinon la sonde la retransmettrait sans
+        // fin) et la batterie reste surveillee. Seul l'archivage l'ignore (etape 4).
         // Sonde associee (celle qui a confirme un appairage) : les trames d'une
         // AUTRE sonde a portee (etabli, tests) sont ignorees, ni archivees ni
         // accusees. Un log au plus toutes les 10 min par hub, pour rester lisible.
@@ -326,7 +327,10 @@ void setup() {
         // 4) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
         //    pas ré-archivé. Une trame live met a jour l'affichage ; une
         //    retransmission n'archive que l'historique, a son heure d'origine.
-        if (coldBoot) {
+        if (!outdoor.valid) {
+            // Mesure sans temperature : rien a archiver ni a afficher. Le seq
+            // reste accuse, la mesure est perdue de toute facon (capteur muet).
+        } else if (coldBoot) {
             if (d.archive) {
                 const bool kept = outdoorQuarantine.add(outdoor, (time_t)d.measurementTs,
                                                         "cold_boot");
@@ -352,11 +356,12 @@ void setup() {
 
         char buf[240];
         snprintf(buf, sizeof(buf),
-                 "[OUT] %s %s seq=%u %s wake=%u up=%us reset=%s t=%.1f h=%.0f p=%.1f "
+                 "[OUT] %s %s seq=%u %s%s wake=%u up=%us reset=%s t=%.1f h=%.0f p=%.1f "
                  "ack<=%u want=%u/%u reply=%d",
                  shortMac(outdoor.src_mac).c_str(),
                  (outdoor.frame_type == FRAME_RETRANSMIT) ? "retx" : "live",
                  (unsigned)outdoor.sequence, d.archive ? "new" : "dup",
+                 outdoor.valid ? "" : " NO-TH(ignoree)",
                  (unsigned)outdoor.wake_count, (unsigned)outdoor.uptime_sec,
                  resetReasonName(outdoor.reset_reason),
                  outdoor.temperature, outdoor.humidity, outdoor.pressure,

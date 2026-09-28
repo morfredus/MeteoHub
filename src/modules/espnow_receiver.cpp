@@ -399,13 +399,12 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
     outdoor.node_id = packet.node_id;
     outdoor.uptime_sec = packet.uptime_sec;
 
-    const bool flagged = (packet.valid_fields
-                          & (FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_PRESSURE)) != 0;
-    // Repli : une trame CRC-valide avec une T plausible reste affichable même
-    // si le masque a été mal rempli côté sonde.
-    const bool plausible = (packet.temperature > -40.0f && packet.temperature < 85.0f
-                            && packet.humidity >= 0.0f && packet.humidity <= 100.0f);
-    outdoor.valid = flagged || plausible;
+    // Seul le drapeau de la sonde fait foi. L'ancien repli « valeur plausible »
+    // acceptait une trame 0 degC / 0 % sans drapeau (AHT20 muet) : 0 tombe dans
+    // les plages, et ces zeros finissaient dans l'historique. Une vraie mesure a
+    // 0 degC porte son drapeau, elle passe toujours. La temperature est le pivot :
+    // une ligne d'historique sans T n'a pas de sens.
+    outdoor.valid = (packet.valid_fields & FIELD_TEMPERATURE) != 0;
 
     // Calibration APRÈS le contrôle de plausibilité, qui juge la mesure brute du
     // capteur. L'humidité n'est corrigée que si la sonde l'a réellement mesurée.
