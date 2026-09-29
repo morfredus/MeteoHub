@@ -16,6 +16,7 @@
 #include "modules/analytics_beacon.h"
 #include "modules/battery_alert.h"
 #include "modules/outdoor_quarantine.h"
+#include "cold_boot_rule.h"
 #include "modules/calibration_store.h"
 #include "modules/espnow_receiver.h"
 #include "modules/meteo_sync_service.h"
@@ -318,9 +319,13 @@ void setup() {
         //    autre que la sortie de veille, wake <= 1) : apres un flash ou un
         //    passage sur l'USB, la carte restee eveillee a chauffe ses capteurs.
         //    Elle est ACCUSEE (etape 2, la sonde peut la retirer de son buffer
-        //    sans perte) mais tenue HORS de l'historique meteo, conservee brute
-        //    en quarantaine. Trames LIVE seulement : une retransmission porte le
-        //    contexte du reveil EN COURS, pas celui de sa mesure d'origine.
+        //    sans perte), puis jugee (cold_boot_rule.h) : conforme a la derniere
+        //    mesure archivee de moins de 10 min -> mesure normale ; sinon ->
+        //    archivee AVEC la marque « demarrage a froid » (morfAnalytics l'ecarte
+        //    et permet de la reintegrer). Quarantaine seulement en dernier
+        //    recours (fichier du jour en ancien format, pas de SD). Trames LIVE
+        //    seulement : une retransmission porte le contexte du reveil EN COURS,
+        //    pas celui de sa mesure d'origine.
         constexpr uint8_t kResetDeepSleep = 8; // esp_reset_reason() ESP_RST_DEEPSLEEP
         const bool coldBoot = d.isLive
             && outdoor.reset_reason != kResetDeepSleep && outdoor.wake_count <= 1;
@@ -331,13 +336,29 @@ void setup() {
         if (!outdoor.valid) {
             // Mesure sans temperature : rien a archiver ni a afficher. Le seq
             // reste accuse, la mesure est perdue de toute facon (capteur muet).
-        } else if (coldBoot) {
-            if (d.archive) {
+        } else if (coldBoot && d.archive) {
+            OutdoorHistoryRecord last;
+            const bool havePrev = history.lastOutdoorRecord(last);
+            const mhcold::Reading prev{(int64_t)last.timestamp, last.t, last.h, last.p};
+            const mhcold::Reading cur{d.measurementTs, outdoor.temperature,
+                                      outdoor.humidity, outdoor.pressure};
+            if (mhcold::conformsToPrevious(havePrev, prev, cur)) {
+                history.addOutdoorLive(outdoor, (time_t)d.measurementTs);
+                LOG_INFO("[OUT] 1re mesure apres demarrage a froid : conforme a la "
+                         "precedente (< 10 min), archivee normalement");
+            } else if (history.addOutdoorFlagged(outdoor, (time_t)d.measurementTs,
+                                                 mhcold::kFlagColdBoot)) {
+                LOG_INFO("[OUT] 1re mesure apres demarrage a froid : non conforme, "
+                         "archivee avec la marque cold_boot (hors affichage)");
+            } else {
                 const bool kept = outdoorQuarantine.add(outdoor, (time_t)d.measurementTs,
                                                         "cold_boot");
-                LOG_INFO(std::string("[OUT] 1re mesure apres demarrage a froid : quarantaine ")
+                LOG_INFO(std::string("[OUT] 1re mesure apres demarrage a froid : marque "
+                                     "impossible, quarantaine ")
                          + (kept ? "(conservee, hors historique)" : "(ECHEC d'ecriture)"));
             }
+        } else if (coldBoot) {
+            // Doublon d'une mesure de demarrage deja traitee : rien a faire.
         } else if (d.archive) {
             if (d.isLive) history.addOutdoorLive(outdoor, (time_t)d.measurementTs);
             else          history.addOutdoorHistorical(outdoor, (time_t)d.measurementTs);

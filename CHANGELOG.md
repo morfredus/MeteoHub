@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.54.0] - 2026-09-29
+
+### Changed
+
+- **Cold-boot first measurement is judged instead of always quarantined.** The first
+  live measurement after a probe cold boot (flash, USB, power-on) is kept as a normal
+  measurement when it matches the last archived one from 10 min at most (within 1 degC,
+  6 RH points, 1 hPa, the history's noise floors). Otherwise it is archived WITH the
+  `cold_boot` flag: hidden by the hub (graphs, stats, CSV export) but sent by
+  `/api/history/raw` as a 5th element `[ts,t,h,p,flags]`, so morfAnalytics can exclude
+  it and let the user reintegrate it. Real case: 29/09 14:29, 30.24 degC after 30.1,
+  quarantined for nothing. Pure rule in `include/cold_boot_rule.h`, host tests
+  `test_native_coldboot`.
+
+### Added
+
+- **History format v2 for new outdoor day files**: a header and 20-byte records
+  (the 16 v1 bytes + a `flags` word). Readers only use the first 16 bytes and step by
+  the declared record size, so every reader handles both; the sequential reader now
+  reads blocks for any record size. A day started in the old format keeps it: a
+  flagged measurement that cannot carry its flag there (or without SD) falls back to
+  the quarantine, as before. Normal raw rows stay `[ts,t,h,p]` (older clients fine).
+
 ## [1.53.1] - 2026-09-29
 
 ### Fixed

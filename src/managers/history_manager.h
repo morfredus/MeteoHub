@@ -103,6 +103,7 @@ struct DayIndexEntry {
 struct RawRecord {
     uint32_t ts;
     float t, h, p;
+    uint32_t flags; // marques de l'enregistrement (0 = mesure normale ; format v2)
 };
 
 // Un instantané de PRÉVISION archivé (étape 9 : prévu vs observé). On fige, pour
@@ -208,6 +209,11 @@ public:
     // Les deux sont IDEMPOTENTES côté appelant (dedup par seq via MeteoSyncService).
     void addOutdoorLive(const OutdoorData& data, time_t measurementTs);
     void addOutdoorHistorical(const OutdoorData& data, time_t measurementTs);
+    // Mesure suspecte archivée AVEC sa marque (cold_boot_rule.h), hors live et
+    // hors stats. false si elle n'a pas pu l'être (l'appelant la met en quarantaine).
+    bool addOutdoorFlagged(const OutdoorData& data, time_t measurementTs, uint32_t flags);
+    // Dernière mesure extérieure archivée en direct (false si aucune).
+    bool lastOutdoorRecord(OutdoorHistoryRecord& out) const;
     // Rafraîchit la valeur « live » (affichage + fraîcheur) SANS archiver : pour
     // une trame live déjà connue (doublon), rare mais possible.
     void refreshOutdoorLive(const OutdoorData& data);
@@ -341,7 +347,7 @@ private:
     // IN  : /history/indoor/AAAA/MM/AAAA-MM-JJ.bin + .stats
     // OUT : /history/outdoor/AAAA/MM/AAAA-MM-JJ.bin + .stats
     void saveToSdBinary(const HistoryRecord& record);
-    void saveOutdoorToSdBinary(const OutdoorHistoryRecord& record);
+    bool saveOutdoorToSdBinary(const OutdoorHistoryRecord& record, uint32_t flags = 0);
     bool ensureDayDirs(const struct tm& tinfo) const;
     bool ensureOutdoorDayDirs(const struct tm& tinfo) const;
     void buildDayPaths(const struct tm& tinfo, char* binPath, char* statsPath, size_t sz) const;

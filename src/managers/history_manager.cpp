@@ -61,6 +61,17 @@ struct __attribute__((packed)) BinRecord {
 };
 static const size_t BIN_RECORD_SIZE = sizeof(BinRecord); // = 16
 
+// Format v2 (1.54.0) : les 16 octets v1, suivis d'un champ de MARQUES (bits,
+// voir cold_boot_rule.h : kFlagColdBoot). Un lecteur v1 n'exploite que les 16
+// premiers octets et avance selon recordSize : il lit un fichier v2 sans le
+// comprendre entièrement, jamais de travers. Seuls les NOUVEAUX fichiers jour
+// extérieurs sont créés en v2 ; un fichier existant garde son format jusqu'au
+// bout (on n'ajoute jamais un enregistrement d'une autre taille dans un fichier).
+struct __attribute__((packed)) BinRecordV2 {
+    BinRecord base;
+    uint32_t  flags;
+};
+
 // En-tête présent au début de chaque fichier .bin. Il rend le format pérenne :
 // MeteoHub identifie le format (magic + version) et connaît la structure exacte
 // (taille d'en-tête, taille d'enregistrement, capteurs présents) avant de lire.
@@ -68,6 +79,7 @@ static const size_t BIN_RECORD_SIZE = sizeof(BinRecord); // = 16
 // ultérieure sans imposer de migrer les anciens fichiers : la lecture s'appuie
 // sur recordSize pour se déplacer et n'exploite que les champs qu'elle connaît.
 #define BIN_FORMAT_VERSION 1
+#define BIN_FORMAT_VERSION_FLAGS 2   // enregistrements BinRecordV2
 #define BIN_SENSOR_TEMP  0x0001
 #define BIN_SENSOR_HUM   0x0002
 #define BIN_SENSOR_PRES  0x0004
@@ -87,12 +99,12 @@ static bool hdrMagicOk(const FileHeader& h) {
     return h.magic[0] == 'M' && h.magic[1] == 'T' && h.magic[2] == 'H' && h.magic[3] == 'B';
 }
 
-static FileHeader makeHeader() {
+static FileHeader makeHeader(bool withFlags = false) {
     FileHeader h{};
     h.magic[0] = 'M'; h.magic[1] = 'T'; h.magic[2] = 'H'; h.magic[3] = 'B';
-    h.version = BIN_FORMAT_VERSION;
+    h.version = withFlags ? BIN_FORMAT_VERSION_FLAGS : BIN_FORMAT_VERSION;
     h.headerSize = sizeof(FileHeader);
-    h.recordSize = sizeof(BinRecord);
+    h.recordSize = withFlags ? sizeof(BinRecordV2) : sizeof(BinRecord);
     h.sensorFlags = BIN_SENSOR_TEMP | BIN_SENSOR_HUM | BIN_SENSOR_PRES;
     h.recordCount = 0; h.firstTimestamp = 0; h.lastTimestamp = 0;
     return h;
@@ -129,42 +141,39 @@ static bool readBinRecordAt(File& f, const BinLayout& L, size_t idx, BinRecord& 
     return f.read(reinterpret_cast<uint8_t*>(&br), sizeof(BinRecord)) == (int)sizeof(BinRecord);
 }
 
-// Parcours SÉQUENTIEL des enregistrements [startIdx, nrec) d'un .bin. Pour le
-// format courant (recordSize == 16 octets), les enregistrements sont contigus :
-// on lit par blocs de plusieurs Ko (un seul seek initial, aucun seek par mesure),
-// ce qui accélère nettement la lecture SD par rapport à un accès mesure par mesure.
-// Le callback reçoit chaque enregistrement et renvoie false pour arrêter (p. ex.
-// horodatage au-delà de la plage). Repli index par index si recordSize > 16.
+// Parcours SÉQUENTIEL des enregistrements [startIdx, nrec) d'un .bin, par blocs
+// d'environ 1 Ko (un seul seek initial, aucun seek par mesure) : la lecture SD
+// mesure par mesure est nettement plus lente. Vaut pour toute taille
+// d'enregistrement (v1 16 octets, v2 20 octets). Le callback reçoit
+// l'enregistrement et ses MARQUES (0 en v1), et renvoie false pour arrêter
+// (p. ex. horodatage au-delà de la plage).
 template <typename Fn>
 static void forEachBinRecordFrom(File& f, const BinLayout& L, size_t startIdx, Fn&& cb) {
-    if (startIdx >= L.nrec) return;
+    if (startIdx >= L.nrec || L.recordSize < sizeof(BinRecord)) return;
+    if (!f.seek(L.dataOffset + static_cast<uint32_t>(startIdx) * L.recordSize)) return;
 
-    if (L.recordSize == sizeof(BinRecord)) {
-        f.seek(L.dataOffset + static_cast<uint32_t>(startIdx) * L.recordSize);
-        const size_t CHUNK = 64; // 64 * 16 = 1 Ko par lecture
-        BinRecord buf[CHUNK];
-        size_t remaining = L.nrec - startIdx;
-        size_t processed = 0;
-        while (remaining > 0) {
-            const size_t want = remaining < CHUNK ? remaining : CHUNK;
-            const int got = f.read(reinterpret_cast<uint8_t*>(buf), want * sizeof(BinRecord));
-            if (got <= 0) break;
-            const size_t nread = static_cast<size_t>(got) / sizeof(BinRecord);
-            for (size_t k = 0; k < nread; ++k) {
-                if (!cb(buf[k])) return;
-            }
-            COOPERATIVE_YIELD_EVERY(processed, 256);
-            processed += nread;
-            if (nread < want) break; // fin de fichier
-            remaining -= nread;
+    uint8_t buf[1280];
+    const size_t perChunk = sizeof(buf) / L.recordSize;
+    const bool hasFlags = L.recordSize >= sizeof(BinRecordV2);
+    size_t remaining = L.nrec - startIdx;
+    size_t processed = 0;
+    while (remaining > 0) {
+        const size_t want = remaining < perChunk ? remaining : perChunk;
+        const int got = f.read(buf, want * L.recordSize);
+        if (got <= 0) break;
+        const size_t nread = static_cast<size_t>(got) / L.recordSize;
+        for (size_t k = 0; k < nread; ++k) {
+            const uint8_t* rec = buf + k * L.recordSize;
+            BinRecord br;
+            memcpy(&br, rec, sizeof(br));
+            uint32_t flags = 0;
+            if (hasFlags) memcpy(&flags, rec + sizeof(BinRecord), sizeof(flags));
+            if (!cb(br, flags)) return;
         }
-    } else {
-        BinRecord br;
-        for (size_t i = startIdx; i < L.nrec; ++i) {
-            COOPERATIVE_YIELD_EVERY(i, 64);
-            if (!readBinRecordAt(f, L, i, br)) return;
-            if (!cb(br)) return;
-        }
+        COOPERATIVE_YIELD_EVERY(processed, 256);
+        processed += nread;
+        if (nread < want) break; // fin de fichier
+        remaining -= nread;
     }
 }
 
@@ -352,6 +361,23 @@ void HistoryManager::addOutdoorHistorical(const OutdoorData& data, time_t measur
     saveOutdoorToSdBinary(record); // append-only, chemin dérivé de l'heure de mesure
     LOG_INFO("History: Outdoor historical archived (seq=" + std::to_string(data.sequence)
              + ", ts=" + std::to_string((long)measurementTs) + ")");
+}
+
+bool HistoryManager::addOutdoorFlagged(const OutdoorData& data, time_t measurementTs,
+                                       uint32_t flags) {
+    // Mesure SUSPECTE (voir cold_boot_rule.h) : archivée avec sa marque, pour
+    // que morfAnalytics la voie et puisse la réintégrer ; mais ni valeur live,
+    // ni historique RAM, ni stats du jour : le hub ne la présente pas comme une
+    // mesure météo. false = non archivée (pas de SD, fichier du jour en v1...).
+    if (!data.valid || !outdoorTsPlausible(measurementTs)) return false;
+    if (!(_sd && _sd->isAvailable())) return false;
+    return saveOutdoorToSdBinary(makeOutdoorRecord(data, measurementTs), flags);
+}
+
+bool HistoryManager::lastOutdoorRecord(OutdoorHistoryRecord& out) const {
+    if (_outdoorHistory.empty()) return false;
+    out = _outdoorHistory.back();
+    return true;
 }
 
 const std::vector<IndoorHistoryRecord>& HistoryManager::getIndoorHistory() const {
@@ -967,9 +993,12 @@ std::vector<HistoryPoint> HistoryManager::queryRangeImpl(time_t from, time_t to,
                     if (static_cast<long>(br.ts) < from_l) lo = mid + 1; else hi = mid;
                 }
 
-                forEachBinRecordFrom(f, L, lo, [&](const BinRecord& rec) -> bool {
+                forEachBinRecordFrom(f, L, lo, [&](const BinRecord& rec, uint32_t flags) -> bool {
                     const long ts = static_cast<long>(rec.ts);
                     if (ts > to_l) return false; // triés : les suivants aussi
+                    // Point marqué (démarrage à froid non conforme) : archivé pour
+                    // morfAnalytics, jamais affiché par le hub.
+                    if (flags) return true;
                     feed(ts, rec.t, rec.h, rec.p);
                     if (ts > lastSdTs) lastSdTs = ts;
                     return true;
@@ -1439,9 +1468,11 @@ uint32_t HistoryManager::exportRawFromRoot(const char* root, uint32_t day_key, u
     const uint32_t total = static_cast<uint32_t>(L.nrec);
 
     uint32_t sent = 0;
-    forEachBinRecordFrom(f, L, from_index, [&](const BinRecord& br) {
+    forEachBinRecordFrom(f, L, from_index, [&](const BinRecord& br, uint32_t flags) {
         if (sent >= limit) return false;
-        emit(RawRecord{br.ts, br.t, br.h, br.p});
+        // Export BRUT : tout, marques comprises. Les positions (index) restent
+        // celles du fichier, dont dépend la reprise de morfAnalytics.
+        emit(RawRecord{br.ts, br.t, br.h, br.p, flags});
         sent++;
         return true;
     });
@@ -1491,8 +1522,9 @@ void HistoryManager::exportCsvImpl(time_t from, time_t to,
         }
 
         char line[64];
-        forEachBinRecordFrom(f, L, lo, [&](const BinRecord& rec) -> bool {
+        forEachBinRecordFrom(f, L, lo, [&](const BinRecord& rec, uint32_t flags) -> bool {
             if (static_cast<long>(rec.ts) > to_l) return false;
+            if (flags) return true; // point marqué : hors export météo (voir raw)
             snprintf(line, sizeof(line), "%lu,%.2f,%.1f,%.1f\n",
                      static_cast<unsigned long>(rec.ts), rec.t, rec.h, rec.p);
             emit(line);
@@ -1771,51 +1803,65 @@ void HistoryManager::compactOutdoorRecent() {
     _outRecentFileRecords = written;
 }
 
-void HistoryManager::saveOutdoorToSdBinary(const OutdoorHistoryRecord& record) {
-    // ÉTAPE 3: Stockage OUT sur SD dans /history/outdoor/AAAA/MM/AAAA-MM-JD.bin
-    // Pour l'instant, utilise le même format binaire que IN (extensions futures à prévoir)
-    
+bool HistoryManager::saveOutdoorToSdBinary(const OutdoorHistoryRecord& record, uint32_t flags) {
+    // Stockage OUT sur SD : /history/outdoor/AAAA/MM/AAAA-MM-JJ.bin, en ajout seul.
+    // Fichier neuf : en-tête + enregistrements v2 (avec marques). Fichier existant :
+    // son format est conservé (v1 sans en-tête pour les journées antérieures à
+    // 1.54.0). Renvoie false si la mesure n'a pas pu être archivée TELLE QUELLE -
+    // notamment une mesure MARQUÉE dans un fichier v1, qui ne sait pas porter la
+    // marque : l'appelant la met alors en quarantaine plutôt que de la perdre ou
+    // de l'archiver comme une mesure normale.
     time_t ts = record.timestamp;
     struct tm tinfo;
     if (!localtime_r(&ts, &tinfo)) {
         LOG_WARNING("Bin Save OUT: localtime failed");
-        return;
+        return false;
     }
 
     if (!ensureOutdoorDayDirs(tinfo) && _sd && _sd->ensureMounted()) {
         ensureOutdoorDayDirs(tinfo);
     }
-    
+
     char binPath[64], statsPath[64];
     buildOutdoorDayPaths(tinfo, binPath, statsPath, sizeof(binPath));
-    
-    // Pour l'ÉTAPE 3, on utilise temporairement le même format que IN
-    // Conversion vers HistoryRecord pour réutiliser la logique existante
-    HistoryRecord legacy;
-    legacy.timestamp = record.timestamp;
-    legacy.t = record.t;
-    legacy.h = record.h;
-    legacy.p = record.p;
-    
-    // Logique simplifiée pour l'ÉTAPE 3 : ouverture, écriture, fermeture
+
+    // Format du fichier existant (taille d'enregistrement), ou fichier absent.
+    uint16_t recordSize = 0;
+    {
+        File rf = SD.open(binPath, FILE_READ);
+        if (rf) {
+            if (rf.size() > 0) recordSize = probeBin(rf).recordSize;
+            rf.close();
+        }
+    }
+    const bool fresh = (recordSize == 0);
+    if (fresh) recordSize = sizeof(BinRecordV2);
+    if (flags && recordSize < sizeof(BinRecordV2)) return false; // v1 : marque impossible
+
     File f = SD.open(binPath, FILE_APPEND);
     if (!f) {
         LOG_WARNING("Bin Save OUT: Failed to open " + std::string(binPath));
-        return;
+        return false;
     }
-    
-    BinRecord bin;
-    bin.ts = record.timestamp;
-    bin.t = record.t;
-    bin.h = record.h;
-    bin.p = record.p;
-    
-    if (f.write((const uint8_t*)&bin, sizeof(bin)) != sizeof(bin)) {
-        LOG_WARNING("Bin Save OUT: Write failed");
+    if (fresh) {
+        // Horodatages extrêmes laissés à 0 : l'index des journées les relit dans
+        // les enregistrements (nrec se déduit toujours de la taille du fichier).
+        const FileHeader h = makeHeader(true);
+        f.write(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
     }
+
+    BinRecordV2 rec{};
+    rec.base.ts = static_cast<uint32_t>(record.timestamp);
+    rec.base.t = record.t;
+    rec.base.h = record.h;
+    rec.base.p = record.p;
+    rec.flags = flags;
+    const size_t len = (recordSize >= sizeof(BinRecordV2)) ? sizeof(BinRecordV2) : sizeof(BinRecord);
+    const bool ok = f.write(reinterpret_cast<const uint8_t*>(&rec), len) == len;
     f.close();
-    
-    LOG_INFO("History: Outdoor data saved to SD");
+    if (!ok) LOG_WARNING("Bin Save OUT: Write failed");
+    else LOG_INFO(flags ? "History: Outdoor FLAGGED data saved to SD" : "History: Outdoor data saved to SD");
+    return ok;
 }
 
 bool HistoryManager::ensureOutdoorDayDirs(const struct tm& tinfo) const {

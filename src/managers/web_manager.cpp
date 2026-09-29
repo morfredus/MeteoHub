@@ -929,16 +929,23 @@ void WebManager::_setupApi() {
 
         uint32_t count = 0;
         bool first = true;
-        // Format compact [ts,t,h,p] : ~30 octets par mesure au lieu de ~55 en
-        // objet nommé, soit un import complet nettement plus léger pour l'ESP32.
+        // Format compact [ts,t,h,p] (+ [ts,t,h,p,marques] pour un point marqué) :
+        // ~30 octets par mesure au lieu de ~55 en objet nommé, soit un import
+        // complet nettement plus léger pour l'ESP32.
         const uint32_t total = (outdoor
                 ? _history->exportRawOutdoor(day_key, index, limit,
             [&](const RawRecord& r) {
                 if (!first) response->print(",");
                 first = false;
                 char buf[64];
-                snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
-                         (unsigned long)r.ts, r.t, r.h, r.p);
+                // 5e element = marques (cold_boot_rule.h), SEULEMENT si non nulles :
+                // une ligne normale reste [ts,t,h,p], lisible par tout client.
+                if (r.flags)
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f,%lu]",
+                             (unsigned long)r.ts, r.t, r.h, r.p, (unsigned long)r.flags);
+                else
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
+                             (unsigned long)r.ts, r.t, r.h, r.p);
                 response->print(buf);
                 COOPERATIVE_YIELD_EVERY(count, 32);
                 count++;
@@ -948,8 +955,14 @@ void WebManager::_setupApi() {
                 if (!first) response->print(",");
                 first = false;
                 char buf[64];
-                snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
-                         (unsigned long)r.ts, r.t, r.h, r.p);
+                // 5e element = marques (cold_boot_rule.h), SEULEMENT si non nulles :
+                // une ligne normale reste [ts,t,h,p], lisible par tout client.
+                if (r.flags)
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f,%lu]",
+                             (unsigned long)r.ts, r.t, r.h, r.p, (unsigned long)r.flags);
+                else
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
+                             (unsigned long)r.ts, r.t, r.h, r.p);
                 response->print(buf);
                 // Rend la main régulièrement, comme le fait /api/history : sans
                 // cela, la boucle monopolise la tâche réseau et le flux de
