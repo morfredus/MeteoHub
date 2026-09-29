@@ -2,7 +2,7 @@
 
 *Read in another language: **English** (this document) · [Français](README.fr.md).*
 
-[![Version](https://img.shields.io/badge/version-1.51.3-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.52.0-blue)](CHANGELOG.md)
 
 > **Minimum supported version: 1.9.0**
 
@@ -61,7 +61,7 @@ platformio run --target upload
   Source (Outdoor / Indoor / **both** on one time axis) and period (24h / 48h / 7d / 30d / today / custom range); the time axis adapts to the chosen period. Optional per-metric synthesis line, an inverted "Zoom" scale control, and a real-time toggle. Deep analysis lives in morfAnalytics.
 
 * **System page (hub)**
-  OTA firmware update, NeoLED brightness and indoor/outdoor sensor calibration (persisted in NVS), CSV/config exports, and access to the File manager and Logs. The main menu is streamlined to four entries: Dashboard, Statistics, History, System.
+  OTA firmware update, NeoLED brightness and indoor/outdoor sensor calibration (temperature, humidity, pressure) and per-sensor altitude (persisted in NVS), CSV/config exports, and access to the File manager and Logs. The main menu is streamlined to four entries: Dashboard, Statistics, History, System.
 
 * **Data quality & sensor robustness (v1.6.x)**
   I2C reads are validated, retried, and the bus auto-recovers on repeated failures; failed reads are not stored. Outliers are removed from charts (temporal coherence) and statistics (robust median/MAD) while raw data is preserved.

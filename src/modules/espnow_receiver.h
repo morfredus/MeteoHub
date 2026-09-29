@@ -61,12 +61,13 @@ public:
     // référence. NAN tant qu'aucune trame n'est arrivée depuis le démarrage.
     float rawTemperature() const { return _rawTemp; }
     float rawHumidity() const { return _rawHum; }
+    float rawPressure() const { return _rawPres; }
 
 private:
     static EspNowReceiver* _self;
 
     mhcal::Offsets _cal;
-    float _rawTemp = NAN, _rawHum = NAN;
+    float _rawTemp = NAN, _rawHum = NAN, _rawPres = NAN;
 
     OutdoorDataCallback _outdoorCallback;
     PairedCallback _pairedCallback;

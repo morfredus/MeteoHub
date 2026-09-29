@@ -720,8 +720,9 @@ void WebManager::_setupApi() {
             return;
         }
         // Un bloc JSON par capteur. Une valeur encore inconnue sort en null.
-        auto block = [](char* out, size_t n, const mhcal::Offsets& o, float rt, float rh) {
-            char rawT[16], rawH[16], corT[16], corH[16];
+        auto block = [](char* out, size_t n, const mhcal::Offsets& o, float rt, float rh,
+                        float rp) {
+            char rawT[16], rawH[16], corT[16], corH[16], rawP[16], corP[16];
             if (isnan(rt)) { strcpy(rawT, "null"); strcpy(corT, "null"); }
             else {
                 snprintf(rawT, sizeof(rawT), "%.2f", rt);
@@ -732,24 +733,36 @@ void WebManager::_setupApi() {
                 snprintf(rawH, sizeof(rawH), "%.1f", rh);
                 snprintf(corH, sizeof(corH), "%.1f", mhcal::correctHumidity(rh, o));
             }
+            if (isnan(rp) || rp <= 0.0f) { strcpy(rawP, "null"); strcpy(corP, "null"); }
+            else {
+                snprintf(rawP, sizeof(rawP), "%.1f", rp);
+                snprintf(corP, sizeof(corP), "%.1f", mhcal::correctPressure(rp, o));
+            }
             snprintf(out, n,
-                "{\"temp_offset\":%.2f,\"hum_offset\":%.1f,"
-                "\"raw_temperature\":%s,\"raw_humidity\":%s,"
-                "\"temperature\":%s,\"humidity\":%s}",
-                (double)o.temperature, (double)o.humidity, rawT, rawH, corT, corH);
+                "{\"temp_offset\":%.2f,\"hum_offset\":%.1f,\"pres_offset\":%.1f,"
+                "\"altitude_m\":%.0f,"
+                "\"raw_temperature\":%s,\"raw_humidity\":%s,\"raw_pressure\":%s,"
+                "\"temperature\":%s,\"humidity\":%s,\"pressure\":%s}",
+                (double)o.temperature, (double)o.humidity, (double)o.pressure,
+                (double)o.altitude, rawT, rawH, rawP, corT, corH, corP);
         };
-        char in[192], out[192];
+        char in[320], out[320];
         block(in, sizeof(in), _sensors->calibration(),
-              _sensors->rawTemperature(), _sensors->rawHumidity());
+              _sensors->rawTemperature(), _sensors->rawHumidity(), _sensors->rawPressure());
         block(out, sizeof(out), espNowReceiver.calibration(),
-              espNowReceiver.rawTemperature(), espNowReceiver.rawHumidity());
-        char buf[480];
+              espNowReceiver.rawTemperature(), espNowReceiver.rawHumidity(),
+              espNowReceiver.rawPressure());
+        char buf[800];
         snprintf(buf, sizeof(buf),
-            "{\"indoor\":%s,\"outdoor\":%s,\"temp_offset_max\":%.1f,\"hum_offset_max\":%.1f}",
-            in, out, (double)mhcal::kTempOffsetMax, (double)mhcal::kHumOffsetMax);
+            "{\"indoor\":%s,\"outdoor\":%s,\"temp_offset_max\":%.1f,\"hum_offset_max\":%.1f,"
+            "\"pres_offset_max\":%.1f,\"altitude_min\":%.0f,\"altitude_max\":%.0f}",
+            in, out, (double)mhcal::kTempOffsetMax, (double)mhcal::kHumOffsetMax,
+            (double)mhcal::kPresOffsetMax, (double)mhcal::kAltitudeMin,
+            (double)mhcal::kAltitudeMax);
         request->send(200, "application/json", buf);
     });
-    // POST : in_temp, in_hum, out_temp, out_hum (un paramètre absent garde sa
+    // POST : in_temp, in_hum, in_pres, in_alt, out_temp, out_hum, out_pres,
+    // out_alt (un paramètre absent garde sa
     // valeur). Une valeur non numérique est refusée plutôt que lue comme 0.
     _server.on("/api/sensor/calibration", HTTP_POST, [this](AsyncWebServerRequest *request) {
         if (!_sensors) {
@@ -769,7 +782,9 @@ void WebManager::_setupApi() {
             return true;
         };
         if (!parse("in_temp", set.indoor.temperature) || !parse("in_hum", set.indoor.humidity)
-            || !parse("out_temp", set.outdoor.temperature) || !parse("out_hum", set.outdoor.humidity)) {
+            || !parse("out_temp", set.outdoor.temperature) || !parse("out_hum", set.outdoor.humidity)
+            || !parse("in_pres", set.indoor.pressure) || !parse("out_pres", set.outdoor.pressure)
+            || !parse("in_alt", set.indoor.altitude) || !parse("out_alt", set.outdoor.altitude)) {
             request->send(400, "application/json", "{\"ok\":false,\"message\":\"decalage non numerique\"}");
             return;
         }
@@ -779,26 +794,33 @@ void WebManager::_setupApi() {
         espNowReceiver.setCalibration(set.outdoor);
         LOG_INFO("Calibration set: IN T " + std::to_string(set.indoor.temperature)
                  + " H " + std::to_string(set.indoor.humidity)
+                 + " P " + std::to_string(set.indoor.pressure)
+                 + " alt " + std::to_string(set.indoor.altitude)
                  + " / OUT T " + std::to_string(set.outdoor.temperature)
-                 + " H " + std::to_string(set.outdoor.humidity));
-        char buf[160];
+                 + " H " + std::to_string(set.outdoor.humidity)
+                 + " P " + std::to_string(set.outdoor.pressure)
+                 + " alt " + std::to_string(set.outdoor.altitude));
+        char buf[320];
         snprintf(buf, sizeof(buf),
-            "{\"ok\":true,\"in_temp\":%.2f,\"in_hum\":%.1f,\"out_temp\":%.2f,\"out_hum\":%.1f}",
+            "{\"ok\":true,\"in_temp\":%.2f,\"in_hum\":%.1f,\"in_pres\":%.1f,\"in_alt\":%.0f,"
+            "\"out_temp\":%.2f,\"out_hum\":%.1f,\"out_pres\":%.1f,\"out_alt\":%.0f}",
             (double)set.indoor.temperature, (double)set.indoor.humidity,
-            (double)set.outdoor.temperature, (double)set.outdoor.humidity);
+            (double)set.indoor.pressure, (double)set.indoor.altitude,
+            (double)set.outdoor.temperature, (double)set.outdoor.humidity,
+            (double)set.outdoor.pressure, (double)set.outdoor.altitude);
         request->send(200, "application/json", buf);
     });
 
     // API Config Export : configuration effective au format JSON (téléchargement).
     _server.on("/api/config/export", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        char buf[1024];   // marge : un export tronqué serait un JSON invalide
+        char buf[1280];   // marge : un export tronqué serait un JSON invalide
         snprintf(buf, sizeof(buf),
             "{\n"
             "  \"project\": {\"name\": \"%s\", \"version\": \"%s\", \"build_date\": \"%s\", \"build_time\": \"%s\", \"git_commit\": \"%s\"},\n"
             "  \"network\": {\"mdns_host\": \"%s\"},\n"
             "  \"graph\": {\"scale_mode\": %d, \"scale_margin_pct\": %d, \"temp_min\": %.1f, \"temp_max\": %.1f, \"hum_min\": %.1f, \"hum_max\": %.1f, \"pres_min\": %.1f, \"pres_max\": %.1f},\n"
             "  \"led\": {\"brightness\": %u},\n"
-            "  \"sensor_calibration\": {\"indoor\": {\"temp_offset\": %.2f, \"hum_offset\": %.1f}, \"outdoor\": {\"temp_offset\": %.2f, \"hum_offset\": %.1f}},\n"
+            "  \"sensor_calibration\": {\"indoor\": {\"temp_offset\": %.2f, \"hum_offset\": %.1f, \"pres_offset\": %.1f, \"altitude_m\": %.0f}, \"outdoor\": {\"temp_offset\": %.2f, \"hum_offset\": %.1f, \"pres_offset\": %.1f, \"altitude_m\": %.0f}},\n"
             "  \"sampling_interval_s\": 60\n"
             "}\n",
             PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_TIME, GIT_COMMIT,
@@ -810,8 +832,12 @@ void WebManager::_setupApi() {
             neoGetBrightness(),
             (double)(_sensors ? _sensors->calibration().temperature : 0.0f),
             (double)(_sensors ? _sensors->calibration().humidity : 0.0f),
+            (double)(_sensors ? _sensors->calibration().pressure : 0.0f),
+            (double)(_sensors ? _sensors->calibration().altitude : 0.0f),
             (double)espNowReceiver.calibration().temperature,
-            (double)espNowReceiver.calibration().humidity);
+            (double)espNowReceiver.calibration().humidity,
+            (double)espNowReceiver.calibration().pressure,
+            (double)espNowReceiver.calibration().altitude);
         AsyncWebServerResponse *response = request->beginResponse(200, "application/json", buf);
         response->addHeader("Content-Disposition", "attachment; filename=\"meteohub-config.json\"");
         request->send(response);

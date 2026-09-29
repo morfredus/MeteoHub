@@ -42,10 +42,11 @@ public:
     // Dernière lecture BRUTE (avant calibration), pour comparer à une référence.
     float rawTemperature() const { return _rawTemp; }
     float rawHumidity() const { return _rawHum; }
+    float rawPressure() const { return _rawPres; }
 
 private:
     mhcal::Offsets _cal;
-    float _rawTemp = NAN, _rawHum = NAN;
+    float _rawTemp = NAN, _rawHum = NAN, _rawPres = NAN;
 
     Adafruit_AHTX0 aht;
     Adafruit_BMP280 bmp;

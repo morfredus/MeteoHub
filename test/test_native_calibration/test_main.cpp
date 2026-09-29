@@ -56,6 +56,31 @@ void test_native_sanitize_bounds() {
     TEST_ASSERT_EQUAL_FLOAT(0.0f, sanitize(n).temperature);
 }
 
+// --- Pression : décalage additif, jamais appliqué à une pression absente -----
+void test_native_pressure_offset() {
+    Offsets o;
+    o.pressure = 1.5f;
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 1004.5f, correctPressure(1003.0f, o));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, correctPressure(0.0f, o));   // BMP280 muet : reste 0
+    // La pression ne touche ni la température ni l'humidité.
+    TEST_ASSERT_EQUAL_FLOAT(20.0f, correctTemperature(20.0f, o));
+    TEST_ASSERT_EQUAL_FLOAT(50.0f, correctHumidity(50.0f, o));
+}
+
+// --- Bornes pression et altitude ---------------------------------------------
+void test_native_pressure_altitude_bounds() {
+    Offsets o;
+    o.pressure = 30.0f;
+    o.altitude = 9000.0f;
+    Offsets s = sanitize(o);
+    TEST_ASSERT_EQUAL_FLOAT(kPresOffsetMax, s.pressure);
+    TEST_ASSERT_EQUAL_FLOAT(kAltitudeMax, s.altitude);
+    o.altitude = -2000.0f;
+    TEST_ASSERT_EQUAL_FLOAT(kAltitudeMin, sanitize(o).altitude);
+    o.altitude = 245.0f;   // valeur réaliste : conservée telle quelle
+    TEST_ASSERT_EQUAL_FLOAT(245.0f, sanitize(o).altitude);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_native_default_is_identity);
@@ -63,5 +88,7 @@ int main(int, char**) {
     RUN_TEST(test_native_field_case_both_offsets);
     RUN_TEST(test_native_humidity_clamped);
     RUN_TEST(test_native_sanitize_bounds);
+    RUN_TEST(test_native_pressure_offset);
+    RUN_TEST(test_native_pressure_altitude_bounds);
     return UNITY_END();
 }

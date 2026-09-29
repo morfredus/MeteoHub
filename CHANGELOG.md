@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.52.0] - 2026-09-29
+
+### Added
+
+- **Pressure calibration.** The *Calibration des capteurs* card (System page) gets a
+  pressure offset (hPa, bounded to ±10) for the hub sensor and for the outdoor probe,
+  like temperature and humidity. Applied on reception, before history and API; a
+  missing pressure (0, silent BMP280) is never offset.
+- **Declared sensor altitude.** Each sensor (indoor, outdoor) gets its own altitude
+  (m, -500 to 5000): hub and probe are not necessarily at the same height. It is a
+  declaration, never applied to the measurements (station pressure stays station
+  pressure); the card shows the sea-level equivalent for information.
+- `/api/sensor/calibration`: `pres_offset`, `altitude_m`, `raw_pressure`, `pressure`
+  per sensor (GET), `in_pres` / `in_alt` / `out_pres` / `out_alt` (POST). Also in
+  `/api/config/export`. Stored in NVS (`sensor_cal`: `in_p`, `out_p`, `in_alt`,
+  `out_alt`); a hub never calibrated keeps 0.
+
 ## [1.51.3] - 2026-09-28
 
 ### Fixed

@@ -68,6 +68,14 @@
                 <label for="calInHum">Décalage humidité (points de %) :</label>
                 <input type="number" id="calInHum" step="0.5" min="-20" max="20" value="0" style="width:6em;">
             </div>
+            <div class="sys-row">
+                <label for="calInPres">Décalage pression (hPa) :</label>
+                <input type="number" id="calInPres" step="0.1" min="-10" max="10" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
+                <label for="calInAlt">Altitude du capteur (m) :</label>
+                <input type="number" id="calInAlt" step="1" min="-500" max="5000" value="0" style="width:6em;">
+            </div>
             <h3 style="margin:14px 0 4px;font-size:1rem;">Extérieur (sonde)</h3>
             <div class="sys-row">
                 <label>Dernière trame brute :</label>
@@ -86,13 +94,24 @@
                 <input type="number" id="calOutHum" step="0.5" min="-20" max="20" value="0" style="width:6em;">
             </div>
             <div class="sys-row">
+                <label for="calOutPres">Décalage pression (hPa) :</label>
+                <input type="number" id="calOutPres" step="0.1" min="-10" max="10" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
+                <label for="calOutAlt">Altitude du capteur (m) :</label>
+                <input type="number" id="calOutAlt" step="1" min="-500" max="5000" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
                 <button type="button" id="calSave" class="btn">Enregistrer</button>
             </div>
             <div id="calResult" class="sys-hint">Comparer à une référence fiable (thermostat,
                 hygromètre) placée au même endroit, après plusieurs heures de stabilité, puis
-                saisir l'écart : référence moins lecture brute. Température et humidité se
-                corrigent séparément. Appliqué à l'affichage, à l'historique et à l'API ; les
-                mesures déjà archivées ne sont pas modifiées.</div>
+                saisir l'écart : référence moins lecture brute. Température, humidité et
+                pression se corrigent séparément. Appliqué à l'affichage, à l'historique et à
+                l'API ; les mesures déjà archivées ne sont pas modifiées. L'altitude, elle, ne
+                corrige rien : elle déclare où se trouve chaque capteur (le hub et la sonde
+                peuvent être à des hauteurs différentes). La pression reste celle mesurée sur
+                place ; l'équivalent au niveau de la mer est donné à titre indicatif.</div>
         </div>
 
         <!-- Export des données et de la configuration -->
@@ -280,21 +299,40 @@
             inHum: document.getElementById('calInHum'),
             outTemp: document.getElementById('calOutTemp'),
             outHum: document.getElementById('calOutHum'),
+            inPres: document.getElementById('calInPres'),
+            inAlt: document.getElementById('calInAlt'),
+            outPres: document.getElementById('calOutPres'),
+            outAlt: document.getElementById('calOutAlt'),
         };
         const calResult = document.getElementById('calResult');
         let calLoaded = false;
 
-        function fmtReading(t, h) {
+        // Pression ramenée au niveau de la mer (formule hypsométrique usuelle,
+        // gradient standard de 0,0065 K/m). Indicatif : rien n'est archivé ainsi.
+        function seaLevel(p, altM, tC) {
+            if (typeof p !== 'number' || !altM) return null;
+            const t = (typeof tC === 'number') ? tC : 15;
+            return p * Math.pow(1 - 0.0065 * altM / (t + 0.0065 * altM + 273.15), -5.257);
+        }
+
+        function fmtReading(t, h, p, altM) {
             if (typeof t !== 'number') return '-';
             let s = t.toFixed(1) + ' °C';
             if (typeof h === 'number') s += ' · ' + h.toFixed(0) + ' %';
+            if (typeof p === 'number') {
+                s += ' · ' + p.toFixed(1) + ' hPa';
+                const sl = seaLevel(p, altM, t);
+                if (sl !== null) s += ' (≈ ' + sl.toFixed(1) + ' hPa au niveau de la mer)';
+            }
             return s;
         }
 
         function showSensor(prefix, s) {
             if (!s) return;
-            document.getElementById(prefix + 'Raw').textContent = fmtReading(s.raw_temperature, s.raw_humidity);
-            document.getElementById(prefix + 'Corrected').textContent = fmtReading(s.temperature, s.humidity);
+            document.getElementById(prefix + 'Raw').textContent =
+                fmtReading(s.raw_temperature, s.raw_humidity, s.raw_pressure, 0);
+            document.getElementById(prefix + 'Corrected').textContent =
+                fmtReading(s.temperature, s.humidity, s.pressure, s.altitude_m);
         }
 
         // Relit les mesures régulièrement, mais ne réécrit les champs de saisie
@@ -310,6 +348,10 @@
                         cal.inHum.value = d.indoor.hum_offset;
                         cal.outTemp.value = d.outdoor.temp_offset;
                         cal.outHum.value = d.outdoor.hum_offset;
+                        cal.inPres.value = d.indoor.pres_offset;
+                        cal.inAlt.value = d.indoor.altitude_m;
+                        cal.outPres.value = d.outdoor.pres_offset;
+                        cal.outAlt.value = d.outdoor.altitude_m;
                         calLoaded = true;
                     }
                 })
@@ -322,6 +364,10 @@
                 in_hum: String(cal.inHum.value || '0'),
                 out_temp: String(cal.outTemp.value || '0'),
                 out_hum: String(cal.outHum.value || '0'),
+                in_pres: String(cal.inPres.value || '0'),
+                in_alt: String(cal.inAlt.value || '0'),
+                out_pres: String(cal.outPres.value || '0'),
+                out_alt: String(cal.outAlt.value || '0'),
             });
             fetch('/api/sensor/calibration', { method: 'POST', body })
                 .then((r) => r.json())
@@ -332,9 +378,14 @@
                         cal.inHum.value = d.in_hum;
                         cal.outTemp.value = d.out_temp;
                         cal.outHum.value = d.out_hum;
+                        cal.inPres.value = d.in_pres;
+                        cal.inAlt.value = d.in_alt;
+                        cal.outPres.value = d.out_pres;
+                        cal.outAlt.value = d.out_alt;
                         calResult.textContent = 'Calibration enregistrée. Intérieur : '
-                            + d.in_temp + ' °C, ' + d.in_hum + ' pts ; extérieur : '
-                            + d.out_temp + ' °C, ' + d.out_hum + ' pts.';
+                            + d.in_temp + ' °C, ' + d.in_hum + ' pts, ' + d.in_pres + ' hPa, '
+                            + d.in_alt + ' m ; extérieur : ' + d.out_temp + ' °C, '
+                            + d.out_hum + ' pts, ' + d.out_pres + ' hPa, ' + d.out_alt + ' m.';
                         refreshCalibration();
                     } else {
                         calResult.textContent = (d && d.message) ? d.message : 'Réglage refusé.';

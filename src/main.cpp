@@ -189,13 +189,14 @@ void setup() {
         const CalibrationSet cal = loadCalibration();
         sensors.setCalibration(cal.indoor);
         espNowReceiver.setCalibration(cal.outdoor);
-        if (cal.indoor.temperature != 0.0f || cal.indoor.humidity != 0.0f
-            || cal.outdoor.temperature != 0.0f || cal.outdoor.humidity != 0.0f) {
-            LOG_INFO("Calibration: IN T " + std::to_string(cal.indoor.temperature)
-                     + " H " + std::to_string(cal.indoor.humidity)
-                     + " / OUT T " + std::to_string(cal.outdoor.temperature)
-                     + " H " + std::to_string(cal.outdoor.humidity));
-        }
+        LOG_INFO("Calibration: IN T " + std::to_string(cal.indoor.temperature)
+                 + " H " + std::to_string(cal.indoor.humidity)
+                 + " P " + std::to_string(cal.indoor.pressure)
+                 + " alt " + std::to_string(cal.indoor.altitude)
+                 + " / OUT T " + std::to_string(cal.outdoor.temperature)
+                 + " H " + std::to_string(cal.outdoor.humidity)
+                 + " P " + std::to_string(cal.outdoor.pressure)
+                 + " alt " + std::to_string(cal.outdoor.altitude));
     }
     delay(200); // Petit delai visuel
 

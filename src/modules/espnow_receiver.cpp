@@ -325,6 +325,7 @@ void EspNowReceiver::processQueuedPackets() {
         _packetsValid++;
         _rawTemp = packet.temperature;
         _rawHum = (packet.valid_fields & FIELD_HUMIDITY) ? packet.humidity : NAN;
+        _rawPres = (packet.valid_fields & FIELD_PRESSURE) ? packet.pressure : NAN;
         OutdoorData outdoor = convertToOutdoorData(packet);
         memcpy(outdoor.src_mac, rx.mac, 6);
         if (_outdoorCallback) {
@@ -411,6 +412,9 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
     outdoor.temperature = mhcal::correctTemperature(outdoor.temperature, _cal);
     if (packet.valid_fields & FIELD_HUMIDITY) {
         outdoor.humidity = mhcal::correctHumidity(outdoor.humidity, _cal);
+    }
+    if (packet.valid_fields & FIELD_PRESSURE) {
+        outdoor.pressure = mhcal::correctPressure(outdoor.pressure, _cal);
     }
 
     return outdoor;

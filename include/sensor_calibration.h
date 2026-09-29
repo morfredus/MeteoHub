@@ -17,6 +17,16 @@
 // ~71 % et non 67 % : il surcorrige. Deux décalages mesurés (-2,8 °C, +7 points)
 // collent exactement à la référence. Chaque grandeur a donc sa propre correction.
 //
+// Pression (1.52.0) : même principe, un décalage additif en hPa contre une
+// référence (station officielle voisine ramenée à la même altitude, baromètre
+// étalonné). Une pression absente (0 : BMP280 muet) n'est jamais corrigée.
+//
+// Altitude (1.52.0) : ce n'est PAS une correction. C'est une DÉCLARATION, par
+// capteur, de l'altitude où il se trouve (hub et sonde ne sont pas forcément au
+// même étage ou au même endroit). Les mesures restent la pression STATION,
+// brute + décalage ; l'altitude sert à qui en a besoin (réduction au niveau de
+// la mer, comparaison avec une station officielle), sans jamais réécrire la mesure.
+//
 // Les bornes limitent l'effet d'une saisie aberrante : un écart supérieur trahit
 // un capteur défectueux ou mal placé, qu'une correction ne doit pas masquer.
 // -----------------------------------------------------------------------------
@@ -25,10 +35,15 @@ namespace mhcal {
 
 constexpr float kTempOffsetMax = 10.0f;   // °C
 constexpr float kHumOffsetMax  = 20.0f;   // points d'humidité relative
+constexpr float kPresOffsetMax = 10.0f;   // hPa
+constexpr float kAltitudeMin   = -500.0f; // m (sous le niveau de la mer : rare mais réel)
+constexpr float kAltitudeMax   = 5000.0f; // m
 
 struct Offsets {
     float temperature = 0.0f;   // °C, ajouté à la température lue
     float humidity    = 0.0f;   // points de %HR, ajoutés à l'humidité lue
+    float pressure    = 0.0f;   // hPa, ajoutés à la pression lue
+    float altitude    = 0.0f;   // m, DÉCLARÉE (jamais appliquée aux mesures)
 };
 
 inline float clampf(float v, float lo, float hi) {
@@ -39,8 +54,12 @@ inline float clampf(float v, float lo, float hi) {
 inline Offsets sanitize(Offsets o) {
     if (!(o.temperature == o.temperature)) o.temperature = 0.0f;   // NaN
     if (!(o.humidity == o.humidity)) o.humidity = 0.0f;
+    if (!(o.pressure == o.pressure)) o.pressure = 0.0f;
+    if (!(o.altitude == o.altitude)) o.altitude = 0.0f;
     o.temperature = clampf(o.temperature, -kTempOffsetMax, kTempOffsetMax);
     o.humidity    = clampf(o.humidity, -kHumOffsetMax, kHumOffsetMax);
+    o.pressure    = clampf(o.pressure, -kPresOffsetMax, kPresOffsetMax);
+    o.altitude    = clampf(o.altitude, kAltitudeMin, kAltitudeMax);
     return o;
 }
 
@@ -51,6 +70,12 @@ inline float correctTemperature(float raw, const Offsets& o) {
 // Une humidité relative reste dans [0, 100] quel que soit le décalage.
 inline float correctHumidity(float raw, const Offsets& o) {
     return clampf(raw + o.humidity, 0.0f, 100.0f);
+}
+
+// 0 signifie « pas de pression » (capteur absent ou muet) : on ne fabrique pas
+// une fausse mesure en y ajoutant le décalage.
+inline float correctPressure(float raw, const Offsets& o) {
+    return raw > 0.0f ? raw + o.pressure : raw;
 }
 
 }  // namespace mhcal

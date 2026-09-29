@@ -141,7 +141,7 @@ MeteoHub peut diffuser ses logs sur le réseau local en UDP, ce qui permet de le
 ### Page Système
 Le menu principal ne comporte que quatre entrées : **Tableau de bord**, **Statistiques**, **Historique** et **Système**. La page Système regroupe :
 - **Luminosité de la LED** : réglage de la NeoLED (0-255), appliqué immédiatement et conservé au redémarrage (persisté en NVS). API : `GET`/`POST /api/led`.
-- **Calibration des capteurs** : décalages de température et d'humidité, pour le capteur intérieur et pour la sonde extérieure (voir ci-dessous). API : `GET`/`POST /api/sensor/calibration`.
+- **Calibration des capteurs** : décalages de température, d'humidité et de pression, et altitude de chaque capteur, pour le capteur intérieur et pour la sonde extérieure (voir ci-dessous). API : `GET`/`POST /api/sensor/calibration`.
 - **Export** :
   - Historique au format **CSV** (dernières 24 h / 7 j / 30 j / tout), pour Excel/LibreOffice - API `GET /api/history/export.csv?from=&to=` ;
   - **Configuration** effective au format JSON - API `GET /api/config/export`.
@@ -172,6 +172,17 @@ réel : hub à 26,8 °C / 60 %, thermostat à 24,0 °C / 67 %, soit **-2,8 °C**
 **+7 points**. Si l'humidité du capteur est déjà égale à celle de la référence, laisser
 son décalage à 0. Les décalages sont bornés (±10 °C, ±20 points) : au-delà, le capteur
 est défectueux ou mal placé.
+
+La **pression** se corrige de la même façon, en hPa (borné à ±10), contre un
+baromètre étalonné placé à la même hauteur. Une pression absente (capteur muet) n'est
+jamais corrigée.
+
+L'**altitude** n'est pas une correction : elle déclare à quelle hauteur se trouve
+chaque capteur. Le hub et la sonde n'étant pas forcément au même endroit (étage,
+jardin en contrebas), chacun a la sienne. Les mesures restent la pression **mesurée
+sur place** ; la carte affiche en plus, à titre indicatif, l'équivalent au niveau de
+la mer, celui que donnent les bulletins météo. L'altitude est exposée par l'API
+(`altitude_m`) pour les outils qui en ont besoin.
 
 Un décalage fixe suppose un écart stable. Comparer les valeurs corrigées à la
 référence à plusieurs moments de la journée : si l'écart dérive nettement (activité

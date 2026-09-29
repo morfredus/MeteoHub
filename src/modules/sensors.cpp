@@ -110,9 +110,10 @@ SensorData SensorManager::read() {
         // historique, API, morfSystem) voit la même valeur corrigée.
         _rawTemp = t;
         _rawHum = ahtFound ? h : NAN;
+        _rawPres = bmpFound ? p : NAN;
         data.temperature = mhcal::correctTemperature(t, _cal);
         data.humidity = ahtFound ? mhcal::correctHumidity(h, _cal) : 0.0f; // pas d'humidité sans AHT20
-        data.pressure = bmpFound ? p : 0.0f;
+        data.pressure = bmpFound ? mhcal::correctPressure(p, _cal) : 0.0f;
         data.valid = true;
         _lastTemp = data.temperature;
         _lastHum = data.humidity;
