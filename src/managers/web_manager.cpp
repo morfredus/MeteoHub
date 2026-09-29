@@ -400,6 +400,17 @@ void WebManager::_setupApi() {
         } else {
             out["sensor_mac"] = nullptr;
         }
+        // Firmware de la sonde, lu dans sa derniere trame LIVE (v4). null si la
+        // sonde est en v3 (firmware anterieur a 0.27.0) ou encore jamais recue.
+        if (outHas && outData.fw_version) {
+            char fw[16];
+            snprintf(fw, sizeof(fw), "%u.%u.%u", (unsigned)(outData.fw_version >> 16),
+                     (unsigned)((outData.fw_version >> 8) & 0xFF),
+                     (unsigned)(outData.fw_version & 0xFF));
+            out["firmware"] = fw;
+        } else {
+            out["firmware"] = nullptr;
+        }
 
         // Résout chaque grandeur en gardant la provenance (OUT frais / OUT
         // périmé / secours IN / indisponible). Point unique de décision, partagé

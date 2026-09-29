@@ -17,7 +17,9 @@ static QueueHandle_t s_packetQueue = nullptr;
 
 // Trame de mesure + MAC de son emetteur : la MAC voyage AVEC la trame dans la
 // file, pour que loop() sache sans ambiguite quelle sonde l'a envoyee.
-struct RxPacket { uint8_t mac[6]; MeteoPacket packet; };
+// `len` : taille REELLE recue (63 = trame v3, 67 = v4), indispensable pour
+// trouver le CRC d'une trame v3 copiee dans la structure v4.
+struct RxPacket { uint8_t mac[6]; uint16_t len; MeteoPacket packet; };
 
 // Trames d'appairage (demande / confirmation d'une sonde), mises de cote par le
 // callback radio et traitees dans loop() : on n'emet ni n'ajoute de peer depuis
@@ -303,6 +305,7 @@ void EspNowReceiver::enqueueRaw(const uint8_t* mac, const uint8_t* data, int len
     if (mac) memcpy(rx.mac, mac, 6);
     const size_t copyLen = std::min(static_cast<size_t>(len), sizeof(MeteoPacket));
     memcpy(&rx.packet, data, copyLen);
+    rx.len = static_cast<uint16_t>(len);
 
     if (xQueueSend(s_packetQueue, &rx, 0) != pdTRUE) {
         _self->_packetsInvalid++;
@@ -316,8 +319,8 @@ void EspNowReceiver::processQueuedPackets() {
 
     RxPacket rx;
     while (xQueueReceive(s_packetQueue, &rx, 0) == pdTRUE) {
-        const MeteoPacket& packet = rx.packet;
-        if (!validatePacket(packet)) {
+        MeteoPacket& packet = rx.packet;
+        if (!validatePacket(packet, rx.len)) {
             _packetsInvalid++;
             continue;
         }
@@ -344,31 +347,21 @@ void EspNowReceiver::processQueuedPackets() {
     }
 }
 
-bool EspNowReceiver::validatePacket(const MeteoPacket& packet) const {
+bool EspNowReceiver::validatePacket(MeteoPacket& packet, size_t len) const {
+    // Validation ET normalisation v3 -> v4 (meteo_packet.h, logique partagee avec
+    // la sonde). Le detail est journalise pour qu'un rejet ne soit jamais muet.
+    if (normalizeMeteoPacket(packet, len)) return true;
     if (packet.magic[0] != METEO_PACKET_MAGIC_0 || packet.magic[1] != METEO_PACKET_MAGIC_1) {
-        LOG_WARNING("ESP-NOW: Invalid magic (len=" + std::to_string(_lastRxLen) +
-                    " expect=" + std::to_string(sizeof(MeteoPacket)) + ")");
-        return false;
-    }
-
-
-    if (packet.protocol_version != METEO_PROTOCOL_VERSION) {
-        LOG_WARNING("ESP-NOW: Unsupported protocol version "
+        LOG_WARNING("ESP-NOW: Invalid magic (len=" + std::to_string(len) + ")");
+    } else if (packet.protocol_version < METEO_DATA_VERSION_MIN
+               || packet.protocol_version > METEO_DATA_VERSION) {
+        LOG_WARNING("ESP-NOW: Unsupported data version "
                     + std::to_string(packet.protocol_version));
-        return false;
+    } else {
+        LOG_WARNING("ESP-NOW: CRC or size mismatch (len=" + std::to_string(len)
+                    + ", v" + std::to_string(packet.protocol_version) + ")");
     }
-
-    const size_t dataLenForCrc = sizeof(MeteoPacket) - sizeof(uint16_t);
-    uint16_t calculatedCrc = calculateCrc16(
-        reinterpret_cast<const uint8_t*>(&packet), dataLenForCrc);
-    if (calculatedCrc != packet.crc16) {
-        LOG_WARNING("ESP-NOW: CRC mismatch (len=" + std::to_string(_lastRxLen) + ")");
-        LOG_DEBUG("CRC expected=" + std::to_string(packet.crc16) + " calculated=" + std::to_string(calculatedCrc));
-        return false;
-    }
-
-
-    return true;
+    return false;
 }
 
 OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) const {
@@ -403,6 +396,7 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
     outdoor.oldest_seq = packet.oldest_seq;
     outdoor.node_id = packet.node_id;
     outdoor.uptime_sec = packet.uptime_sec;
+    outdoor.fw_version = packet.fw_version;
 
     // Seul le drapeau de la sonde fait foi. L'ancien repli « valeur plausible »
     // acceptait une trame 0 degC / 0 % sans drapeau (AHT20 muet) : 0 tombe dans

@@ -104,7 +104,7 @@ private:
     void disableWifiSleep();
     void refreshChannel();
 
-    bool validatePacket(const MeteoPacket& packet) const;
+    bool validatePacket(MeteoPacket& packet, size_t len) const; // valide + normalise v3/v4
     OutdoorData convertToOutdoorData(const MeteoPacket& packet) const;
 
     friend void meteoEspNowRecv(const uint8_t* mac, const uint8_t* data, int len);

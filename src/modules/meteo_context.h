@@ -65,6 +65,8 @@ struct OutdoorData {
     // Secondes ecoulees depuis le reveil de la sonde a l'envoi : sur une
     // retransmission, dit combien de temps la sonde est restee eveillee.
     uint32_t uptime_sec = 0;
+    // Version du firmware de la sonde (trame v4, voir encodeFwVersion) ; 0 = inconnue.
+    uint32_t fw_version = 0;
 
     OutdoorData() : temperature(0), humidity(0), pressure(0), valid(false),
                     wind_speed(0), wind_gust(0), wind_direction_deg(0),

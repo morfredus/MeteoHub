@@ -342,6 +342,13 @@ function updateStation(data) {
         }
     }
 
+    // Version du firmware de la sonde (trame v4) : masquée tant qu'elle est inconnue.
+    const fwRow = document.getElementById('outFirmwareRow');
+    if (fwRow) {
+        fwRow.hidden = !outb.firmware;
+        if (outb.firmware) setText('outFirmware', 'v' + outb.firmware);
+    }
+
     // Batterie de la sonde déportée + alerte pile faible.
     const batteryRow = document.getElementById('outBatteryRow');
     const batteryAlert = document.getElementById('outBatteryAlert');

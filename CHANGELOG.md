@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.55.0] - 2026-09-29
+
+### Added
+
+- **Probe firmware version on the dashboard.** The Outdoor card shows "Firmware sonde
+  vX.Y.Z" from the last live frame; `/api/live` exposes `out.firmware` (null when
+  unknown). Data frames move to version 4 (67 bytes, `fw_version` before the CRC,
+  encoded (major << 16) | (minor << 8) | patch). The hub accepts both v3 and v4 data
+  frames (`normalizeMeteoPacket`, shared `meteo_packet.h`, CRC checked at its place for
+  the received length), so it is flashed first and the probe after, with no break.
+  Pairing and control frames stay in version 3. Host tests `test_native_packet`.
+
 ## [1.54.1] - 2026-09-29
 
 ### Fixed
