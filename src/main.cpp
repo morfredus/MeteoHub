@@ -288,6 +288,11 @@ void setup() {
             return;
         }
 
+        // Carte Calibration : ne retient que la mesure COURANTE de la sonde
+        // associee (une retransmission rejoue une valeur ancienne ; une trame sans
+        // temperature ne mesure rien).
+        if (outdoor.frame_type == FRAME_LIVE && outdoor.valid) espNowReceiver.acceptRawReading();
+
         // --- Synchronisation fiable (v3) -----------------------------------
         // 1) Le service decide : mesure nouvelle ou doublon, live ou historique,
         //    et l'HEURE DE MESURE reconstruite (jamais l'heure d'arrivee).

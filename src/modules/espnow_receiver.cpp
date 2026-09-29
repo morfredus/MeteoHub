@@ -323,9 +323,13 @@ void EspNowReceiver::processQueuedPackets() {
         }
 
         _packetsValid++;
-        _rawTemp = packet.temperature;
-        _rawHum = (packet.valid_fields & FIELD_HUMIDITY) ? packet.humidity : NAN;
-        _rawPres = (packet.valid_fields & FIELD_PRESSURE) ? packet.pressure : NAN;
+        // Lecture brute mise EN ATTENTE : elle ne devient la reference de la carte
+        // Calibration que si main.cpp la valide (acceptRawReading : trame LIVE de
+        // la sonde ASSOCIEE). Une retransmission rejoue une mesure ancienne, une
+        // sonde non associee n'est pas celle que l'on regle.
+        _pendRawTemp = packet.temperature;
+        _pendRawHum = (packet.valid_fields & FIELD_HUMIDITY) ? packet.humidity : NAN;
+        _pendRawPres = (packet.valid_fields & FIELD_PRESSURE) ? packet.pressure : NAN;
         OutdoorData outdoor = convertToOutdoorData(packet);
         memcpy(outdoor.src_mac, rx.mac, 6);
         if (_outdoorCallback) {

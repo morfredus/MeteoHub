@@ -57,17 +57,22 @@ public:
     mhcal::Offsets calibration() const { return _cal; }
     void setCalibration(mhcal::Offsets offsets) { _cal = mhcal::sanitize(offsets); }
 
-    // Dernière trame reçue, BRUTE (avant calibration), pour régler contre une
-    // référence. NAN tant qu'aucune trame n'est arrivée depuis le démarrage.
+    // Dernière trame LIVE de la sonde ASSOCIÉE, BRUTE (avant calibration), pour
+    // régler contre une référence. NAN tant qu'aucune n'est arrivée depuis le
+    // démarrage. Retransmissions et sondes non associées n'y entrent jamais.
     float rawTemperature() const { return _rawTemp; }
     float rawHumidity() const { return _rawHum; }
     float rawPressure() const { return _rawPres; }
+    // Valide la lecture brute de la trame en cours de traitement (appelé depuis
+    // le callback de données, trame LIVE de la sonde associée uniquement).
+    void acceptRawReading() { _rawTemp = _pendRawTemp; _rawHum = _pendRawHum; _rawPres = _pendRawPres; }
 
 private:
     static EspNowReceiver* _self;
 
     mhcal::Offsets _cal;
     float _rawTemp = NAN, _rawHum = NAN, _rawPres = NAN;
+    float _pendRawTemp = NAN, _pendRawHum = NAN, _pendRawPres = NAN; // trame en cours
 
     OutdoorDataCallback _outdoorCallback;
     PairedCallback _pairedCallback;

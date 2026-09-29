@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.54.1] - 2026-09-29
+
+### Fixed
+
+- **Calibration card raw reading = current measurement of the associated probe.** The
+  "last raw frame" was updated by every decoded frame, retransmissions included (old
+  buffered measurements replayed after a pairing) and before the association filter
+  (a non-associated probe still powered on). Setting an offset against it could use a
+  stale or foreign value. The receiver now keeps the raw reading pending; `main.cpp`
+  accepts it only for a LIVE, valid frame of the associated probe.
+
 ## [1.54.0] - 2026-09-29
 
 ### Changed
