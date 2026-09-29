@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.53.1] - 2026-09-29
+
+### Fixed
+
+- **24 h statistics no longer drop a real, fast weather change.** The median / MAD
+  filter of the 24 h min / max / average collapsed to its floor after a calm day
+  (MAD ~0): a genuine 10 hPa fall during the last hours was excluded entirely. The
+  indoor and outdoor 24 h statistics now use the same temporal rule as the history
+  and the browser: only a one-point round trip (both neighbours consistent) is
+  dropped; a change that persists stays, whatever its size. Series are sorted by
+  measurement time (late retransmissions judged in place) and absent fields
+  (0 humidity / pressure) are ignored. Pure logic in `include/temporal_filter.h`,
+  host tests `test_native_filter` (storm drop, sudden step, drop after a calm day,
+  single spike, out-of-order, absent values). Dead `robustMetric` removed.
+
 ## [1.53.0] - 2026-09-29
 
 ### Changed

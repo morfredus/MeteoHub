@@ -11,6 +11,7 @@
 #include <cmath>
 #include <algorithm>
 #include <Arduino.h>
+#include "temporal_filter.h"
 
 // Arborescence symétrique IN/OUT (voir header) :
 //   SPIFFS : /history/indoor_recent.dat  +  /history/outdoor_recent.dat
@@ -42,11 +43,7 @@
 #define OUTLIER_FLOOR_H 6.0f
 #define OUTLIER_FLOOR_P 1.0f
 
-static bool isTemporalOutlier(float prev, float cur, float next, float floor) {
-    const float jump = fminf(fabsf(cur - prev), fabsf(cur - next)); // amplitude aller-retour
-    const float neighborGap = fabsf(prev - next);                    // cohérence des voisins
-    return jump > floor && jump > 3.0f * neighborGap;
-}
+using mhfilter::isTemporalOutlier; // definition unique : include/temporal_filter.h
 
 // --- Stockage binaire journalier -------------------------------------------
 // Chaque mesure est enregistrée comme une structure fixe de 16 octets (contre
@@ -389,35 +386,20 @@ Stats24h HistoryManager::getIndoorStats() const {
     const time_t now = time(NULL);
     const time_t cutoff = (now > 86400) ? (now - 86400) : 0;
 
-    std::vector<float> temps, hums, pres;
+    // Series HORODATEES : le filtre juge chaque point contre ses voisins dans le
+    // temps (voir temporal_filter.h). Seul un aller-retour isole est ecarte ;
+    // une vraie variation rapide qui persiste reste dans min / max / moyenne.
+    std::vector<std::pair<int64_t, float>> temps, hums, pres;
     for (const auto& rec : _recentHistory) {
         if (rec.timestamp < cutoff) continue;
-        temps.push_back(rec.t);
-        hums.push_back(rec.h);
-        pres.push_back(rec.p);
+        temps.push_back({(int64_t)rec.timestamp, rec.t});
+        hums.push_back({(int64_t)rec.timestamp, rec.h});
+        pres.push_back({(int64_t)rec.timestamp, rec.p});
         stats.count++;
     }
-    
-    // Utilisation du même moteur statistique robuste que pour l'existant
-    // Copie locale de robustMetric pour l'ÉTAPE 4 (sera refactorisée plus tard)
-    auto robustMetricLocal = [](const std::vector<float>& v, float floor, StatMetric& out) {
-        const size_t n = v.size();
-        if (n == 0) return;
-        std::vector<float> tmp(v);
-        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
-        const float median = tmp[n / 2];
-        for (auto& x : tmp) x = fabsf(x - median);
-        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
-        const float mad = tmp[n / 2];
-        const float thr = fmaxf(floor, 5.0f * 1.4826f * mad);
-        for (float x : v) {
-            if (fabsf(x - median) <= thr) out.add(x);
-        }
-    };
-    
-    robustMetricLocal(temps, OUTLIER_FLOOR_T, stats.temp);
-    robustMetricLocal(hums, OUTLIER_FLOOR_H, stats.hum);
-    robustMetricLocal(pres, OUTLIER_FLOOR_P, stats.pres);
+    for (float v : mhfilter::keptValues(temps, OUTLIER_FLOOR_T, false)) stats.temp.add(v);
+    for (float v : mhfilter::keptValues(hums, OUTLIER_FLOOR_H, true)) stats.hum.add(v);
+    for (float v : mhfilter::keptValues(pres, OUTLIER_FLOOR_P, true)) stats.pres.add(v);
     
     return stats;
 }
@@ -431,34 +413,20 @@ Stats24h HistoryManager::getOutdoorStats() const {
     const time_t now = time(NULL);
     const time_t cutoff = (now > 86400) ? (now - 86400) : 0;
 
-    std::vector<float> temps, hums, pres;
+    // Series HORODATEES : le filtre juge chaque point contre ses voisins dans le
+    // temps (voir temporal_filter.h). Seul un aller-retour isole est ecarte ;
+    // une vraie variation rapide qui persiste reste dans min / max / moyenne.
+    std::vector<std::pair<int64_t, float>> temps, hums, pres;
     for (const auto& rec : _outdoorHistory) {
         if (rec.timestamp < cutoff) continue;
-        temps.push_back(rec.t);
-        hums.push_back(rec.h);
-        pres.push_back(rec.p);
+        temps.push_back({(int64_t)rec.timestamp, rec.t});
+        hums.push_back({(int64_t)rec.timestamp, rec.h});
+        pres.push_back({(int64_t)rec.timestamp, rec.p});
         stats.count++;
     }
-    
-    // Utilisation du même moteur statistique robuste que pour IN
-    auto robustMetricLocal = [](const std::vector<float>& v, float floor, StatMetric& out) {
-        const size_t n = v.size();
-        if (n == 0) return;
-        std::vector<float> tmp(v);
-        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
-        const float median = tmp[n / 2];
-        for (auto& x : tmp) x = fabsf(x - median);
-        std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
-        const float mad = tmp[n / 2];
-        const float thr = fmaxf(floor, 5.0f * 1.4826f * mad);
-        for (float x : v) {
-            if (fabsf(x - median) <= thr) out.add(x);
-        }
-    };
-    
-    robustMetricLocal(temps, OUTLIER_FLOOR_T, stats.temp);
-    robustMetricLocal(hums, OUTLIER_FLOOR_H, stats.hum);
-    robustMetricLocal(pres, OUTLIER_FLOOR_P, stats.pres);
+    for (float v : mhfilter::keptValues(temps, OUTLIER_FLOOR_T, false)) stats.temp.add(v);
+    for (float v : mhfilter::keptValues(hums, OUTLIER_FLOOR_H, true)) stats.hum.add(v);
+    for (float v : mhfilter::keptValues(pres, OUTLIER_FLOOR_P, true)) stats.pres.add(v);
     
     return stats;
 }
@@ -524,27 +492,6 @@ void HistoryManager::exportIndoorCsv(time_t from, time_t to, const std::function
 
 void HistoryManager::exportOutdoorCsv(time_t from, time_t to, const std::function<void(const char*)>& emit) const {
     exportCsvImpl(from, to, emit, true);
-}
-
-// Statistiques robustes par grandeur : écarte les valeurs aberrantes via la
-// médiane et l'écart absolu médian (MAD). Contrairement au filtre temporel (qui
-// ne repère qu'un pic d'un seul point), cette approche gère aussi les SÉRIES de
-// valeurs aberrantes (ex. plusieurs mesures à 0 d'affilée lors d'échecs I2C). Le
-// seuil est piloté par les données (pas fixe) ; un plancher évite d'écarter les
-// variations normales quand le MAD est très faible (données très stables).
-static void robustMetric(const std::vector<float>& v, float floor, StatMetric& out) {
-    const size_t n = v.size();
-    if (n == 0) return;
-    std::vector<float> tmp(v);
-    std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
-    const float median = tmp[n / 2];
-    for (auto& x : tmp) x = fabsf(x - median);
-    std::nth_element(tmp.begin(), tmp.begin() + n / 2, tmp.end());
-    const float mad = tmp[n / 2];
-    const float thr = fmaxf(floor, 5.0f * 1.4826f * mad); // 1.4826 : MAD -> écart-type
-    for (float x : v) {
-        if (fabsf(x - median) <= thr) out.add(x);
-    }
 }
 
 Stats24h HistoryManager::getRecentStats() const {
