@@ -60,11 +60,33 @@ void test_native_sanitize_bounds() {
 void test_native_pressure_offset() {
     Offsets o;
     o.pressure = 1.5f;
-    TEST_ASSERT_FLOAT_WITHIN(0.001f, 1004.5f, correctPressure(1003.0f, o));
-    TEST_ASSERT_EQUAL_FLOAT(0.0f, correctPressure(0.0f, o));   // BMP280 muet : reste 0
+    // Altitude 0 : seul le décalage s'applique.
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 1004.5f, correctPressure(1003.0f, o, 20.0f));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, correctPressure(0.0f, o, 20.0f));   // BMP280 muet : reste 0
     // La pression ne touche ni la température ni l'humidité.
     TEST_ASSERT_EQUAL_FLOAT(20.0f, correctTemperature(20.0f, o));
     TEST_ASSERT_EQUAL_FLOAT(50.0f, correctHumidity(50.0f, o));
+}
+
+// --- Réduction au niveau de la mer avec l'altitude du capteur ---------------
+void test_native_sea_level_reduction() {
+    Offsets o;
+    o.altitude = 8.0f;
+    // ~0,12 hPa par mètre près du sol : 8 m valent ~1 hPa.
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, 1004.0f, correctPressure(1003.0f, o, 15.0f));
+    // Décalage appliqué AVANT la réduction (il corrige la pression station).
+    o.pressure = 1.0f;
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, 1005.0f, correctPressure(1003.0f, o, 15.0f));
+    // Température inconnue : atmosphère standard, pas de NAN propagé.
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, 1005.0f, correctPressure(1003.0f, o, NAN));
+    // Deux capteurs à des altitudes différentes dans le même air : même valeur
+    // au niveau de la mer (le hub à l'étage lit ~0,4 hPa de moins).
+    Offsets hub, probe;
+    hub.altitude = 11.0f;
+    probe.altitude = 8.0f;
+    const float pHub = 1003.0f - 3.0f * 0.12f;
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, correctPressure(1003.0f, probe, 15.0f),
+                             correctPressure(pHub, hub, 15.0f));
 }
 
 // --- Bornes pression et altitude ---------------------------------------------
@@ -90,5 +112,6 @@ int main(int, char**) {
     RUN_TEST(test_native_sanitize_bounds);
     RUN_TEST(test_native_pressure_offset);
     RUN_TEST(test_native_pressure_altitude_bounds);
+    RUN_TEST(test_native_sea_level_reduction);
     return UNITY_END();
 }

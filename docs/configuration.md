@@ -58,7 +58,8 @@ Certains réglages se modifient directement depuis l'interface web (page **Syst�
 - **Luminosité de la NeoLED** (0-255), stockée en NVS (espace `meteohub`).
 - **Calibration des capteurs** : décalages de température (°C, borné à ±10),
   d'humidité (points de %HR, borné à ±20) et de pression (hPa, borné à ±10), plus
-  l'**altitude déclarée** de chaque capteur (m, -500 à 5000), pour le capteur
+  l'**altitude** de chaque capteur (m, -500 à 5000), qui sert à publier la pression
+  ramenée au niveau de la mer, pour le capteur
   intérieur du hub et pour la sonde extérieure, stockés en NVS (espace `sensor_cal`). Voir
   [Calibrer les capteurs](user_guide.md#calibrer-les-capteurs).
 

@@ -26,7 +26,7 @@ actions destructives exigent toujours un appui long volontaire. Sans molette, la
 
 
 Pages principales (dans l'ordre de défilement) :
-- **Météo** : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT** (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
+- **Météo** : température et humidité **intérieures** (IN, capteurs du boîtier) et **extérieures** (OUT, sonde radio), plus la **pression atmosphérique de la sonde OUT**, ramenée au niveau de la mer (jamais celle du BMP280 intérieur). Tant qu'aucune trame OUT n'est reçue, la 4e ligne affiche `NOW chX rxY okZ` (canal Wi-Fi, trames vues, trames validées).
 - **Prévisions** : min/max et description du jour et du lendemain, l'éventuelle alerte météo, puis l'écran **Météo** de la page 1 (1.50.0). Les quatre vues tournent toutes les 5 s, sur les deux cartes (sur la DevKitC, le bouton Confirm passe aussi à la vue suivante) : laissée sur cette page, la station montre donc à la fois les prévisions et les mesures en direct. La page 1 reste inchangée ; dans la rotation, son en-tête porte le numéro de la page Prévisions (`Meteo 2/N`).
 - **Graphes** : courbes intérieur et extérieur (température, humidité, pression), tracées sur les dernières **24 h** lues sur la carte SD (et non la seule mémoire vive), reliées en continu et coupées uniquement en cas de vrai silence capteur.
 - **Réseau** : SSID, IP, **canal Wi-Fi**, RSSI et **MAC STA du hub**. La sonde scanne `MH-NOW` pour trouver le canal, puis émet en **unicast** vers cette MAC (accusé de réception matériel).
@@ -177,12 +177,18 @@ La **pression** se corrige de la même façon, en hPa (borné à ±10), contre u
 baromètre étalonné placé à la même hauteur. Une pression absente (capteur muet) n'est
 jamais corrigée.
 
-L'**altitude** n'est pas une correction : elle déclare à quelle hauteur se trouve
-chaque capteur. Le hub et la sonde n'étant pas forcément au même endroit (étage,
-jardin en contrebas), chacun a la sienne. Les mesures restent la pression **mesurée
-sur place** ; la carte affiche en plus, à titre indicatif, l'équivalent au niveau de
-la mer, celui que donnent les bulletins météo. L'altitude est exposée par l'API
-(`altitude_m`) pour les outils qui en ont besoin.
+L'**altitude** de chaque capteur se déclare aussi sur cette carte. Le hub et la sonde
+n'étant pas forcément au même endroit (étage, jardin en contrebas), chacun a la
+sienne. Toute pression publiée par le hub (écran, historique, tendances, API,
+morfAnalytics) est **ramenée au niveau de la mer** avec l'altitude du capteur qui l'a
+mesurée : c'est la valeur des bulletins météo, et les pressions intérieure et
+extérieure deviennent comparables. La carte montre les deux : la lecture brute (sur
+place) et la valeur publiée (niveau de la mer). Compter environ 0,12 hPa par mètre.
+
+Le hub est la seule source de vérité sur l'installation : aucun autre outil ne
+connaît ces altitudes. Déplacer la sonde se règle donc ici, et nulle part ailleurs.
+Les mesures déjà archivées ne sont pas réécrites : un changement d'altitude laisse
+une petite marche dans l'historique, à l'instant du réglage.
 
 Un décalage fixe suppose un écart stable. Comparer les valeurs corrigées à la
 référence à plusieurs moments de la journée : si l'écart dérive nettement (activité

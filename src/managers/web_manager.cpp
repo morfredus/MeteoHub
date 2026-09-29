@@ -736,7 +736,8 @@ void WebManager::_setupApi() {
             if (isnan(rp) || rp <= 0.0f) { strcpy(rawP, "null"); strcpy(corP, "null"); }
             else {
                 snprintf(rawP, sizeof(rawP), "%.1f", rp);
-                snprintf(corP, sizeof(corP), "%.1f", mhcal::correctPressure(rp, o));
+                snprintf(corP, sizeof(corP), "%.1f", mhcal::correctPressure(rp, o,
+                    isnan(rt) ? NAN : mhcal::correctTemperature(rt, o)));
             }
             snprintf(out, n,
                 "{\"temp_offset\":%.2f,\"hum_offset\":%.1f,\"pres_offset\":%.1f,"

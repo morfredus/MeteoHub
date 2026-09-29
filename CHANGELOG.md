@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.53.0] - 2026-09-29
+
+### Changed
+
+- **Published pressure is now sea-level pressure.** Each pressure (hub sensor and
+  outdoor probe) is offset by its calibration, then reduced to sea level with the
+  altitude of the sensor that measured it (hypsometric formula, 0.0065 K/m, the
+  sensor's corrected temperature, 15 degC if unknown). Everything downstream sees it:
+  display, history, trends, `/api/live`, `/api/history`, morfAnalytics. MeteoHub is
+  the only component that knows the physical installation; consumers no longer apply
+  any altitude correction. Indoor and outdoor pressures become comparable.
+- `/api/sensor/calibration`: `raw_pressure` is the on-site reading, `pressure` the
+  published sea-level value. The System page shows both and no longer computes an
+  indicative sea-level value itself.
+- Already archived measurements are not rewritten: setting an altitude leaves a
+  small step in the history (about 0.12 hPa per metre).
+
 ## [1.52.0] - 2026-09-29
 
 ### Added

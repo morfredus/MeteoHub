@@ -414,7 +414,8 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
         outdoor.humidity = mhcal::correctHumidity(outdoor.humidity, _cal);
     }
     if (packet.valid_fields & FIELD_PRESSURE) {
-        outdoor.pressure = mhcal::correctPressure(outdoor.pressure, _cal);
+        outdoor.pressure = mhcal::correctPressure(outdoor.pressure, _cal,
+            outdoor.valid ? outdoor.temperature : NAN);
     }
 
     return outdoor;
