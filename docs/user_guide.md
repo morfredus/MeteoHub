@@ -171,7 +171,7 @@ Température et humidité se corrigent **indépendamment**, chacune par son prop
 trop haute **et** une humidité trop basse : il faut alors corriger les deux. Exemple
 réel : hub à 26,8 °C / 60 %, thermostat à 24,0 °C / 67 %, soit **-2,8 °C** et
 **+7 points**. Si l'humidité du capteur est déjà égale à celle de la référence, laisser
-son décalage à 0. Les décalages sont bornés (±10 °C, ±20 points) : au-delà, le capteur
+son décalage à 0. Les décalages sont bornés (±10 °C, ±40 points) : au-delà, le capteur
 est défectueux ou mal placé.
 
 La **pression** se corrige de la même façon, en hPa (borné à ±10), contre un

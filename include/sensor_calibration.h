@@ -39,7 +39,7 @@
 namespace mhcal {
 
 constexpr float kTempOffsetMax = 10.0f;   // °C
-constexpr float kHumOffsetMax  = 20.0f;   // points d'humidité relative
+constexpr float kHumOffsetMax  = 40.0f;   // points d'humidité relative
 constexpr float kPresOffsetMax = 10.0f;   // hPa
 constexpr float kAltitudeMin   = -500.0f; // m (sous le niveau de la mer : rare mais réel)
 constexpr float kAltitudeMax   = 5000.0f; // m

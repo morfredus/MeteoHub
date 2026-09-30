@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.55.2] - 2026-10-01
+
+### Changed
+
+- **Humidity calibration offset widened to +/-40 points** (was +/-20). A sensor that
+  already needed -20 could not take a further -4. The bound (`kHumOffsetMax`) stays
+  a safety net against absurd input; the System page inputs follow it. Firmware and
+  web assets: flash the firmware and upload the filesystem image (`uploadfs`).
+
 ## [1.55.1] - 2026-09-30
 
 ### Fixed

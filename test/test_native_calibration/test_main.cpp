@@ -46,7 +46,7 @@ void test_native_humidity_clamped() {
 void test_native_sanitize_bounds() {
     Offsets o;
     o.temperature = -25.0f;
-    o.humidity = 40.0f;
+    o.humidity = 50.0f;
     const Offsets s = sanitize(o);
     TEST_ASSERT_EQUAL_FLOAT(-kTempOffsetMax, s.temperature);
     TEST_ASSERT_EQUAL_FLOAT(kHumOffsetMax, s.humidity);

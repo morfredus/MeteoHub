@@ -57,7 +57,7 @@ Cible matérielle : DevKitC-1 N16R8 (même carte que `esp32-s3-oled`). Pas de ci
 Certains réglages se modifient directement depuis l'interface web (page **Système**) et sont conservés au redémarrage, sans recompilation :
 - **Luminosité de la NeoLED** (0-255), stockée en NVS (espace `meteohub`).
 - **Calibration des capteurs** : décalages de température (°C, borné à ±10),
-  d'humidité (points de %HR, borné à ±20) et de pression (hPa, borné à ±10), plus
+  d'humidité (points de %HR, borné à ±40) et de pression (hPa, borné à ±10), plus
   l'**altitude** de chaque capteur (m, -500 à 5000), qui sert à publier la pression
   ramenée au niveau de la mer, pour le capteur
   intérieur du hub et pour la sonde extérieure, stockés en NVS (espace `sensor_cal`). Voir
