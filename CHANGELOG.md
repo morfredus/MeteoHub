@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.55.1] - 2026-09-30
+
+### Fixed
+
+- **Periodic holes in the History chart ("Aujourd'hui").** The aggregation bucket
+  (`computeInterval`) could be shorter than the recording cadence (289 s for one
+  measurement every 300 s), so about one bucket in 26 held no measurement. The bucket is
+  now never shorter than 1.5 x the cadence announced by `/api/history`
+  (`measurement_interval_s`), so every bucket contains at least one measurement.
+  Web assets only: upload the filesystem image (`uploadfs`).
+
 ## [1.55.0] - 2026-09-29
 
 ### Added

@@ -677,6 +677,12 @@ let longtermRefreshTimer = null;
 function computeInterval(durationSeconds) {
     let interval = Math.floor(durationSeconds / LONGTERM_TARGET_POINTS);
     if (interval < 60) interval = 60; // pas de tranche plus fine qu'une minute
+    // Une tranche plus courte que la cadence d'enregistrement (ex. 289 s pour une
+    // mesure toutes les 300 s sur « Aujourd'hui ») tombe régulièrement sans aucune
+    // mesure : trou périodique dans la courbe. Avec 1,5 x la cadence, chaque tranche
+    // contient au moins une mesure, même avec un peu de gigue d'horodatage.
+    const minInterval = Math.ceil(1.5 * measurementIntervalMs / 1000);
+    if (interval < minInterval) interval = minInterval;
     return interval;
 }
 
