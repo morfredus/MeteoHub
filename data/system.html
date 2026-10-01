@@ -69,12 +69,18 @@
                 <input type="number" id="calInHum" step="0.5" min="-40" max="40" value="0" style="width:6em;">
             </div>
             <div class="sys-row">
-                <label for="calInPres">Décalage pression (hPa) :</label>
-                <input type="number" id="calInPres" step="0.1" min="-10" max="10" value="0" style="width:6em;">
-            </div>
-            <div class="sys-row">
                 <label for="calInAlt">Altitude du capteur (m) :</label>
                 <input type="number" id="calInAlt" step="1" min="-500" max="5000" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
+                <label for="calInRef">Pression de référence, niveau de la mer (hPa) :</label>
+                <input type="number" id="calInRef" step="0.1" min="900" max="1100" placeholder="ex. Windy" style="width:6em;">
+                <button type="button" id="calInPresCalc" class="btn">Calculer le décalage</button>
+            </div>
+            <div id="calInPresExplain" class="sys-hint"></div>
+            <div class="sys-row">
+                <label for="calInPres">Décalage pression (hPa), calculé ci-dessus :</label>
+                <input type="number" id="calInPres" step="0.1" min="-10" max="10" value="0" style="width:6em;">
             </div>
             <h3 style="margin:14px 0 4px;font-size:1rem;">Extérieur (sonde)</h3>
             <div class="sys-row">
@@ -94,25 +100,34 @@
                 <input type="number" id="calOutHum" step="0.5" min="-40" max="40" value="0" style="width:6em;">
             </div>
             <div class="sys-row">
-                <label for="calOutPres">Décalage pression (hPa) :</label>
-                <input type="number" id="calOutPres" step="0.1" min="-10" max="10" value="0" style="width:6em;">
-            </div>
-            <div class="sys-row">
                 <label for="calOutAlt">Altitude du capteur (m) :</label>
                 <input type="number" id="calOutAlt" step="1" min="-500" max="5000" value="0" style="width:6em;">
             </div>
             <div class="sys-row">
+                <label for="calOutRef">Pression de référence, niveau de la mer (hPa) :</label>
+                <input type="number" id="calOutRef" step="0.1" min="900" max="1100" placeholder="ex. Windy" style="width:6em;">
+                <button type="button" id="calOutPresCalc" class="btn">Calculer le décalage</button>
+            </div>
+            <div id="calOutPresExplain" class="sys-hint"></div>
+            <div class="sys-row">
+                <label for="calOutPres">Décalage pression (hPa), calculé ci-dessus :</label>
+                <input type="number" id="calOutPres" step="0.1" min="-10" max="10" value="0" style="width:6em;">
+            </div>
+            <div class="sys-row">
                 <button type="button" id="calSave" class="btn">Enregistrer</button>
             </div>
-            <div id="calResult" class="sys-hint">Comparer à une référence fiable (thermostat,
-                hygromètre) placée au même endroit, après plusieurs heures de stabilité, puis
-                saisir l'écart : référence moins lecture brute. Température, humidité et
-                pression se corrigent séparément. Appliqué à l'affichage, à l'historique et à
+            <div id="calResult" class="sys-hint">Température et humidité : comparer à une référence
+                fiable (thermostat, hygromètre) au même endroit, après plusieurs heures de
+                stabilité, puis saisir l'écart : référence moins lecture brute.
+                Pression : saisir l'altitude du capteur et la pression au niveau de la mer
+                annoncée par une source (Windy, Météo-France...), puis cliquer sur « Calculer
+                le décalage ». Le capteur mesure la pression sur place, plus basse que celle
+                au niveau de la mer (environ 0,12 hPa de moins par mètre) : le calcul en tient
+                compte, rien à faire à la main. Appliqué à l'affichage, à l'historique et à
                 l'API ; les mesures déjà archivées ne sont pas modifiées. L'altitude est celle
                 de chaque capteur (le hub et la sonde peuvent être à des hauteurs
-                différentes) : toute pression publiée par le hub est ramenée au niveau de la
-                mer avec l'altitude du capteur qui l'a mesurée. Déplacer un capteur : changer
-                son altitude ici, rien d'autre.</div>
+                différentes). Déplacer un capteur : changer son altitude ici, rien d'autre.
+                Penser à cliquer sur « Enregistrer » après le calcul.</div>
         </div>
 
         <!-- Export des données et de la configuration -->
@@ -307,6 +322,7 @@
         };
         const calResult = document.getElementById('calResult');
         let calLoaded = false;
+        let calLast = null; // dernière réponse de /api/sensor/calibration
 
         // Brute : pression mesurée sur place. Corrigée : pression publiée par le
         // hub, décalage appliqué puis ramenée au niveau de la mer (calcul fait
@@ -333,6 +349,7 @@
             fetch('/api/sensor/calibration')
                 .then((r) => r.json())
                 .then((d) => {
+                    calLast = d;
                     showSensor('calIn', d.indoor);
                     showSensor('calOut', d.outdoor);
                     if (!calLoaded && d.indoor && d.outdoor) {
@@ -349,6 +366,38 @@
                 })
                 .catch(() => {});
         }
+
+
+        // Aide au réglage de la pression : à partir de la pression de référence au
+        // niveau de la mer et de l'altitude saisie, calcule la pression que le
+        // capteur doit lire SUR PLACE, puis le décalage = attendue - brute. Même
+        // formule hypsométrique que le firmware (seaLevelPressure, inversée) : le
+        // firmware reste l'autorité, ce calcul ne sert qu'à proposer une valeur.
+        function setupPresHelper(prefix, key) {
+            const ref = document.getElementById(prefix + 'Ref');
+            const alt = document.getElementById(prefix + 'Alt');
+            const off = document.getElementById(prefix + 'Pres');
+            const out = document.getElementById(prefix + 'PresExplain');
+            document.getElementById(prefix + 'PresCalc').addEventListener('click', () => {
+                const s = calLast && calLast[key];
+                const msl = parseFloat(ref.value);
+                const h = parseFloat(alt.value || '0');
+                if (!s || !(s.raw_pressure > 0)) { out.textContent = 'Pas de pression brute disponible pour ce capteur.'; return; }
+                if (!(msl > 0)) { out.textContent = 'Saisir la pression de référence au niveau de la mer.'; return; }
+                const t = (typeof s.temperature === 'number') ? s.temperature : 15;
+                const k = 0.0065 * h;
+                const onSite = Math.abs(h) < 0.5 ? msl : msl * Math.pow(1 - k / (t + k + 273.15), 5.257);
+                const delta = onSite - s.raw_pressure;
+                off.value = delta.toFixed(1);
+                out.textContent = 'Référence ' + msl.toFixed(1) + ' hPa au niveau de la mer. À ' + h
+                    + ' m, le capteur doit lire ' + onSite.toFixed(1) + ' hPa sur place. Il lit '
+                    + s.raw_pressure.toFixed(1) + ' hPa : décalage de ' + delta.toFixed(1)
+                    + ' hPa (' + onSite.toFixed(1) + ' - ' + s.raw_pressure.toFixed(1)
+                    + '). Cliquer sur « Enregistrer » pour l\'appliquer.';
+            });
+        }
+        setupPresHelper('calIn', 'indoor');
+        setupPresHelper('calOut', 'outdoor');
 
         document.getElementById('calSave').addEventListener('click', () => {
             const body = new URLSearchParams({

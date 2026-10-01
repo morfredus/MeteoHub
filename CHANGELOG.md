@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.55.4] - 2026-10-01
+
+### Fixed
+
+- **Build broke after reinstalling PlatformIO.** `platform = espressif32` was not pinned, so
+  a fresh install pulled the latest platform (Arduino core 3.x / ESP-IDF 5), whose
+  `esp_now_register_recv_cb` callback takes an `esp_now_recv_info*` instead of a MAC
+  address (`invalid conversion ... esp_now_recv_cb_t`). The platform is now pinned to
+  `espressif32@6.12.0`, like MeteoHubSensor, so every machine builds the same firmware.
+  Migrating to core 3.x will be its own change (callback signature, probe sender too).
+
+## [1.55.3] - 2026-10-01
+
+### Changed
+
+- **Pressure calibration is now guided.** The System page asks for the sensor altitude and
+  the sea-level pressure announced by a reference (Windy, a weather station...), then
+  computes the offset itself: expected on-site pressure (reference brought down to the
+  sensor altitude) minus the raw reading. It shows the calculation step by step, for
+  both IN and OUT (an unescaped quote in the first push broke the page script; fixed in
+  the same version). Before, the offset had to be worked out by hand against a sea-level
+  figure while the sensor reads on-site pressure, which gave a wrong result by about
+  0.12 hPa per metre. Web assets only: upload the filesystem image (`uploadfs`).
+
 ## [1.55.2] - 2026-10-01
 
 ### Changed
