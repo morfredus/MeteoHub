@@ -4,9 +4,9 @@ Version minimale valide : 1.9.0
 
 Ce projet cible uniquement une configuration OLED, sur deux cartes au choix :
 
-- **ESP32-S3 DevKitC-1 N16R8** (env `esp32-s3-oled`) : montage historique, décrit ci-dessous ;
-- **ESP32-S3 Super Mini** (env `esp32-s3-supermini`) : montage simplifié à 4 modules, voir
-  [la section dédiée](#esp32-s3-super-mini-env-esp32-s3-supermini).
+- **ESP32-S3 DevKitC-1 N16R8** (env `hub-oled`) : montage historique, décrit ci-dessous ;
+- **ESP32-S3 Super Mini** (env `hub-supermini`) : montage simplifié à 4 modules, voir
+  [la section dédiée](#esp32-s3-super-mini-env-hub-supermini).
 
 Références principales :
 - `include/board_config.h` pour le mapping des broches
@@ -63,7 +63,7 @@ Depuis la v1.2.0, le placement physique des modules sur le boîtier doit respect
 
 ---
 
-## ESP32-S3 Super Mini (env esp32-s3-supermini)
+## ESP32-S3 Super Mini (env hub-supermini)
 
 Version minimale valide : 1.43.0
 

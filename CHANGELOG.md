@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.56.7] - 2026-10-03
+
+### Changed
+
+- **Build environments renamed with a `hub-` prefix**: `esp32-s3-supermini` -> `hub-supermini`,
+  `esp32-s3-oled` -> `hub-oled`, `esp32-s3-oled-test` -> `hub-oled-test`. MeteoHubSensor now uses
+  `sonde-supermini`: both projects target a Super Mini, and a shared env name led to flashing the hub
+  firmware onto the probe board (two hubs on the network, same mDNS name and `MH-NOW` SoftAP).
+  Build with `pio run -e hub-supermini`. `morfproject.json` `env` values follow; the target keys
+  (`esp32s3-supermini-ota`...) are unchanged, so release asset names do not change.
+- Docs, README (en/fr), CONTRIBUTING and header comments updated to the new names.
+
 ## [1.56.6] - 2026-10-03
 
 ### Fixed

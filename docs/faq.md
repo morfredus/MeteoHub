@@ -8,7 +8,7 @@ Version minimale valide : 1.9.0
 Uniquement OLED (SH1106/SSD1306).
 
 ## Quel environnement PlatformIO utiliser ?
-Celui de ta carte : `esp32-s3-oled` pour l'ESP32-S3 DevKitC-1 N16R8, `esp32-s3-supermini`
+Celui de ta carte : `hub-oled` pour l'ESP32-S3 DevKitC-1 N16R8, `hub-supermini`
 pour l'ESP32-S3 Super Mini (montage simplifié, voir [Câblage matériel](hardware_wiring.md)).
 
 ## La carte SD est-elle obligatoire ?

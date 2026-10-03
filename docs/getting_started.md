@@ -7,11 +7,11 @@ Version minimale valide : 1.9.0
 1. Cloner le projet.
 2. Créer `include/secrets.h` à partir de `include/secrets_example.h`.
 3. Sélectionner l’environnement PlatformIO selon la carte :
-   - `esp32-s3-oled` : ESP32-S3 DevKitC-1 N16R8 (encodeur + boutons, OLED SH1106 1,3") ;
-   - `esp32-s3-supermini` : ESP32-S3 Super Mini (un bouton, OLED SSD1306 0,96"). Premier flash
+   - `hub-oled` : ESP32-S3 DevKitC-1 N16R8 (encodeur + boutons, OLED SH1106 1,3") ;
+   - `hub-supermini` : ESP32-S3 Super Mini (un bouton, OLED SSD1306 0,96"). Premier flash
      en USB obligatoire (table de partitions 4 Mo). **Environnement par défaut** (production) ;
-   - `esp32-s3-oled-test` : banc de test sur DevKitC N16R8 (même code, configuration de banc,
-     voir [Configuration](configuration.md#banc-de-test--env-esp32-s3-oled-test)).
+   - `hub-oled-test` : banc de test sur DevKitC N16R8 (même code, configuration de banc,
+     voir [Configuration](configuration.md#banc-de-test--env-hub-oled-test)).
 4. Compiler avec `platformio run`.
 5. Flasher avec `platformio run --target upload`.
 6. Ouvrir le moniteur série (`platformio device monitor`) pour valider le démarrage.

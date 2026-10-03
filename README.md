@@ -2,7 +2,7 @@
 
 *Read in another language: **English** (this document) · [Français](README.fr.md).*
 
-[![Version](https://img.shields.io/badge/version-1.56.6-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.56.7-blue)](CHANGELOG.md)
 
 > **Minimum supported version: 1.9.0**
 
@@ -22,7 +22,7 @@ MeteoHub S3 is a PlatformIO project for ESP32-S3 centered around an OLED dashboa
 
 Two builds are supported, one PlatformIO environment each:
 
-| | `esp32-s3-oled` (original) | `esp32-s3-supermini` (simplified) |
+| | `hub-oled` (original) | `hub-supermini` (simplified) |
 |---|---|---|
 | Board | ESP32-S3 DevKitC-1 N16R8 (16 MB / 8 MB PSRAM) | ESP32-S3 Super Mini (4 MB / 2 MB PSRAM), same as the probe |
 | Display | 1.3" SH1106 OLED (I2C) | 0.96" JMD0.96D-1 SSD1306 OLED (I2C) |
@@ -36,7 +36,7 @@ Wiring: [docs/hardware_wiring.md](docs/hardware_wiring.md).
 ## Building the Project
 
 * Install PlatformIO in Visual Studio Code
-* Select your board's environment: `esp32-s3-oled` or `esp32-s3-supermini` (default; first flash of the Super Mini over USB: its 4 MB partition table cannot be applied by OTA). `esp32-s3-oled-test` builds the same code with the test-bench configuration (see docs/configuration.md)
+* Select your board's environment: `hub-oled` or `hub-supermini` (default; first flash of the Super Mini over USB: its 4 MB partition table cannot be applied by OTA). `hub-oled-test` builds the same code with the test-bench configuration (see docs/configuration.md)
 * Build:
 
 ```bash

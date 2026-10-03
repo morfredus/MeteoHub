@@ -33,7 +33,7 @@
 // Paramètres réseau
 // ===============
 // Les réglages protégés par #ifndef peuvent être imposés par l'env de build
-// (ex. esp32-s3-oled-test, banc de test : voir platformio.ini).
+// (ex. hub-oled-test, banc de test : voir platformio.ini).
 #ifndef WEB_MDNS_HOSTNAME
 #define WEB_MDNS_HOSTNAME        "meteohub" // Accessible via http://meteohub.local
 #endif

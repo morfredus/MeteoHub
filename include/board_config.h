@@ -2,8 +2,8 @@
 
 // =====================================================
 // Sélection de la carte (define posé par l'env PlatformIO)
-//   - BOARD_S3_SUPERMINI : env esp32-s3-supermini
-//   - (défaut)           : env esp32-s3-oled, DevKitC-1 N16R8
+//   - BOARD_S3_SUPERMINI : env hub-supermini
+//   - (défaut)           : env hub-oled, DevKitC-1 N16R8
 // Le reste du firmware ne connaît que les alias *_PIN et les
 // capacités (UI_SINGLE_BUTTON…) : ajouter une carte se fait ici.
 // =====================================================
@@ -13,7 +13,7 @@
 // =====================================================
 // Carte : ESP32-S3 Super Mini (v0.2)
 // 4 Mo flash / 2 Mo PSRAM quad - même carte que la sonde
-// MeteoHubSensor (env esp32-s3-supermini).
+// MeteoHubSensor (env sonde-supermini).
 //
 // Montage simplifié (4 modules seulement) :
 // - Capteur AHT20 + BMP280 (I2C)

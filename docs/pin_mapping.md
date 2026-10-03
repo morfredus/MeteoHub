@@ -2,10 +2,10 @@
 
 Deux cartes, sélectionnées dans `include/board_config.h` par le define de l'env PlatformIO :
 
-- [ESP32-S3 DevKitC-1 N16R8](#esp32-s3-devkitc-1-n16r8-env-esp32-s3-oled) (`esp32-s3-oled`)
-- [ESP32-S3 Super Mini](#esp32-s3-super-mini-env-esp32-s3-supermini) (`esp32-s3-supermini`)
+- [ESP32-S3 DevKitC-1 N16R8](#esp32-s3-devkitc-1-n16r8-env-hub-oled) (`hub-oled`)
+- [ESP32-S3 Super Mini](#esp32-s3-super-mini-env-hub-supermini) (`hub-supermini`)
 
-# ESP32-S3 DevKitC-1 N16R8 (env esp32-s3-oled)
+# ESP32-S3 DevKitC-1 N16R8 (env hub-oled)
 Version basée sur le câblage réel (`include/board_config.h`), révisé après le
 diagnostic SD du 02/07/2026.
 
@@ -135,12 +135,12 @@ monté à distance du régulateur d'alimentation (voir contraintes de montage ci
 
 ---
 
-# ESP32-S3 Super Mini (env esp32-s3-supermini)
+# ESP32-S3 Super Mini (env hub-supermini)
 
 Depuis la v1.43.0. Carte identique à la sonde MeteoHubSensor : 4 Mo flash, 2 Mo PSRAM
 quad, USB natif, LED RGB WS2812 et bouton BOOT soudés. OLED 0,96" JMD0.96D-1 (SSD1306),
 un seul bouton de navigation. Câblage et alimentation des modules :
-[hardware_wiring.md](hardware_wiring.md#esp32-s3-super-mini-env-esp32-s3-supermini).
+[hardware_wiring.md](hardware_wiring.md#esp32-s3-super-mini-env-hub-supermini).
 
 ## I²C - AHT20 + BMP280 + OLED SSD1306 (JMD0.96D-1)
 
