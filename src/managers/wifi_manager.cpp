@@ -1,6 +1,8 @@
 #include <string>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <esp_wifi.h>
+#include <time.h>
 
 #include "wifi_manager.h"
 #include "config.h"
@@ -46,8 +48,29 @@ void WifiManager::begin() {
     lastAttempt = millis() - WIFI_RETRY_DELAY_MS;
 }
 
+void WifiManager::onReconnected() {
+    // Pourquoi : mDNS et SNTP sont lances UNE fois au boot. Si le hub demarre avant
+    // la box (coupure de courant), ils partent sans reseau et ne se rattrapent pas
+    // seuls : meteohub.local reste muet et l'heure jamais synchronisee jusqu'a un
+    // redemarrage manuel. On les relance donc a chaque retour du Wi-Fi.
+    MDNS.end();
+    if (MDNS.begin(WEB_MDNS_HOSTNAME)) {
+        MDNS.addService("http", "tcp", 80);
+        LOG_INFO("WiFi: mDNS relance apres reconnexion");
+    } else {
+        LOG_ERROR("WiFi: echec relance mDNS apres reconnexion");
+    }
+    configTime(3600, 3600, "pool.ntp.org");
+}
+
 void WifiManager::update() {
     if (WiFi.status() == WL_CONNECTED) {
+        _failures = 0;
+        _retryDelayMs = WIFI_RETRY_DELAY_MS;
+        if (_wasDown) {
+            _wasDown = false;
+            onReconnected();
+        }
         if (staOn5GHz()) {
             LOG_WARNING("WiFi: 5 GHz ch=" + std::to_string(WiFi.channel())
                         + " refuse pour ESP-NOW, reconnect 2.4");
@@ -80,12 +103,21 @@ void WifiManager::update() {
     }
     _sleepDisabled = false;
     _apFollowedSta = false;
+    _wasDown = true;
 
+    // Backoff : 5 s, 10 s, 20 s ... plafonne a 30 s. Une box qui redemarre met du
+    // temps ; marteler WiFi.begin() toutes les 5 s coupe chaque association en cours.
+    if (_retryDelayMs == 0) _retryDelayMs = WIFI_RETRY_DELAY_MS;
     unsigned long now = millis();
-    if (now - lastAttempt < WIFI_RETRY_DELAY_MS) return;
+    if (now - lastAttempt < _retryDelayMs) return;
     lastAttempt = now;
+    if (_failures < 8) _failures++;
+    _retryDelayMs = WIFI_RETRY_DELAY_MS << (_failures > 3 ? 3 : _failures - 1);
+    if (_retryDelayMs > 30000) _retryDelayMs = 30000;
 
     for (size_t i = 0; i < WIFI_CREDENTIALS_COUNT; i++) {
+        // Repart d'un etat propre (garde l'AP ESP-NOW, n'efface rien en NVS).
+        WiFi.disconnect(false, false);
         lockSta24GHz();
         WiFi.begin(WIFI_CREDENTIALS[i].ssid, WIFI_CREDENTIALS[i].password);
         unsigned long t0 = millis();

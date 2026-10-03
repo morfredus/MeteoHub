@@ -1,6 +1,7 @@
 #pragma once
+#include <cstdint>
 #include <string>
- 
+
 class WifiManager {
 public:
     void begin();
@@ -18,4 +19,9 @@ private:
     bool _sleepDisabled = false;
     bool _apStarted = false;
     bool _apFollowedSta = false;
+    bool _wasDown = false;          // vrai des qu'une coupure a ete constatee
+    uint8_t _failures = 0;          // echecs consecutifs : pilote le backoff
+    unsigned long _retryDelayMs = 0;
+
+    void onReconnected();
 };

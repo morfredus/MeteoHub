@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.55.5] - 2026-10-03
+
+### Fixed
+
+- **Wi-Fi: recovery after a power cut where the hub boots before the router.** mDNS
+  and SNTP were started once at boot, so with no network they never caught up and
+  `meteohub.local` stayed silent until a manual reboot. Both are now restarted every
+  time the Wi-Fi comes back.
+- Wi-Fi retries now back off (5 s, 10 s, 20 s, capped at 30 s) and start from a clean
+  `WiFi.disconnect()` instead of restarting an association in progress every 5 s.
+- Not compiled nor flashed yet (toolchain unavailable on the Windows dev box).
+
 ## [1.55.4] - 2026-10-01
 
 ### Fixed
