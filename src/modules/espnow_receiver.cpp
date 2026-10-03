@@ -39,6 +39,15 @@ void meteoEspNowRecv(const uint8_t* mac, const uint8_t* data, int len) {
     EspNowReceiver::enqueueRaw(mac, data, len);
 }
 
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+// Core Arduino 3.x / ESP-IDF 5 : le callback de reception recoit une structure
+// (esp_now_recv_info_t) au lieu de l'adresse MAC seule. Simple adaptateur : on
+// garde le meme traitement, l'adresse source est info->src_addr.
+void meteoEspNowRecvV3(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
+    meteoEspNowRecv(info != nullptr ? info->src_addr : nullptr, data, len);
+}
+#endif
+
 EspNowReceiver::EspNowReceiver() {
     _self = this;
 }
@@ -119,7 +128,11 @@ bool EspNowReceiver::begin() {
         return false;
     }
 
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+    esp_now_register_recv_cb(meteoEspNowRecvV3);
+#else
     esp_now_register_recv_cb(meteoEspNowRecv);
+#endif
     addBroadcastPeer();
 
     _initialized = true;

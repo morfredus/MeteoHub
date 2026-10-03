@@ -6,6 +6,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.56.5] - 2026-10-03
+
+### Changed
+
+- **PlatformIO platform pinned to the official `espressif32@7.1.3`** (Arduino core 2.0.17).
+  Unpinned, `espressif32` resolves to a Tasmota fork whose `penv_setup.py` replaces the PlatformIO
+  core in `~/.platformio/penv` with pioarduino and swaps the Home front-end for a pioarduino one.
+  There is no official core 3.x platform: staying official means core 2.x. The source keeps
+  compiling on both cores (`ESP_ARDUINO_VERSION_MAJOR` guards).
+- Build verified on 7.1.3: `esp32-s3-supermini` flash 87.2 %. No more Windows "CreateProcess" command-line overflow
+  (the shorter `framework-arduinoespressif32` path of 7.1.x).
+- Not reflashed: the devices currently run builds made on the Tasmota platform (core 3.x).
+
+## [1.56.4] - 2026-10-03
+
+### Changed
+
+- `platformio.ini`: comment recording that the official PlatformIO platform is used and that
+  pioarduino is deliberately NOT used (flash 95 % instead of 66 %, corrupted PlatformIO cache).
+
+## [1.56.3] - 2026-10-03
+
+### Changed
+
+- **Wi-Fi transmit power capped at 15 dBm** (`HUB_TX_POWER_LEVEL` in `config.h`). The hub used
+  the SoC default (~19.5 dBm) for the STA and the always-on `MH-NOW` SoftAP; the current peaks
+  of a small USB supply can stall association away from a PC. The cap is re-applied after
+  every (re)connection and SoftAP restart, and the effective value is logged at boot.
+  Raise it (17/19 dBm) if the signal is weak, lower it (11/8.5) if the hub still reboots.
+
+### Verified
+
+- Bench, hub + probe both on USB: the probe's frames are ACKed, live and retransmitted
+  measurements are stored (backlog of 31 draining), forecast returns 200.
+## [1.56.2] - 2026-10-03
+
+### Fixed
+
+- **Crash (task watchdog) on Arduino core 3.x when an I2C sensor stops answering.**
+  `recoverBus()` called `Wire.end()` then `Wire.begin()`: core 3.x frees the TX buffers
+  without recreating them (`bus is not initialized`, `NULL TX buffer pointer`) and the main
+  loop froze until the watchdog rebooted the hub. The bus is no longer torn down on core 3.x,
+  and nothing is "recovered" when no sensor was ever detected.
+- **Forecast failed every time on core 3.x** (`connection refused` in 8 ms): the official
+  PlatformIO platform ships a trimmed Arduino 3.x framework with no TLS. The OpenWeatherMap
+  call now uses plain HTTP (the API key travels in clear, accepted for a public forecast);
+  the full pioarduino platform was rejected because it raised flash use from 66 % to 95 %.
+- A failed forecast fetch (transport error) is retried after 1 minute instead of 30.
+- mDNS / SNTP are restarted on a Wi-Fi comeback only once the services exist (they were
+  restarted for the boot-time connection too).
+
+### Added
+
+- Wi-Fi event log (associated, got IP, lost IP, disconnect reason) to explain a hub that is
+  "connected but unreachable".
+## [1.56.1] - 2026-10-03
+
+### Added
+
+- **Safety reboot after 10 minutes without Wi-Fi.** After the move to Arduino core 3.x, the
+  first boots after flashing left the hub unreachable (no Wi-Fi, then web port filtered) until
+  a few reboots. Bench diagnosis over serial (13 resets, 7 of them interrupted mid-boot, 6 min
+  of uptime) could not reproduce it: the likely cause is one-off first-boot state (NVS / PHY
+  calibration written by the previous core). The reboot is a net for any stuck-radio state; the
+  threshold is long enough not to loop during a real router outage.
+- Observed, not changed: without an SD card the boot spends ~22 s in mount retries before the
+  web server starts.
+
+## [1.56.0] - 2026-10-03
+
+### Changed
+
+- **Migrated to the current PlatformIO platform (Arduino core 3.x / ESP-IDF 5).** The platform pin (`espressif32@6.12.0`, Arduino core 2.x) is removed: it made the compiler
+  command line exceed the Windows limit (`g++: error: CreateProcess: No such file or directory`),
+  independently of the code. The projects now build on the current platform (Arduino core 3.3.x /
+  ESP-IDF 5), all ESP-NOW projects together.
+- ESP-NOW receive callback adapted to the new signature (`esp_now_recv_info_t`), kept
+  compatible with core 2.x behind `ESP_ARDUINO_VERSION_MAJOR`.
+- Builds verified for `esp32-s3-supermini` (flash 66 %) and `esp32-s3-oled`. Not flashed nor
+  tested on hardware yet: check Wi-Fi, ESP-NOW reception and OTA on the bench first.
+
 ## [1.55.5] - 2026-10-03
 
 ### Fixed

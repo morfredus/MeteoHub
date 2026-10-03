@@ -72,15 +72,23 @@ bool SensorManager::readBmp(float& p) {
 
 // Réinitialise le bus I2C et les capteurs après une série d'échecs (bus coincé).
 void SensorManager::recoverBus() {
+    _consecutiveFailures = 0;
+    // Sans capteur detecte au boot, il n'y a rien a recuperer.
+    if (!ahtFound && !bmpFound) return;
     LOG_WARNING("Sensor: I2C bus recovery");
+#if ESP_ARDUINO_VERSION_MAJOR < 3
     Wire.end();
     delay(10);
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
     Wire.setClock(I2C_FREQ_HZ);
     Wire.setTimeOut(I2C_TIMEOUT_MS);
+#endif
+    // Core Arduino 3.x : Wire.end() libere les tampons TX sans les recreer au begin()
+    // suivant ("bus is not initialized", "NULL TX buffer pointer"), puis la boucle
+    // principale se fige et le watchdog redemarre le hub (vu au banc). On ne coupe donc
+    // plus le bus : on se contente de reinitialiser les capteurs dessus.
     if (ahtFound) aht.begin();
     if (bmpFound && bmp.begin(bmpAddr)) applyBmpSampling();
-    _consecutiveFailures = 0;
 }
 
 SensorData SensorManager::read() {

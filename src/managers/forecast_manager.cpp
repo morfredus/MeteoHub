@@ -78,8 +78,12 @@ void ForecastManager::update() {
     const unsigned long fetchStart = millis();
     LOG_INFO("[FORECAST] start");
 
+    // HTTP simple (port 80) et non HTTPS : le framework 3.x de la plateforme officielle
+    // PlatformIO n'embarque pas de TLS cote Arduino, et la plateforme complete
+    // (pioarduino) ferait passer la flash de 66 % a 95 %. Choix assume : la cle d'API
+    // circule en clair, pour une prevision publique sans donnee personnelle.
     HTTPClient http;
-    std::string url = "https://api.openweathermap.org/data/3.0/onecall?lat=";
+    std::string url = "http://api.openweathermap.org/data/3.0/onecall?lat=";
     url += OWM_LAT;
     url += "&lon=";
     url += OWM_LON;
@@ -110,6 +114,13 @@ void ForecastManager::update() {
     // de reception des trames OUT dans les logs captes par morfMonitor.
     LOG_INFO("[FORECAST] done in " + std::to_string(millis() - fetchStart)
              + "ms (code " + std::to_string(httpCode) + ")");
+
+    // Echec de transport (code < 0, ex. pile reseau pas prete juste apres la
+    // reconnexion ou le redemarrage du SoftAP) : reessayer dans 1 min au lieu d'attendre
+    // tout l'intervalle normal, sinon la prevision reste vide ~30 min apres un boot.
+    if (httpCode < 0) {
+        lastUpdate = millis() - UPDATE_INTERVAL + 60000UL;
+    }
 }
 
 void ForecastManager::parseResponse(const std::string& payload) {

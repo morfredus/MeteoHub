@@ -38,6 +38,15 @@
 #define WEB_MDNS_HOSTNAME        "meteohub" // Accessible via http://meteohub.local
 #endif
 #define WIFI_RETRY_DELAY_MS      5000
+
+// Puissance d'emission Wi-Fi du hub (STA + SoftAP MH-NOW). Par defaut le SoC emet a
+// ~19,5 dBm : les pointes de courant (STA + AP + ESP-NOW) font flechir une petite
+// alimentation USB, d'ou brown-out ou association qui n'aboutit jamais loin du PC.
+// 15 dBm (~30 mW) couvre largement une maison ; monter (17/19) si le signal est faible,
+// descendre (11/8,5) si le hub reboote encore. Voir WIFI_POWER_* dans WiFiGeneric.h.
+#ifndef HUB_TX_POWER_LEVEL
+#define HUB_TX_POWER_LEVEL       WIFI_POWER_15dBm
+#endif
 #define ENABLE_PING_TEST         1
 
 // SoftAP local : balise de canal pour la sonde (scan SSID, pas d'association).

@@ -430,6 +430,7 @@ void setup() {
     // Lancement des modules principaux
     forecast.begin();
     webManager.begin(history, sdCard, forecast, sensors, analytics);
+    wifi.servicesStarted(); // des maintenant, un retour du Wi-Fi relance mDNS/NTP
 
     ui.begin(*display, wifi, sensors, forecast, history, sdCard);
 }
