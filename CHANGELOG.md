@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.57.1] - 2026-10-04
+
+### Fixed
+
+- **History chart: a metric keeps its color whatever the filter** (orange temperature, green
+  humidity, purple pressure), also when a single metric is shown. Indoor is drawn thinner and
+  faded. Same fix as morfAnalytics 0.67.1.
+
 ## [1.57.0] - 2026-10-04
 
 ### Changed

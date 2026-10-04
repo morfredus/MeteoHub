@@ -540,8 +540,7 @@ function initHistoryPage() {
     const METRIC_KEYS = METRICS.map((m) => m[0]);
     const SOURCES = [['out', 'Extérieur'], ['in', 'Intérieur'], ['both', 'Intérieur + Extérieur']];
     const PERIODS = [['6 h', 6], ['12 h', 12], ['24 h', 24], ['3 j', 72], ['7 j', 168], ['30 j', 720]];
-    // Mono-grandeur : IN et OUT en deux couleurs distinctes (jamais de pointillés).
-    const SRC_COL = { out: '#6f9bff', in: '#e6a54e' };
+    // Couleur = grandeur, quel que soit le filtre ; IN/OUT : épaisseur et opacité.
     const COL_AXIS = '#99a1ad', COL_SUSP = '#8a929e', COL_TIP = '#0e1013', COL_INK = '#e7e9ec';
     // Période libre : bornes alignées sur 5 min (cadence de la sonde), au plus un an.
     const STEP_S = 300;
@@ -717,7 +716,7 @@ function initHistoryPage() {
                 : 'Plusieurs grandeurs sur un axe de temps commun, chacune à son échelle. Survolez pour lire les valeurs.') + '</p>';
         }
         return '<p class="note">' + (S.source === 'both'
-            ? 'IN et OUT en deux couleurs ; échelle à gauche et à droite.'
+            ? 'Intérieur en trait plus fin et atténué ; échelle à gauche et à droite.'
             : 'Échelle à gauche et à droite. Points reliés tant que l\'écart reste proche de la cadence ; coupé seulement sur un vrai silence du capteur.') + '</p>';
     }
 
@@ -727,13 +726,13 @@ function initHistoryPage() {
         const ctxs = ctxsOf();
         const sc = scaleOf(valuesOf(D, key, ctxs), md[3]);
         const series = ctxs.map((c) => ({
-            ts: D[key][c].ts || [], vals: D[key][c].v || [], color: SRC_COL[c], width: 2,
+            ts: D[key][c].ts || [], vals: D[key][c].v || [], color: md[4], width: c === 'in' ? 1.4 : 2.2, opacity: c === 'in' ? 0.55 : 1,
             bucket: D[key][c].bucket_s || 0, smin: sc.smin, smax: sc.smax, label: srcLabel(c),
             unit: md[2], dec: md[3], suspects: D[key][c].suspects || []
         }));
         const axes = [{ min: sc.smin, max: sc.smax, dec: md[3], side: 'L', col: COL_AXIS },
                       { min: sc.smin, max: sc.smax, dec: md[3], side: 'R', col: COL_AXIS }];
-        const legend = ctxs.map((c) => '<span class="k"><span class="sw" style="border-color:' + SRC_COL[c] + '"></span>' + srcLabel(c) + '</span>').join('');
+        const legend = ctxs.map((c) => '<span class="k"><span class="sw" style="border-color:' + md[4] + ';opacity:' + (c === 'in' ? 0.55 : 1) + ';border-top-width:' + (c === 'in' ? 2 : 3) + 'px"></span>' + srcLabel(c) + '</span>').join('');
         return '<div class="chart"><h3>' + md[1] + ' (' + md[2] + ')</h3><div class="plot">' + buildChart(series, axes) +
             '<div class="tip" hidden></div></div><div class="legend">' + legend + '</div>' + qualityLine(series) + noteFor(false) + '</div>';
     }
