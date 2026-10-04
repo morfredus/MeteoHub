@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.57.0] - 2026-10-04
+
+### Changed
+
+- **History page charts now match morfAnalytics (Weather > Graphs)**: same filters (metric
+  checkboxes, source, 6 h to 30 j periods, free period with day + hour, discarded points), same
+  colors (temperature, humidity, pressure, OUT/IN), same scales (dynamic min/max + 8 % margin,
+  first metric on the left axis, others on the right, IN thinner and faded), same hover tooltip.
+  Chart.js (CDN) is gone: the chart is plain SVG, so the page no longer needs Internet access.
+- The fixed/dynamic/mixed scale selector and the zoom slider are removed (the scale is always
+  dynamic, as in morfAnalytics).
+- Isolated spikes are shown as grey crosses instead of silently dropped.
+- Not ported: the "Detected events" box (crossings, regime changes), computed on the Pi side.
+
 ## [1.56.7] - 2026-10-03
 
 ### Changed

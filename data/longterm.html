@@ -16,32 +16,24 @@
 
         <nav data-shared-menu="true" data-active="/longterm.html"></nav>
 
-        <div class="period-bar">
+        <!-- Filtres identiques à morfAnalytics (Météo > Graphiques). Les listes de
+             grandeurs, de sources et de périodes sont injectées par app.js. -->
+        <div class="period-bar hist-controls">
+            <span class="metricsel"><span class="mslabel">Afficher</span><span id="metricsel"></span></span>
             <div class="field">
-                <label for="sourceCtx">Source :</label>
-                <select id="sourceCtx">
-                    <option value="out" selected>Extérieur (OUT)</option>
-                    <option value="in">Intérieur (IN)</option>
-                    <option value="both">Intérieur + Extérieur</option>
-                </select>
+                <label for="sourceCtx">Source</label>
+                <select id="sourceCtx"></select>
             </div>
-            <div class="field">
-                <label for="periodPreset">Période :</label>
-                <select id="periodPreset">
-                    <option value="86400" selected>Dernières 24 h</option>
-                    <option value="172800">Dernières 48 h</option>
-                    <option value="604800">7 derniers jours</option>
-                    <option value="2592000">30 derniers jours</option>
-                    <option value="today">Aujourd'hui</option>
-                    <option value="custom">Personnalisé…</option>
-                </select>
-                <span id="customRange" hidden class="field">
-                    <label for="fromInput">du</label>
-                    <input type="datetime-local" id="fromInput">
-                    <label for="toInput">au</label>
-                    <input type="datetime-local" id="toInput">
-                </span>
+            <label class="mk" title="Points écartés des courbes (pic isolé)"><input type="checkbox" id="showsusp"> Points écartés</label>
+            <div class="periods" id="periods"></div>
+            <div class="custom" id="custom" hidden>
+                <label>Du <input type="datetime-local" id="cfrom" step="300"></label>
+                <label>au <input type="datetime-local" id="cto" step="300"></label>
+                <button type="button" class="pbtn" id="capply">Afficher</button>
+                <button type="button" class="pbtn" id="cnow" title="Termine la période à l'instant présent">Jusqu'à maintenant</button>
+                <span class="err" id="cerr"></span>
             </div>
+            <span class="rangelbl" id="rangelbl"></span>
             <div class="field">
                 <label for="synthToggle"><input type="checkbox" id="synthToggle"> Synthèse</label>
                 <label for="autoRefreshToggle"><input type="checkbox" id="autoRefreshToggle" checked> Temps réel</label>
@@ -50,22 +42,10 @@
 
         <div id="synthPanel" class="synth-panel" hidden></div>
 
-        <div class="chart-container" style="height: 600px;">
-            <canvas id="historyChart"></canvas>
+        <div class="hist-wrap">
+            <div id="charts"><p class="muted">Chargement&hellip;</p></div>
             <div id="chartLoading" class="chart-loading" hidden>Chargement en cours…</div>
-            <div class="graph-controls" style="margin-top:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center;">
-                <label for="scaleMode">Échelle :</label>
-                <select id="scaleMode" onchange="setGraphScaleMode(Number(this.value))">
-                    <option value="0">Fixe</option>
-                    <option value="1">Dynamique</option>
-                    <option value="2" selected>Mixte</option>
-                </select>
-                <label for="scaleMargin" style="margin-left:10px;">Zoom (%) :</label>
-                <input type="range" id="scaleMargin" min="0" max="100" value="75" step="1" style="vertical-align:middle;" oninput="setGraphScaleMarginPct(Number(this.value))">
-                <span id="scaleMarginValue">75</span>%
-            </div>
         </div>
-        <p id="periodInfo" style="text-align: center; color: #666; margin-top: 10px;">Données des 24 dernières heures</p>
 
         <footer>
         </footer>

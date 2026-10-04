@@ -1,85 +1,6 @@
 // Affichage de l'alerte météo sur le dashboard
 let current_alert_payload = null;
 
-// Injection dynamique des valeurs min/max via graph_config.js
-// (graph_config.js est généré lors du build à partir de config.h)
-let GRAPH_SCALE_MODE = window.GRAPH_CONFIG?.scale_mode ?? 2;
-let GRAPH_SCALE_MARGIN_PCT = window.GRAPH_CONFIG?.scale_margin_pct ?? 20;
-const GRAPH_TEMP_MIN = window.GRAPH_CONFIG?.temp_min ?? -10.0;
-const GRAPH_TEMP_MAX = window.GRAPH_CONFIG?.temp_max ?? 40.0;
-const GRAPH_HUM_MIN  = window.GRAPH_CONFIG?.hum_min  ?? 20.0;
-const GRAPH_HUM_MAX  = window.GRAPH_CONFIG?.hum_max  ?? 90.0;
-const GRAPH_PRES_MIN = window.GRAPH_CONFIG?.pres_min ?? 970.0;
-const GRAPH_PRES_MAX = window.GRAPH_CONFIG?.pres_max ?? 1040.0;
-
-// Ajout UI : contrôle du mode d'échelle et du pourcentage
-function setGraphScaleMode(mode) {
-    GRAPH_SCALE_MODE = mode;
-    updateChartScale();
-}
-function setGraphScaleMarginPct(pct) {
-    GRAPH_SCALE_MARGIN_PCT = pct;
-    document.getElementById('scaleMarginValue').textContent = pct;
-    updateChartScale();
-}
-
-function getDynamicMinMax(data, key, userMin, userMax) {
-    const values = data.map(d => d[key]).filter(v => v !== null && v !== undefined && !Number.isNaN(v));
-    if (values.length === 0) return [userMin, userMax];
-    let dynMin = Math.min(...values);
-    let dynMax = Math.max(...values);
-    if (dynMin === dynMax) {
-        dynMin -= 0.3;
-        dynMax += 0.3;
-    }
-    if (GRAPH_SCALE_MODE === 1) {
-        // Dynamique : l'échelle épouse exactement l'amplitude des données.
-        return [dynMin, dynMax];
-    } else if (GRAPH_SCALE_MODE === 2) {
-        // Mixte : le curseur « Zoom » interpole entre l'échelle complète (0 %,
-        // min/max fixes → la courbe apparaît quasiment plate/unique) et l'amplitude
-        // exacte des données (100 % → la courbe occupe toute la hauteur).
-        const f = Math.min(Math.max(GRAPH_SCALE_MARGIN_PCT / 100, 0), 1);
-        const min = userMin + (dynMin - userMin) * f;
-        const max = userMax + (dynMax - userMax) * f;
-        return [min, max];
-    } else {
-        // Fixe : min/max configurés (équivalent à un zoom de 0 %).
-        return [userMin, userMax];
-    }
-}
-
-function updateChartScale() {
-    if (!chart || !chart.data || !chart.data.datasets) return;
-
-    // Regroupe toutes les valeurs par axe (y=temp, y1=hum, y2=pres), en tenant
-    // compte des éventuels jeux de données de comparaison (période B).
-    const collect = (axisId) => {
-        const out = [];
-        chart.data.datasets.forEach((ds) => {
-            if (ds.yAxisID !== axisId || !Array.isArray(ds.data)) return;
-            ds.data.forEach((v) => out.push({ v }));
-        });
-        return out;
-    };
-
-    const tempData = collect('y');
-    if (tempData.length === 0) return;
-    const humData = collect('y1');
-    const presData = collect('y2');
-
-    const [tmin, tmax] = getDynamicMinMax(tempData, 'v', GRAPH_TEMP_MIN, GRAPH_TEMP_MAX);
-    const [hmin, hmax] = getDynamicMinMax(humData, 'v', GRAPH_HUM_MIN, GRAPH_HUM_MAX);
-    const [pmin, pmax] = getDynamicMinMax(presData, 'v', GRAPH_PRES_MIN, GRAPH_PRES_MAX);
-    chart.options.scales.y.min = tmin;
-    chart.options.scales.y.max = tmax;
-    chart.options.scales.y1.min = hmin;
-    chart.options.scales.y1.max = hmax;
-    chart.options.scales.y2.min = pmin;
-    chart.options.scales.y2.max = pmax;
-    chart.update();
-}
-
 function getAlertThemeClass(level) {
     if (level >= 3) return 'alert-level-red';
     if (level === 2) return 'alert-level-orange';
@@ -218,8 +139,6 @@ async function fetchAlert() {
         applyAlertCardTheme(0);
     }
 }
-let chart;
-
 const LIVE_REFRESH_MS = 5000;
 const ALERT_REFRESH_MS = 15 * 60 * 1000;
 const STATS_REFRESH_MS = 15000;
@@ -234,11 +153,6 @@ const LONGTERM_REFRESH_MARGIN_MS = 20000;
 
 function getPageName() {
     return document.body?.dataset?.page || 'dashboard';
-}
-
-function isHistoryPage() {
-    // Seule la page Historique porte désormais un graphe (l'accueil n'en a plus).
-    return getPageName() === 'longterm';
 }
 
 function isStatsPage() {
@@ -571,104 +485,19 @@ function filterOutliers(values, floor) {
     return out;
 }
 
-function initChart() {
-    const chart_canvas = document.getElementById('historyChart');
-    if (!chart_canvas || !isHistoryPage()) return;
-
-    const ctx = chart_canvas.getContext('2d');
-    chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: '°C',
-                    data: [],
-                    borderColor: '#00a8ff',
-                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
-                    tension: 0.45,
-                    cubicInterpolationMode: 'monotone',
-                    pointRadius: 0,
-                    stepped: false,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Hu%',
-                    data: [],
-                    borderColor: '#00ff88',
-                    backgroundColor: 'rgba(0, 255, 136, 0.1)',
-                    tension: 0.45,
-                    cubicInterpolationMode: 'monotone',
-                    pointRadius: 0,
-                    stepped: false,
-                    yAxisID: 'y1',
-                    hidden: false
-                },
-                {
-                    label: 'hPa',
-                    data: [],
-                    borderColor: '#ff00ff',
-                    backgroundColor: 'rgba(255, 0, 255, 0.1)',
-                    tension: 0.45,
-                    cubicInterpolationMode: 'monotone',
-                    pointRadius: 0,
-                    stepped: false,
-                    yAxisID: 'y2',
-                    hidden: false
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false,
-            spanGaps: true, // relie par-dessus les points écartés (valeurs aberrantes -> null)
-            interaction: { mode: 'index', intersect: false },
-            scales: {
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: { display: true, text: 'Temp (°C)', color: '#00a8ff' },
-                    ticks: { color: '#00a8ff' }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    grid: { drawOnChartArea: false },
-                    title: { display: true, text: 'Hum (%)', color: '#00ff88' },
-                    ticks: { color: '#00ff88' }
-                },
-                y2: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    grid: { drawOnChartArea: false },
-                    title: { display: true, text: 'Pres (hPa)', color: '#ff00ff' },
-                    ticks: { color: '#ff00ff' }
-                },
-                x: {
-                    // Axe catégoriel (labels = horodatages formatés selon la durée
-                    // choisie, cf. formatTsLabel). autoSkip + maxTicksLimit gardent
-                    // une graduation lisible quelle que soit la période (quelques
-                    // minutes comme 30 jours), sans rotation.
-                    ticks: {
-                        color: '#9aa4b2',
-                        autoSkip: true,
-                        maxTicksLimit: 10,
-                        maxRotation: 0,
-                        minRotation: 0
-                    }
-                }
-            }
-        }
-    });
-    updateChartScale();
-}
-
 // ------------------------------------------------------------------
-// Page Historique : sélection et comparaison de périodes arbitraires
+// Page Historique : graphe SVG, même représentation que morfAnalytics
+// (Météo > Graphiques) : mêmes filtres, mêmes couleurs, mêmes échelles.
+//   - Grandeurs : sélection libre par cases à cocher. Une seule -> vue mono
+//     (IN/OUT en deux couleurs). Plusieurs -> superposées, chacune son axe et
+//     sa couleur (la première à gauche, les autres à droite), l'intérieur en
+//     trait plus fin et atténué.
+//   - Échelles toujours dynamiques (min/max de la période + 8 % de marge).
+//   - Période : glissante (6 h ... 30 j) ou libre (jour + heure, pas de 5 min).
+//   - Points écartés (pic isolé, cf. filterOutliers) : croix grises avec leur
+//     motif au survol, jamais comptés dans les courbes ni les échelles.
+// Différence assumée avec morfAnalytics : pas de bloc « Événements détectés »
+// (croisements, régimes), calculés côté Pi (MeteoEvents), hors de portée de l'ESP32.
 // ------------------------------------------------------------------
 const LONGTERM_TARGET_POINTS = 250; // points visés/requête (marge sous la limite ESP32)
 let longtermRefreshTimer = null;
@@ -677,149 +506,12 @@ let longtermRefreshTimer = null;
 function computeInterval(durationSeconds) {
     let interval = Math.floor(durationSeconds / LONGTERM_TARGET_POINTS);
     if (interval < 60) interval = 60; // pas de tranche plus fine qu'une minute
-    // Une tranche plus courte que la cadence d'enregistrement (ex. 289 s pour une
-    // mesure toutes les 300 s sur « Aujourd'hui ») tombe régulièrement sans aucune
-    // mesure : trou périodique dans la courbe. Avec 1,5 x la cadence, chaque tranche
-    // contient au moins une mesure, même avec un peu de gigue d'horodatage.
+    // Une tranche plus courte que la cadence d'enregistrement tombe régulièrement
+    // sans aucune mesure : trou périodique dans la courbe. Avec 1,5 x la cadence,
+    // chaque tranche contient au moins une mesure, même avec un peu de gigue.
     const minInterval = Math.ceil(1.5 * measurementIntervalMs / 1000);
     if (interval < minInterval) interval = minInterval;
     return interval;
-}
-
-// Formate un horodatage (secondes Unix) pour l'axe X, en adaptant la précision à
-// la DURÉE affichée : heure:minute pour une plage courte (quelques minutes à 24 h),
-// jour/mois + heure pour quelques jours, jour/mois seul pour un mois. L'axe reflète
-// ainsi la période demandée au lieu d'un format fixe.
-function formatTsLabel(tsSeconds, spanSeconds) {
-    const d = new Date(tsSeconds * 1000);
-    const p = (n) => String(n).padStart(2, '0');
-    if (spanSeconds <= 24 * 3600) {
-        return `${p(d.getHours())}:${p(d.getMinutes())}`;
-    }
-    if (spanSeconds <= 7 * 24 * 3600) {
-        return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
-    }
-    return `${p(d.getDate())}/${p(d.getMonth() + 1)}`;
-}
-
-// Convertit la valeur d'un <input type="datetime-local"> (heure locale) en secondes Unix.
-function localInputToUnix(value) {
-    if (!value) return null;
-    const ms = new Date(value).getTime();
-    if (Number.isNaN(ms)) return null;
-    return Math.floor(ms / 1000);
-}
-
-// Convertit des secondes Unix vers le format attendu par <input type="datetime-local">.
-function unixToLocalInput(unix) {
-    const d = new Date(unix * 1000);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// Détermine la période principale (A) à partir des contrôles.
-function getPrimaryRange() {
-    const preset = document.getElementById('periodPreset')?.value || '86400';
-    const now = Math.floor(Date.now() / 1000);
-    if (preset === 'custom') {
-        const from = localInputToUnix(document.getElementById('fromInput')?.value);
-        const to = localInputToUnix(document.getElementById('toInput')?.value);
-        if (from && to && to > from) return { from, to, relative: false };
-        return null;
-    }
-    if (preset === 'today') {
-        const d = new Date();
-        d.setHours(0, 0, 0, 0);
-        return { from: Math.floor(d.getTime() / 1000), to: now, relative: true };
-    }
-    const seconds = Number(preset);
-    return { from: now - seconds, to: now, relative: true };
-}
-
-// Source sélectionnée sur la page Historique : OUT (météo extérieure, défaut), IN
-// (confort intérieur) ou BOTH (les deux, tracées ensemble). Propagé aux requêtes.
-function getSourceCtx() {
-    return document.getElementById('sourceCtx')?.value || 'out';
-}
-
-function sourceLabel() {
-    const c = getSourceCtx();
-    if (c === 'in') return 'Intérieur';
-    if (c === 'both') return 'Intérieur + Extérieur';
-    return 'Extérieur';
-}
-
-async function fetchRange(range, interval, ctxOverride) {
-    const params = new URLSearchParams({
-        from: String(range.from),
-        to: String(range.to),
-        interval: String(interval),
-        ctx: ctxOverride || getSourceCtx()
-    });
-    const res = await fetch(`/api/history?${params.toString()}`);
-    const json = await res.json();
-    // Cadence d'enregistrement annoncée par le firmware : cale l'auto-refresh.
-    if (typeof json.measurement_interval_s === 'number' && json.measurement_interval_s > 0) {
-        measurementIntervalMs = json.measurement_interval_s * 1000;
-    }
-    return Array.isArray(json.data) ? json.data : [];
-}
-
-// Rend visibles les points VALIDES ISOLÉS (leurs deux voisins sont nuls) : une
-// ligne ne peut rien tracer entre deux trous, le point serait invisible. C'est
-// ce qui arrivait avec une seule mesure (juste après un reset) : graphe vide
-// alors que la donnée existe. On leur donne donc un petit rayon ; les autres
-// points restent une simple ligne (rayon 0). Le 2e paramètre est conservé pour
-// compatibilité d'appel mais n'est plus utilisé (plus de comblement inter-source).
-function applyFillStyle(dataset, _flags) {
-    const data = dataset.data || [];
-    const isNum = (v) => typeof v === 'number' && isFinite(v);
-    const isolated = (i) => isNum(data[i]) && !isNum(data[i - 1]) && !isNum(data[i + 1]);
-    dataset.pointRadius = data.map((_, i) => (isolated(i) ? 2.5 : 0));
-    dataset.pointBackgroundColor = dataset.borderColor;
-}
-
-function formatRangeLabel(range) {
-    const opts = { dateStyle: 'short', timeStyle: 'short' };
-    const f = new Date(range.from * 1000).toLocaleString('fr-FR', opts);
-    const t = new Date(range.to * 1000).toLocaleString('fr-FR', opts);
-    return `${f} → ${t}`;
-}
-
-// Deuxième source (l'INTÉRIEUR en vue IN+OUT) : mêmes couleurs et mêmes axes que
-// les courbes principales (OUT), différenciée uniquement par un tracé en
-// pointillés. Alignée par index sur la source principale (même plage/intervalle).
-const SECOND_COLORS = { temp: '#00a8ff', hum: '#00ff88', pres: '#ff00ff' };
-
-// Ajoute (ou retire) les 3 jeux de données de la 2e source. `filtered` est un
-// objet {temp,hum,pres} de tableaux déjà filtrés (l'INTÉRIEUR), ou null.
-function setSecondaryDatasets(filtered) {
-    chart.data.datasets = chart.data.datasets.slice(0, 3); // conserve la source principale
-    if (!filtered) return;
-    const mk = (label, key, color, axis) => ({
-        label,
-        data: filtered[key],
-        borderColor: color,
-        backgroundColor: 'transparent',
-        borderDash: [6, 4],
-        tension: 0.45,
-        cubicInterpolationMode: 'monotone',
-        pointRadius: 0,
-        yAxisID: axis
-    });
-    chart.data.datasets.push(mk('°C IN', 'temp', SECOND_COLORS.temp, 'y'));
-    chart.data.datasets.push(mk('Hu% IN', 'hum', SECOND_COLORS.hum, 'y1'));
-    chart.data.datasets.push(mk('hPa IN', 'pres', SECOND_COLORS.pres, 'y2'));
-}
-
-// Construit les 3 séries filtrées (valeurs aberrantes -> null) d'un jeu de points.
-function buildFilteredSeries(data) {
-    if (!Array.isArray(data)) return null;
-    return {
-        temp: filterOutliers(data.map((d) => d.temp), OUTLIER_FLOOR.temp),
-        hum: filterOutliers(data.map((d) => d.hum), OUTLIER_FLOOR.hum),
-        pres: filterOutliers(data.map((d) => d.pres), OUTLIER_FLOOR.pres)
-    };
 }
 
 function showChartLoading(visible) {
@@ -827,10 +519,498 @@ function showChartLoading(visible) {
     if (el) el.hidden = !visible;
 }
 
-// Séries filtrées des périodes A et B conservées pour (re)calculer la synthèse
-// (activation de la bascule) sans relancer le chargement du graphe.
+// Séries filtrées des sources A (OUT, ou la seule source) et B (IN en vue IN+OUT)
+// conservées pour la synthèse (activation de la bascule sans nouveau chargement).
 let longtermFilteredA = null;
 let longtermFilteredB = null;
+
+// Durée maximale d'une période encore rafraîchie automatiquement (48 h). Au-delà,
+// chaque rafraîchissement relancerait un scan de plusieurs fichiers CSV sur la carte
+// SD : on évite de le répéter en continu (l'utilisateur peut recharger manuellement).
+const LONGTERM_AUTOREFRESH_MAX_SECONDS = 172800;
+
+function initHistoryPage() {
+    const LS = 'meteohub.graphs.';
+    // [clé, libellé, unité, décimales, couleur] : couleurs de morfAnalytics (thème sombre).
+    const METRICS = [
+        ['temp', 'Température', '°C', 1, '#e6a54e'],
+        ['hum', 'Humidité', '%', 0, '#7ee0b8'],
+        ['pres', 'Pression', 'hPa', 1, '#c58bf2']
+    ];
+    const METRIC_KEYS = METRICS.map((m) => m[0]);
+    const SOURCES = [['out', 'Extérieur'], ['in', 'Intérieur'], ['both', 'Intérieur + Extérieur']];
+    const PERIODS = [['6 h', 6], ['12 h', 12], ['24 h', 24], ['3 j', 72], ['7 j', 168], ['30 j', 720]];
+    // Mono-grandeur : IN et OUT en deux couleurs distinctes (jamais de pointillés).
+    const SRC_COL = { out: '#6f9bff', in: '#e6a54e' };
+    const COL_AXIS = '#99a1ad', COL_SUSP = '#8a929e', COL_TIP = '#0e1013', COL_INK = '#e7e9ec';
+    // Période libre : bornes alignées sur 5 min (cadence de la sonde), au plus un an.
+    const STEP_S = 300;
+    const MAX_SPAN_S = 366 * 86400;
+    // Cadence ~5 min : plancher de connexion des points (trait coupé sur un vrai silence).
+    const CONNECT_MIN_S = 20 * 60;
+    const QUAL_LABEL = { pic: 'pic isolé' };
+
+    const $ = (s) => document.querySelector(s);
+    const lsGet = (k) => { try { return localStorage.getItem(LS + k); } catch (e) { return null; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(LS + k, v); } catch (e) { /* stockage indisponible */ } };
+    const lsDel = (k) => { try { localStorage.removeItem(LS + k); } catch (e) { /* idem */ } };
+
+    function loadMetrics() {
+        try {
+            const a = JSON.parse(lsGet('metrics') || 'null');
+            if (Array.isArray(a)) {
+                const f = METRIC_KEYS.filter((k) => a.indexOf(k) >= 0);
+                if (f.length) return f;
+            }
+        } catch (e) { /* valeur corrompue : défaut */ }
+        return ['temp'];
+    }
+    function loadRange() {
+        try {
+            const r = JSON.parse(lsGet('range') || 'null');
+            if (r && r.from > 0 && r.to - r.from >= STEP_S) return { from: +r.from, to: +r.to };
+        } catch (e) { /* idem */ }
+        return null;
+    }
+    const S = {
+        metrics: loadMetrics(),
+        source: lsGet('source') || 'out',
+        hours: +(lsGet('hours') || 24),
+        range: loadRange(), // null = période glissante ; sinon {from,to} en secondes epoch
+        showSuspects: lsGet('susp') !== '0'
+    };
+    if (!SOURCES.some((s) => s[0] === S.source)) S.source = 'out';
+
+    const metricDef = (k) => METRICS.find((m) => m[0] === k) || METRICS[0];
+    const srcLabel = (k) => (SOURCES.find((s) => s[0] === k) || ['', ''])[1];
+    const ctxsOf = () => (S.source === 'both' ? ['out', 'in'] : [S.source]);
+    function fmtClock(ts) {
+        const d = new Date(ts * 1000);
+        const sameDay = (Date.now() - d) < 86400000;
+        return d.toLocaleString('fr-FR', sameDay
+            ? { hour: '2-digit', minute: '2-digit' }
+            : { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+    const fmtFull = (ts) => new Date(ts * 1000).toLocaleString('fr-FR',
+        { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    function minMax(vals) {
+        let mn = Infinity, mx = -Infinity;
+        for (const v of vals) { if (v !== null && v !== undefined) { if (v < mn) mn = v; if (v > mx) mx = v; } }
+        return [mn, mx];
+    }
+    const nf = (v, d) => ((v === null || !isFinite(v)) ? '-' : v.toFixed(d));
+
+    // Échelle d'une grandeur : amplitude des données + 8 % (au moins 0,5 ou 1 unité).
+    function scaleOf(allv, dec) {
+        let [mn, mx] = minMax(allv);
+        if (!isFinite(mn)) { mn = 0; mx = 1; }
+        const minPad = dec ? 0.5 : 1;
+        const pad = Math.max((mx - mn) * 0.08, minPad);
+        return { mn, mx, smin: mn - pad, smax: mx + pad };
+    }
+    const valuesOf = (D, key, ctxs) => {
+        let all = [];
+        ctxs.forEach((c) => { all = all.concat((D[key][c].v || []).filter((x) => x !== null && x !== undefined)); });
+        return all;
+    };
+
+    // Géométrie + séries du graphe courant, pour le survol.
+    let G = null;
+
+    // Graphe SVG. `series` = [{ts,vals,color,width,opacity,bucket,smin,smax,label,unit,dec,suspects}].
+    // `axes` = [{min,max,dec,side:'L'|'R',col}] : échelles affichées à gauche/droite.
+    function buildChart(series, axes) {
+        const W = 760, H = 240, pT = 12, pB = 24;
+        const lefts = axes.filter((a) => a.side === 'L'), rights = axes.filter((a) => a.side === 'R');
+        const pL = lefts.length ? 48 : 16;
+        const pR = 14 + rights.length * 46;
+        let t0 = Infinity, t1 = -Infinity, any = false;
+        series.forEach((s) => {
+            for (let i = 0; i < s.vals.length; i++) {
+                const v = s.vals[i];
+                if (v !== null && v !== undefined) { any = true; const t = s.ts[i]; if (t < t0) t0 = t; if (t > t1) t1 = t; }
+            }
+        });
+        if (!any) { G = null; return '<div class="muted">Pas encore de mesure sur cette période.</div>'; }
+        if (!(t1 > t0)) t1 = t0 + 1;
+        const X = (t) => pL + (W - pL - pR) * ((t - t0) / Math.max(1, (t1 - t0)));
+        const Ys = (s, v) => pT + (H - pT - pB) * (1 - (v - s.smin) / Math.max(1e-9, s.smax - s.smin));
+
+        let grid = '', labels = '';
+        [0, 0.5, 1].forEach((f) => {
+            const y = pT + (H - pT - pB) * (1 - f);
+            grid += '<line class="grid-l" x1="' + pL + '" y1="' + y.toFixed(1) + '" x2="' + (W - pR) + '" y2="' + y.toFixed(1) + '"/>';
+            lefts.forEach((a) => {
+                const val = a.min + (a.max - a.min) * f;
+                labels += '<text class="ax" x="' + (pL - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" fill="' + a.col + '">' + val.toFixed(a.dec || 0) + '</text>';
+            });
+            rights.forEach((a, ri) => {
+                const val = a.min + (a.max - a.min) * f;
+                const xr = (W - pR) + 10 + ri * 46;
+                labels += '<text class="ax" x="' + xr + '" y="' + (y + 3).toFixed(1) + '" text-anchor="start" fill="' + a.col + '">' + val.toFixed(a.dec || 0) + '</text>';
+            });
+        });
+        const xt0 = '<text class="ax" x="' + pL + '" y="' + (H - 6) + '">' + fmtClock(t0) + '</text>';
+        const xt1 = '<text class="ax" x="' + (W - pR) + '" y="' + (H - 6) + '" text-anchor="end">' + fmtClock(t1) + '</text>';
+
+        let paths = '';
+        series.forEach((s) => {
+            const gapMax = Math.max((s.bucket > 0 ? s.bucket : 600) * 2.5, CONNECT_MIN_S);
+            let d = '', prevT = null;
+            for (let i = 0; i < s.ts.length; i++) {
+                const v = s.vals[i];
+                if (v === null || v === undefined) continue;
+                const t = s.ts[i];
+                const move = (prevT === null) || ((t - prevT) > gapMax);
+                d += (move ? 'M' : 'L') + X(t).toFixed(1) + ' ' + Ys(s, v).toFixed(1) + ' ';
+                prevT = t;
+            }
+            const op = (s.opacity !== undefined ? ' stroke-opacity="' + s.opacity + '"' : '');
+            paths += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.width || 2) + '"' + op + '/>';
+            let last = null;
+            for (let i = s.ts.length - 1; i >= 0; i--) {
+                if (s.vals[i] !== null && s.vals[i] !== undefined) { last = [s.ts[i], s.vals[i]]; break; }
+            }
+            if (last) paths += '<circle cx="' + X(last[0]).toFixed(1) + '" cy="' + Ys(s, last[1]).toFixed(1) + '" r="3" fill="' + s.color + '"' + op + '/>';
+        });
+
+        // Points écartés : croix grises à leur valeur d'origine (ramenée dans le cadre
+        // si elle sort de l'échelle, qui ne les prend pas en compte), motif au survol.
+        let susp = '';
+        if (S.showSuspects) {
+            series.forEach((s) => {
+                (s.suspects || []).forEach((p) => {
+                    const t = p[0], v = p[1], why = QUAL_LABEL[p[2]] || p[2];
+                    if (t < t0 || t > t1) return;
+                    const x = X(t);
+                    const y = Math.max(pT + 3, Math.min(H - pB - 3, Ys(s, v)));
+                    susp += '<g stroke="' + COL_SUSP + '" stroke-width="1.6"><title>' + fmtFull(t) + ' · ' + s.label + ' ' +
+                        v.toFixed(s.dec) + ' ' + s.unit + ' écarté : ' + why + '</title>' +
+                        '<line x1="' + (x - 3.5).toFixed(1) + '" y1="' + (y - 3.5).toFixed(1) + '" x2="' + (x + 3.5).toFixed(1) + '" y2="' + (y + 3.5).toFixed(1) + '"/>' +
+                        '<line x1="' + (x - 3.5).toFixed(1) + '" y1="' + (y + 3.5).toFixed(1) + '" x2="' + (x + 3.5).toFixed(1) + '" y2="' + (y - 3.5).toFixed(1) + '"/>' +
+                        '<rect x="' + (x - 5).toFixed(1) + '" y="' + (y - 5).toFixed(1) + '" width="10" height="10" fill="transparent" stroke="none"/></g>';
+                });
+            });
+        }
+
+        G = { W, H, pL, pR, pT, pB, t0, t1, series };
+        return '<svg id="gsvg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">' +
+            grid + labels + paths + susp + '<g id="hoverg"></g>' + xt0 + xt1 + '</svg>';
+    }
+
+    // Bilan qualité de la période : points écartés par motif (toutes courbes).
+    function qualityLine(series) {
+        const n = {};
+        let total = 0;
+        series.forEach((s) => (s.suspects || []).forEach((p) => { total++; n[p[2]] = (n[p[2]] || 0) + 1; }));
+        if (!total) return '<p class="qual">Qualité : aucun point écarté sur la période.</p>';
+        const parts = Object.keys(n).map((k) => n[k] + ' ' + (QUAL_LABEL[k] || k));
+        return '<p class="qual">Qualité : <b>' + total + ' point' + (total > 1 ? 's' : '') + ' écarté' + (total > 1 ? 's' : '') +
+            '</b> des courbes (' + parts.join(', ') + '). Données brutes conservées' +
+            (S.showSuspects ? ' ; croix grises sur le graphique.' : '.') + '</p>';
+    }
+
+    function noteFor(multi) {
+        if (multi) {
+            return '<p class="note">' + (S.source === 'both'
+                ? 'Plusieurs grandeurs sur un axe de temps commun ; chacune a sa propre échelle (la première sélectionnée à gauche, les autres à droite). Intérieur en trait plus fin et atténué. Survolez pour lire les valeurs.'
+                : 'Plusieurs grandeurs sur un axe de temps commun, chacune à son échelle. Survolez pour lire les valeurs.') + '</p>';
+        }
+        return '<p class="note">' + (S.source === 'both'
+            ? 'IN et OUT en deux couleurs ; échelle à gauche et à droite.'
+            : 'Échelle à gauche et à droite. Points reliés tant que l\'écart reste proche de la cadence ; coupé seulement sur un vrai silence du capteur.') + '</p>';
+    }
+
+    // Vue MONO-GRANDEUR : IN/OUT en deux couleurs, échelle numérique à gauche ET à droite.
+    function renderSingle(D, key) {
+        const md = metricDef(key);
+        const ctxs = ctxsOf();
+        const sc = scaleOf(valuesOf(D, key, ctxs), md[3]);
+        const series = ctxs.map((c) => ({
+            ts: D[key][c].ts || [], vals: D[key][c].v || [], color: SRC_COL[c], width: 2,
+            bucket: D[key][c].bucket_s || 0, smin: sc.smin, smax: sc.smax, label: srcLabel(c),
+            unit: md[2], dec: md[3], suspects: D[key][c].suspects || []
+        }));
+        const axes = [{ min: sc.smin, max: sc.smax, dec: md[3], side: 'L', col: COL_AXIS },
+                      { min: sc.smin, max: sc.smax, dec: md[3], side: 'R', col: COL_AXIS }];
+        const legend = ctxs.map((c) => '<span class="k"><span class="sw" style="border-color:' + SRC_COL[c] + '"></span>' + srcLabel(c) + '</span>').join('');
+        return '<div class="chart"><h3>' + md[1] + ' (' + md[2] + ')</h3><div class="plot">' + buildChart(series, axes) +
+            '<div class="tip" hidden></div></div><div class="legend">' + legend + '</div>' + qualityLine(series) + noteFor(false) + '</div>';
+    }
+
+    // Vue MULTI-GRANDEURS : un seul graphe, les grandeurs sélectionnées superposées.
+    // Chaque grandeur a son axe : la première sélectionnée à gauche, les suivantes à droite.
+    function renderAll(D, metrics) {
+        const ctxs = ctxsOf();
+        const series = [], axes = [], legend = [];
+        let drawn = 0;
+        metrics.forEach((key) => {
+            const m = metricDef(key), col = m[4];
+            const allv = valuesOf(D, key, ctxs);
+            if (!allv.length) return;
+            const sc = scaleOf(allv, m[3]);
+            axes.push({ min: sc.smin, max: sc.smax, dec: m[3], side: drawn === 0 ? 'L' : 'R', col });
+            drawn++;
+            ctxs.forEach((c) => {
+                const inner = (c === 'in');
+                series.push({
+                    ts: D[key][c].ts || [], vals: D[key][c].v || [], color: col,
+                    width: inner ? 1.4 : 2.2, opacity: inner ? 0.55 : 1, bucket: D[key][c].bucket_s || 0,
+                    smin: sc.smin, smax: sc.smax,
+                    label: m[1] + (S.source === 'both' ? (inner ? ' (int)' : ' (ext)') : ''),
+                    unit: m[2], dec: m[3], suspects: D[key][c].suspects || []
+                });
+            });
+            const range = nf(sc.mn, m[3]) + '–' + nf(sc.mx, m[3]) + ' ' + m[2];
+            ctxs.forEach((c) => {
+                const inner = (c === 'in');
+                legend.push('<span class="k"><span class="sw" style="border-color:' + col + ';opacity:' + (inner ? 0.55 : 1) + ';border-top-width:' + (inner ? 2 : 3) + 'px"></span>' +
+                    m[1] + (S.source === 'both' ? ' ' + (inner ? '(int)' : '(ext)') : '') + (c === ctxs[ctxs.length - 1] ? ' · ' + range : '') + '</span>');
+            });
+        });
+        const names = metrics.map((k) => metricDef(k)[1]).join(' + ');
+        const title = names + (S.source === 'both' ? ' (Intérieur + Extérieur)' : ' (' + srcLabel(S.source) + ')');
+        const body = series.length ? buildChart(series, axes) : '<div class="muted">Pas encore de mesure sur cette période.</div>';
+        return '<div class="chart"><h3>' + title + '</h3><div class="plot">' + body + '<div class="tip" hidden></div></div>' +
+            '<div class="legend">' + legend.join('') + '</div>' + qualityLine(series) + noteFor(true) + '</div>';
+    }
+
+    // Survol : ligne-guide + infobulle des valeurs à l'instant pointé.
+    function attachHover() {
+        const svg = $('#gsvg'), tip = document.querySelector('.plot .tip'), hg = $('#hoverg');
+        if (!svg || !tip || !hg || !G) return;
+        const plot = svg.closest('.plot');
+        const leave = () => { tip.hidden = true; hg.innerHTML = ''; };
+        svg.addEventListener('mousemove', (ev) => {
+            const r = svg.getBoundingClientRect();
+            const sx = (ev.clientX - r.left) / r.width * G.W;
+            if (sx < G.pL || sx > G.W - G.pR) { leave(); return; }
+            const t = G.t0 + (sx - G.pL) / Math.max(1, (G.W - G.pL - G.pR)) * (G.t1 - G.t0);
+            const X = (tt) => G.pL + (G.W - G.pL - G.pR) * ((tt - G.t0) / Math.max(1, (G.t1 - G.t0)));
+            const Ys = (s, v) => G.pT + (G.H - G.pT - G.pB) * (1 - (v - s.smin) / Math.max(1e-9, s.smax - s.smin));
+            let dots = '', rows = '';
+            G.series.forEach((s) => {
+                let best = -1, bd = Infinity;
+                for (let i = 0; i < s.ts.length; i++) {
+                    const v = s.vals[i];
+                    if (v === null || v === undefined) continue;
+                    const d = Math.abs(s.ts[i] - t);
+                    if (d < bd) { bd = d; best = i; }
+                }
+                if (best < 0) return;
+                const gapMax = Math.max((s.bucket > 0 ? s.bucket : 600) * 2.5, CONNECT_MIN_S);
+                if (bd > gapMax) return; // point trop loin (vrai trou) : on ne l'invente pas
+                dots += '<circle cx="' + X(s.ts[best]).toFixed(1) + '" cy="' + Ys(s, s.vals[best]).toFixed(1) + '" r="3.6" fill="' + s.color + '" stroke="' + COL_TIP + '" stroke-width="1.2"/>';
+                rows += '<div class="tr"><span class="sw" style="background:' + s.color + (s.opacity !== undefined ? ';opacity:' + s.opacity : '') + '"></span>' +
+                    s.label + ' : <b>' + s.vals[best].toFixed(s.dec) + ' ' + s.unit + '</b></div>';
+            });
+            hg.innerHTML = '<line x1="' + sx.toFixed(1) + '" y1="' + G.pT + '" x2="' + sx.toFixed(1) + '" y2="' + (G.H - G.pB) +
+                '" stroke="' + COL_INK + '" stroke-opacity="0.22" stroke-width="1"/>' + dots;
+            if (!rows) { tip.hidden = true; return; }
+            tip.innerHTML = '<div class="th">' + fmtFull(t) + '</div>' + rows;
+            tip.hidden = false;
+            const pr = plot.getBoundingClientRect();
+            let left = ev.clientX - pr.left + 14, top = ev.clientY - pr.top + 14;
+            if (left + tip.offsetWidth > pr.width) left = ev.clientX - pr.left - tip.offsetWidth - 14;
+            if (top + tip.offsetHeight > pr.height) top = pr.height - tip.offsetHeight - 4;
+            if (top < 0) top = 4;
+            tip.style.left = left + 'px'; tip.style.top = top + 'px';
+        });
+        svg.addEventListener('mouseleave', leave);
+    }
+
+    // --- Données --------------------------------------------------------------
+    // Fenêtre courante : période libre, sinon fenêtre glissante qui finit maintenant.
+    function currentRange() {
+        if (S.range) return S.range;
+        const now = Math.floor(Date.now() / 1000);
+        return { from: now - S.hours * 3600, to: now };
+    }
+
+    async function fetchRange(range, interval, ctx) {
+        const params = new URLSearchParams({
+            from: String(range.from), to: String(range.to), interval: String(interval), ctx
+        });
+        const res = await fetch('/api/history?' + params.toString());
+        const json = await res.json();
+        // Cadence d'enregistrement annoncée par le firmware : cale l'auto-refresh.
+        if (typeof json.measurement_interval_s === 'number' && json.measurement_interval_s > 0) {
+            measurementIntervalMs = json.measurement_interval_s * 1000;
+        }
+        return Array.isArray(json.data) ? json.data : [];
+    }
+
+    // Une grandeur d'une source -> série filtrée + points écartés (pic isolé).
+    function toSeries(rows, key, bucket) {
+        const ts = rows.map((r) => r.t);
+        const raw = rows.map((r) => r[key]);
+        const v = filterOutliers(raw, OUTLIER_FLOOR[key]);
+        const suspects = [];
+        raw.forEach((x, i) => { if (x !== null && x !== undefined && v[i] === null) suspects.push([ts[i], x, 'pic']); });
+        return { ts, v, bucket_s: bucket, suspects };
+    }
+
+    let drawSeq = 0; // ignore la réponse d'un dessin périmé (filtre changé entre-temps)
+    async function draw() {
+        const charts = $('#charts');
+        const metrics = METRIC_KEYS.filter((k) => S.metrics.indexOf(k) >= 0); // ordre stable
+        if (!metrics.length) {
+            charts.innerHTML = '<p class="muted">Cochez au moins une grandeur à afficher.</p>';
+            return;
+        }
+        const seq = ++drawSeq;
+        const range = currentRange();
+        const interval = computeInterval(range.to - range.from);
+        showChartLoading(true);
+        try {
+            // Requêtes SÉQUENTIELLES : l'ESP32 sert son historique depuis la carte SD
+            // sur un seul fil ; deux flux concurrents pouvaient faire échouer une réponse.
+            const rows = {};
+            for (const c of ctxsOf()) rows[c] = await fetchRange(range, interval, c);
+            if (seq !== drawSeq) return;
+            const D = {};
+            metrics.forEach((k) => {
+                D[k] = {};
+                ['out', 'in'].forEach((c) => {
+                    D[k][c] = rows[c] ? toSeries(rows[c], k, interval) : { ts: [], v: [], bucket_s: 0, suspects: [] };
+                });
+            });
+            charts.innerHTML = metrics.length === 1 ? renderSingle(D, metrics[0]) : renderAll(D, metrics);
+            attachHover();
+
+            // Synthèse : sur les trois grandeurs, indépendamment de la sélection affichée.
+            const filt = (c) => (rows[c] ? {
+                temp: toSeries(rows[c], 'temp', interval).v,
+                hum: toSeries(rows[c], 'hum', interval).v,
+                pres: toSeries(rows[c], 'pres', interval).v
+            } : null);
+            longtermFilteredA = filt(S.source === 'in' ? 'in' : 'out');
+            longtermFilteredB = S.source === 'both' ? filt('in') : null;
+            updateSynthesis();
+        } catch (e) {
+            console.error('Erreur historique', e);
+            if (seq === drawSeq) charts.innerHTML = '<p class="muted">Erreur lors de la récupération de l\'historique.</p>';
+        } finally {
+            if (seq === drawSeq) {
+                showChartLoading(false);
+                // Re-cale l'auto-refresh sur la cadence apprise via /api/history.
+                scheduleAutoRefresh();
+            }
+        }
+    }
+
+    // Rafraîchissement automatique : seulement tant que la fenêtre touche le présent
+    // et reste courte (chaque rafraîchissement relit la carte SD).
+    function scheduleAutoRefresh() {
+        if (longtermRefreshTimer) { clearInterval(longtermRefreshTimer); longtermRefreshTimer = null; }
+        const auto = $('#autoRefreshToggle');
+        if (auto && !auto.checked) return;
+        if (S.range && S.range.to <= Date.now() / 1000 - STEP_S) return;
+        const r = currentRange();
+        if (r.to - r.from > LONGTERM_AUTOREFRESH_MAX_SECONDS) return;
+        // Rythme = cadence d'enregistrement + marge : les métriques ne changent qu'à
+        // chaque nouvelle mesure (~5 min).
+        longtermRefreshTimer = setInterval(draw, measurementIntervalMs + LONGTERM_REFRESH_MARGIN_MS);
+    }
+
+    // --- Contrôles ------------------------------------------------------------
+    function renderMetricSel() {
+        $('#metricsel').innerHTML = METRICS.map((m) => {
+            const on = S.metrics.indexOf(m[0]) >= 0;
+            return '<label class="mk' + (on ? ' on' : '') + '"><input type="checkbox" data-m="' + m[0] + '"' + (on ? ' checked' : '') + '>' + m[1] + '</label>';
+        }).join('');
+    }
+    renderMetricSel();
+    $('#sourceCtx').innerHTML = SOURCES.map((s) => '<option value="' + s[0] + '"' + (s[0] === S.source ? ' selected' : '') + '>' + s[1] + '</option>').join('');
+    $('#periods').innerHTML = PERIODS.map((p) => '<button type="button" class="pbtn" data-h="' + p[1] + '">' + p[0] + '</button>').join('') +
+        '<button type="button" class="pbtn" data-h="custom">Période libre</button>';
+
+    // Les champs datetime-local travaillent en heure LOCALE sans fuseau : conversion
+    // explicite dans les deux sens, jamais via toISOString() (UTC, décalerait l'affichage).
+    const floor5 = (ts) => Math.floor(ts / STEP_S) * STEP_S;
+    function toLocalInput(ts) {
+        const d = new Date(ts * 1000);
+        const p = (n) => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+    function fromLocalInput(v) {
+        if (!v) return NaN;
+        const d = new Date(v);
+        return isNaN(d) ? NaN : Math.floor(d.getTime() / 1000);
+    }
+    function fmtRange(r) {
+        const o = { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+        return new Date(r.from * 1000).toLocaleString('fr-FR', o) + ' → ' + new Date(r.to * 1000).toLocaleString('fr-FR', o);
+    }
+    // Pré-remplit les champs : la période libre en cours, sinon la fenêtre glissante affichée.
+    function fillCustom() {
+        const now = floor5(Date.now() / 1000) + STEP_S;
+        const r = S.range || { from: floor5(now - S.hours * 3600), to: now };
+        $('#cfrom').value = toLocalInput(r.from);
+        $('#cto').value = toLocalInput(r.to);
+        $('#cfrom').max = $('#cto').max = toLocalInput(now);
+        $('#cerr').textContent = '';
+    }
+    function syncPeriodUI() {
+        document.querySelectorAll('#periods .pbtn').forEach((x) => x.classList.toggle('on',
+            S.range ? x.dataset.h === 'custom' : +x.dataset.h === S.hours));
+        $('#rangelbl').textContent = S.range ? 'Période affichée : ' + fmtRange(S.range) : '';
+    }
+    function applyCustom() {
+        const f = fromLocalInput($('#cfrom').value), t = fromLocalInput($('#cto').value);
+        const err = $('#cerr');
+        if (!isFinite(f) || !isFinite(t)) { err.textContent = 'Renseignez le jour et l\'heure de début et de fin.'; return; }
+        const from = floor5(f), to = floor5(t);
+        if (to - from < STEP_S) { err.textContent = 'La fin doit être au moins 5 min après le début.'; return; }
+        if (to - from > MAX_SPAN_S) { err.textContent = 'La période est limitée à un an.'; return; }
+        err.textContent = '';
+        S.range = { from, to };
+        lsSet('range', JSON.stringify(S.range));
+        syncPeriodUI();
+        draw();
+    }
+    if (S.range) { $('#custom').hidden = false; fillCustom(); }
+    syncPeriodUI();
+
+    $('#metricsel').addEventListener('change', (e) => {
+        if (!e.target.closest('input[data-m]')) return;
+        S.metrics = METRIC_KEYS.filter((k) => {
+            const el = document.querySelector('#metricsel input[data-m="' + k + '"]');
+            return el && el.checked;
+        });
+        lsSet('metrics', JSON.stringify(S.metrics));
+        renderMetricSel();
+        draw();
+    });
+    $('#sourceCtx').addEventListener('change', (e) => { S.source = e.target.value; lsSet('source', S.source); draw(); });
+    $('#showsusp').checked = S.showSuspects;
+    $('#showsusp').addEventListener('change', (e) => { S.showSuspects = e.target.checked; lsSet('susp', S.showSuspects ? '1' : '0'); draw(); });
+    $('#periods').addEventListener('click', (e) => {
+        const b = e.target.closest('.pbtn');
+        if (!b) return;
+        if (b.dataset.h === 'custom') {
+            // Ouvre (ou referme) le choix des bornes ; rien n'est redessiné avant « Afficher ».
+            const c = $('#custom');
+            c.hidden = !c.hidden;
+            if (!c.hidden) fillCustom();
+            return;
+        }
+        // Retour à une période glissante : la période libre est oubliée.
+        S.hours = +b.dataset.h; S.range = null;
+        lsSet('hours', S.hours); lsDel('range');
+        $('#custom').hidden = true;
+        syncPeriodUI();
+        draw();
+    });
+    $('#capply').addEventListener('click', applyCustom);
+    $('#custom').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCustom(); });
+    $('#cnow').addEventListener('click', () => { $('#cto').value = toLocalInput(floor5(Date.now() / 1000) + STEP_S); applyCustom(); });
+    // Synthèse : (re)dessinée à partir des derniers points, sans requête.
+    $('#synthToggle').addEventListener('change', updateSynthesis);
+    $('#autoRefreshToggle').addEventListener('change', scheduleAutoRefresh);
+
+    draw();
+}
 
 const SYNTH_METRICS = [
     { key: 'temp', title: 'Température', unit: '°C', decimals: 1, eps: 0.1 },
@@ -936,176 +1116,13 @@ function updateSynthesis() {
     renderSynthesisStats(statsA, statsB);
 }
 
-async function refreshLongterm() {
-    if (!chart) return;
-    const info = document.getElementById('periodInfo');
-    const primary = getPrimaryRange();
-    if (!primary) {
-        if (info) info.textContent = 'Sélectionnez une période valide (le début doit précéder la fin).';
-        return;
-    }
-    const interval = computeInterval(primary.to - primary.from);
-    const spanSeconds = primary.to - primary.from;
-
-    // Seuil de connexion des points, exprimé en nombre de tranches (l'axe X est
-    // catégoriel : une unité = une tranche). On relie par-dessus les tranches
-    // vides tant que le silence reste court (cadence normale : l'extérieur émet
-    // toutes les 5 min, plus large que la tranche sur une plage courte) et on ne
-    // coupe le trait que sur un VRAI silence capteur : max(2,5 tranches, 20 min).
-    // Même règle que dans morfAnalytics, valable quelle que soit la période.
-    const connectSpanS = Math.max(2.5 * interval, 20 * 60);
-    chart.options.spanGaps = connectSpanS / interval;
-
-    showChartLoading(true);
-    try {
-        const ctx = getSourceCtx(); // 'out' | 'in' | 'both'
-
-        if (ctx === 'both') {
-            // Intérieur + Extérieur : deux séries, même axe temporel. OUT en trait
-            // plein (source principale), IN en pointillés. Requêtes SÉQUENTIELLES :
-            // l'ESP32 sert son historique depuis la carte SD sur un seul fil ; deux
-            // flux concurrents pouvaient faire échouer une réponse (plage vide alors
-            // que les données existent). Même plage/intervalle -> points alignés.
-            const outData = await fetchRange(primary, interval, 'out');
-            const inData  = await fetchRange(primary, interval, 'in');
-            const base = outData.length >= inData.length ? outData : inData;
-            chart.data.labels = base.map((d) => formatTsLabel(d.t, spanSeconds));
-
-            const fOut = buildFilteredSeries(outData) || { temp: [], hum: [], pres: [] };
-            const fIn  = buildFilteredSeries(inData)  || { temp: [], hum: [], pres: [] };
-            chart.data.datasets[0].data = fOut.temp;
-            chart.data.datasets[1].data = fOut.hum;
-            chart.data.datasets[2].data = fOut.pres;
-            setSecondaryDatasets(fIn); // IN en pointillés (datasets 3-5)
-            // Points isolés visibles sur la source principale (pas de comblement ici).
-            for (let i = 0; i < 3; i++) applyFillStyle(chart.data.datasets[i], null);
-
-            updateChartScale();
-            longtermFilteredA = fOut; // OUT
-            longtermFilteredB = fIn;  // IN
-            updateSynthesis();
-            if (info) info.textContent =
-                `Intérieur + Extérieur · Période : ${formatRangeLabel(primary)}`;
-        } else {
-            // Source unique (Extérieur ou Intérieur). On ne trace QUE la source
-            // demandée : aucun comblement par l'autre source (injecter un point IN
-            // dans un graphe OUT reliait deux valeurs sans rapport et dessinait un
-            // peigne trompeur). Les tranches sans mesure restent vides ; le trait
-            // les enjambe (spanGaps) et ne se coupe que sur un vrai silence capteur.
-            const data = await fetchRange(primary, interval, ctx);
-
-            chart.data.labels = data.map((d) => formatTsLabel(d.t, spanSeconds));
-            const filtered = buildFilteredSeries(data) || { temp: [], hum: [], pres: [] };
-            chart.data.datasets[0].data = filtered.temp;
-            chart.data.datasets[1].data = filtered.hum;
-            chart.data.datasets[2].data = filtered.pres;
-            setSecondaryDatasets(null); // pas de 2e source
-
-            for (let i = 0; i < 3; i++) applyFillStyle(chart.data.datasets[i], null);
-
-            updateChartScale();
-            longtermFilteredA = filtered;
-            longtermFilteredB = null;
-            updateSynthesis();
-            if (info) {
-                info.textContent = `${sourceLabel()} · Période : ${formatRangeLabel(primary)}`;
-            }
-        }
-    } catch (e) {
-        console.error('Erreur historique', e);
-        if (info) info.textContent = 'Erreur lors de la récupération de l’historique.';
-    } finally {
-        showChartLoading(false);
-        // Re-cale l'auto-refresh sur la cadence apprise via /api/history
-        // (measurement_interval_s), au cas où elle diffère du défaut.
-        scheduleLongtermAutoRefresh();
-    }
-}
-
-// Durée maximale d'une période encore rafraîchie automatiquement (48 h). Au-delà,
-// chaque rafraîchissement relancerait un scan de plusieurs fichiers CSV sur la carte
-// SD : on évite de le répéter en continu (l'utilisateur peut recharger manuellement).
-const LONGTERM_AUTOREFRESH_MAX_SECONDS = 172800;
-
-// (Re)programme le rafraîchissement automatique : uniquement pour une période
-// relative (qui suit « maintenant »), sans comparaison et de courte durée.
-function scheduleLongtermAutoRefresh() {
-    if (longtermRefreshTimer) { clearInterval(longtermRefreshTimer); longtermRefreshTimer = null; }
-    const autoToggle = document.getElementById('autoRefreshToggle');
-    if (autoToggle && !autoToggle.checked) return; // mise à jour temps réel désactivée
-    const preset = document.getElementById('periodPreset')?.value || '86400';
-    if (preset === 'custom') return;
-    const primary = getPrimaryRange();
-    if (!primary) return;
-    if ((primary.to - primary.from) > LONGTERM_AUTOREFRESH_MAX_SECONDS) return;
-    // Rythme = cadence d'enregistrement + marge (au lieu d'un intervalle court) :
-    // les métriques ne changent qu'à chaque nouvelle mesure (~5 min).
-    longtermRefreshTimer = setInterval(refreshLongterm,
-                                       measurementIntervalMs + LONGTERM_REFRESH_MARGIN_MS);
-}
-
-function initLongtermControls() {
-    const periodPreset = document.getElementById('periodPreset');
-    const customRange = document.getElementById('customRange');
-    const fromInput = document.getElementById('fromInput');
-    const toInput = document.getElementById('toInput');
-
-    const syncVisibility = () => {
-        if (customRange) customRange.hidden = periodPreset?.value !== 'custom';
-        scheduleLongtermAutoRefresh();
-    };
-
-    // Applique automatiquement toute modification des sélecteurs / champs de dates.
-    const applyNow = () => { syncVisibility(); refreshLongterm(); };
-
-    if (periodPreset) periodPreset.addEventListener('change', () => {
-        // Pré-remplit les champs personnalisés avec la dernière plage 24 h.
-        if (periodPreset.value === 'custom') {
-            const now = Math.floor(Date.now() / 1000);
-            if (fromInput && !fromInput.value) fromInput.value = unixToLocalInput(now - 86400);
-            if (toInput && !toInput.value) toInput.value = unixToLocalInput(now);
-        }
-        applyNow();
-    });
-    const sourceCtx = document.getElementById('sourceCtx');
-    if (sourceCtx) sourceCtx.addEventListener('change', refreshLongterm);
-    if (fromInput) fromInput.addEventListener('change', refreshLongterm);
-    if (toInput) toInput.addEventListener('change', refreshLongterm);
-
-    // La bascule Synthèse (re)dessine à partir des derniers points, sans requête.
-    const synthToggle = document.getElementById('synthToggle');
-    if (synthToggle) synthToggle.addEventListener('change', updateSynthesis);
-
-    // La bascule « Temps réel » (dé)active le rafraîchissement automatique.
-    const autoToggle = document.getElementById('autoRefreshToggle');
-    if (autoToggle) autoToggle.addEventListener('change', scheduleLongtermAutoRefresh);
-
-    syncVisibility();
-    refreshLongterm();
-}
-
 window.onload = () => {
     initAlertModal();
     fetchSystem();
     fetchLive();
     fetchAlert();
 
-    if (getPageName() === 'longterm') {
-        initChart();
-
-        // Zoom par défaut porté par l'attribut value du slider de la page.
-        const marginSlider = document.getElementById('scaleMargin');
-        const marginValue = document.getElementById('scaleMarginValue');
-        if (marginSlider) {
-            GRAPH_SCALE_MARGIN_PCT = Number(marginSlider.value);
-            if (marginValue) marginValue.textContent = marginSlider.value;
-        }
-        const modeSelect = document.getElementById('scaleMode');
-        if (modeSelect) modeSelect.value = GRAPH_SCALE_MODE;
-
-        // Page Historique : pilotée par la sélection de période.
-        initLongtermControls();
-    }
+    if (getPageName() === 'longterm') initHistoryPage();
 
     if (isStatsPage()) {
         fetchStats();

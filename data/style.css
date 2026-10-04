@@ -283,3 +283,38 @@ th { color: #aaa; }
 .ota-result.info { border-left: 4px solid #64b5f6; }
 .ota-result.success { border-left: 4px solid #66bb6a; }
 .ota-result.error { border-left: 4px solid #ef5350; }
+
+/* --- Page Historique : même rendu que morfAnalytics (Météo > Graphiques), thème sombre --- */
+:root { --line: #2c3037; --muted: #99a1ad; --soft: #c7cdd6; --field: #242830; --sel: #2a3350; --sel-ink: #ffffff; --tip: #0e1013; }
+.hist-controls { justify-content: flex-start; gap: 12px 18px; }
+.hist-controls input[type="checkbox"] { padding: 0; accent-color: var(--accent); margin: 0; }
+.metricsel { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.metricsel .mslabel { font-size: .9rem; color: #aaa; }
+.mk { display: inline-flex; align-items: center; gap: .3rem; background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: .25rem .55rem; font-size: .85rem; color: var(--soft); cursor: pointer; }
+.mk:hover { border-color: var(--accent); color: var(--text); }
+.mk.on { background: var(--sel); border-color: var(--accent); color: var(--sel-ink); }
+.periods { display: flex; gap: .3rem; flex-wrap: wrap; }
+.pbtn { background: var(--field); border: 1px solid var(--line); color: var(--soft); border-radius: 8px; padding: .3rem .7rem; cursor: pointer; font-size: .85rem; }
+.pbtn:hover { border-color: var(--accent); color: var(--text); }
+.pbtn.on { background: var(--sel); border-color: var(--accent); color: var(--sel-ink); }
+.custom { display: flex; flex-wrap: wrap; gap: .5rem .8rem; align-items: center; width: 100%; }
+.custom .err { color: #ffb04d; font-size: .82rem; }
+.rangelbl { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.hist-wrap { position: relative; }
+.muted { color: var(--muted); }
+.chart { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; }
+.chart h3 { margin: 0 0 .1rem; font-size: 1.05rem; }
+.plot { position: relative; margin-top: .5rem; }
+.plot svg { display: block; width: 100%; height: auto; }
+.ax { fill: var(--muted); font-size: 11px; }
+.grid-l { stroke: var(--line); stroke-width: 1; }
+.legend { display: flex; gap: 1.1rem; flex-wrap: wrap; margin-top: .5rem; font-size: .85rem; color: var(--soft); }
+.legend .k { display: inline-flex; align-items: center; gap: .4rem; }
+.legend .sw { width: 1.4rem; height: 0; border-top: 3px solid; display: inline-block; }
+.note { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
+.qual { color: var(--muted); font-size: .82rem; margin-top: .35rem; }
+.qual b { color: var(--soft); font-weight: 600; }
+.tip { position: absolute; pointer-events: none; background: var(--tip); border: 1px solid var(--line); border-radius: 8px; padding: .4rem .55rem; font-size: .82rem; color: var(--text); box-shadow: 0 4px 14px rgba(0,0,0,.45); z-index: 5; white-space: nowrap; }
+.tip .th { color: var(--muted); margin-bottom: .2rem; font-variant-numeric: tabular-nums; }
+.tip .tr { display: flex; align-items: center; gap: .4rem; font-variant-numeric: tabular-nums; }
+.tip .sw { width: .7rem; height: .7rem; border-radius: 2px; display: inline-block; }
