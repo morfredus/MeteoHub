@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.59.0] - 2026-10-05
+
+### Added
+
+- **Battery history of the sensor.** Every NEW measurement of the associated sensor (live or
+  caught up, at its measurement time, never a duplicate) is archived on the SD card in
+  `/history/battery/YYYY-MM.csv` (`ts,volts,pct`, ~200 KB per month). Kept apart from the weather
+  history on purpose: its binary format is read by morfAnalytics and the battery is not a weather
+  measurement. No SD: nothing archived (one warning); "clear history" does not erase it.
+- `GET /api/battery?days=N` (7 by default, 365 max): points averaged into buckets (<= ~400 points,
+  bucket >= 5 min), so a 90-day query stays light on the ESP32 and the browser.
+- System page: "Battery of the sensor" card, voltage curve over 24 h / 7 d / 30 d / 90 d (plain
+  SVG, no library).
+- Native test `test_native_batteryseries` (line parsing, bucketing, out-of-order arrival).
+
+## [1.58.1] - 2026-10-05
+
+### Fixed
+
+- Boot log lines showed UTC (12:11) while later lines showed local time (14:11): after a soft
+  reboot the RTC keeps the clock, but the time zone was only set when NTP sync started. The
+  zone is now set at the very start of `setup()` (`MH_TIMEZONE`, `config.h`).
+- Time zone is now the real France rule (`CET-1CEST`, automatic DST) instead of
+  `configTime(3600, 3600)`, which pinned UTC+2 all year (one hour off in winter).
+
+## [1.58.0] - 2026-10-05
+
+### Added
+
+- **Silence watchdog for the associated sensor**: after 11 min without a frame, the hub logs
+  `[OUT] silence de la sonde ...` with the radio context (radio channel, STA state, rssi,
+  rx/ok/bad counters), repeated every 30 min; the return is logged with the duration. Silent
+  while everything is fine. Born from the 2026-10-05 field case (15 min of silence that left no
+  trace on the hub).
+- Radio channel changes are always logged (`canal radio du hub X -> Y`, with STA state and rssi).
+
+### Changed
+
+- **Log ring 10 -> 300 lines** (~30 KB), so an incident can be re-read hours later (a pairing
+  used to overwrite the whole ring). Every line is timestamped (wall clock once NTP is in, uptime
+  before); the same text goes to serial and UDP. The ring is now mutex-protected (several tasks
+  write to it).
+- Log pruning: the per-frame `ESP-NOW: packet ...` line is gone (duplicate of `[OUT]`); the
+  `ESP-NOW: ch= rx= ok= bad=` line is now emitted only when frames are rejected or as a 30 min
+  heartbeat (was every 5 min), and carries STA state and rssi; OTA progress logs once per quarter
+  instead of 100 lines.
+
+### Fixed
+
+- Logs page (`/logs`) never colored anything: it looked for `[E]`/`[W]`/`[I]` while the logs write
+  `[ERROR]`/`[WARN]`/`[INFO]`. It also no longer jumps to the bottom while reading older lines.
+
 ## [1.57.1] - 2026-10-04
 
 ### Fixed

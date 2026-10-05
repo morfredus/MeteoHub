@@ -1,4 +1,5 @@
 #include "managers/web_manager.h"
+#include "modules/battery_log.h"
 #include "managers/forecast_manager.h"
 #include <ESPmDNS.h>
 #include <LittleFS.h>
@@ -600,6 +601,28 @@ void WebManager::_setupApi() {
         }
         if (onSd) request->send(SD, path, "text/csv");
         else      request->send(LittleFS, path, "text/csv");
+    });
+
+    // Evolution de la batterie de la sonde : points agreges (<= ~400) sur les `days`
+    // derniers jours (7 par defaut, 365 au plus). Serie archivee par BatteryLog.
+    _server.on("/api/battery", HTTP_GET, [](AsyncWebServerRequest *request) {
+        long days = 7;
+        if (request->hasParam("days")) days = request->getParam("days")->value().toInt();
+        if (days < 1) days = 1;
+        if (days > 365) days = 365;
+        const time_t to = time(nullptr);
+        const time_t from = to - days * 86400L;
+        uint32_t bucket = 0;
+        const std::vector<mhbat::Point> pts = batteryLog.query(from, to, bucket);
+        AsyncResponseStream *r = request->beginResponseStream("application/json");
+        r->printf("{\"from\":%ld,\"to\":%ld,\"bucket_s\":%u,\"count\":%u,\"data\":[",
+                  (long)from, (long)to, (unsigned)bucket, (unsigned)pts.size());
+        for (size_t i = 0; i < pts.size(); i++) {
+            r->printf("%s[%lu,%.3f,%.1f]", i ? "," : "", (unsigned long)pts[i].ts,
+                      pts[i].volts, pts[i].pct);
+        }
+        r->print("]}");
+        request->send(r);
     });
 
     _server.on("/api/analytics", HTTP_GET, [this](AsyncWebServerRequest *request) {

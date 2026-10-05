@@ -34,6 +34,15 @@
 // ===============
 // Les réglages protégés par #ifndef peuvent être imposés par l'env de build
 // (ex. hub-oled-test, banc de test : voir platformio.ini).
+// Fuseau horaire : France (heure d'hiver UTC+1, d'ete UTC+2, bascule automatique).
+// Pose AU DEBUT du boot (setup) : sans cela, apres un reboot logiciel l'horloge
+// conservee par le RTC s'affichait en UTC jusqu'a la synchro NTP, et les logs
+// montraient deux heures differentes. Remplace l'ancien configTime(3600, 3600) qui
+// figeait UTC+2 toute l'annee.
+#ifndef MH_TIMEZONE
+#define MH_TIMEZONE "CET-1CEST,M3.5.0,M10.5.0/3"
+#endif
+
 #ifndef WEB_MDNS_HOSTNAME
 #define WEB_MDNS_HOSTNAME        "meteohub" // Accessible via http://meteohub.local
 #endif

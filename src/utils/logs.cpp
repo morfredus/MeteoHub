@@ -1,37 +1,69 @@
 #include "logs.h"
 #include "udp_logger.h"
 #include <Arduino.h>
-#include <vector>
+#include <deque>
 #include <string>
+#include <time.h>
+#include <freertos/semphr.h>
 
-// Utilisation d'un vecteur pour stocker les logs en mémoire
-static std::vector<std::string> logs;
+// Anneau en memoire. Plusieurs taches ecrivent (boucle principale, evenements
+// Wi-Fi, serveur web) : un mutex protege le conteneur, sinon un push concurrent
+// pendant une lecture de /api/logs corrompt le deque.
+static std::deque<std::string> logs;
+
+static SemaphoreHandle_t logMutex() {
+    static SemaphoreHandle_t m = xSemaphoreCreateMutex();   // init thread-safe (C++11)
+    return m;
+}
+
+// Horodatage : heure murale des que le NTP a recale l'horloge, sinon uptime. L'uptime
+// seul ne suffit pas a recouper un incident avec l'historique ; l'heure seule
+// manquerait avant la synchro NTP, au boot.
+static std::string stamp() {
+    const time_t now = time(nullptr);
+    char buf[16];
+    if (now > 1600000000) {
+        struct tm t;
+        localtime_r(&now, &t);
+        snprintf(buf, sizeof(buf), "%02d:%02d:%02d ", t.tm_hour, t.tm_min, t.tm_sec);
+    } else {
+        snprintf(buf, sizeof(buf), "+%lus ", (unsigned long)(millis() / 1000UL));
+    }
+    return buf;
+}
 
 void addLog(const std::string& msg) {
-    // Si le buffer est plein, on retire le plus ancien
-    if (logs.size() >= LOG_BUFFER_SIZE) {
-        logs.erase(logs.begin());
-    }
-    logs.push_back(msg);
+    const std::string line = stamp() + msg;
+    SemaphoreHandle_t m = logMutex();
+    xSemaphoreTake(m, portMAX_DELAY);
+    if (logs.size() >= LOG_BUFFER_SIZE) logs.pop_front();
+    logs.push_back(line);
+    xSemaphoreGive(m);
 
-    Serial.println(msg.c_str()); // miroir sur le port série
-    udpLogSend(msg);             // diffusion réseau (UDP), voir udp_logger
+    Serial.println(line.c_str()); // miroir sur le port serie
+    udpLogSend(line);             // diffusion reseau (UDP), voir udp_logger
 }
 
 std::string getLog(int index) {
-    if (index >= 0 && index < logs.size()) {
-        return logs[index];
-    }
-    return "";
+    SemaphoreHandle_t m = logMutex();
+    xSemaphoreTake(m, portMAX_DELAY);
+    std::string out;
+    if (index >= 0 && index < (int)logs.size()) out = logs[index];
+    xSemaphoreGive(m);
+    return out;
 }
 
 int getLogCount() {
-    return logs.size();
+    SemaphoreHandle_t m = logMutex();
+    xSemaphoreTake(m, portMAX_DELAY);
+    const int n = (int)logs.size();
+    xSemaphoreGive(m);
+    return n;
 }
 
 void clearLogs() {
+    SemaphoreHandle_t m = logMutex();
+    xSemaphoreTake(m, portMAX_DELAY);
     logs.clear();
+    xSemaphoreGive(m);
 }
-
-// Ajout d'une ligne vide pour forcer la modification
-// (logs.cpp)

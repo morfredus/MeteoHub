@@ -98,7 +98,7 @@ void WifiManager::onReconnected() {
     } else {
         LOG_ERROR("WiFi: echec relance mDNS apres reconnexion");
     }
-    configTime(3600, 3600, "pool.ntp.org");
+    configTzTime(MH_TIMEZONE, "pool.ntp.org");
 }
 
 void WifiManager::update() {

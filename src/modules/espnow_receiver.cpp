@@ -63,10 +63,19 @@ void EspNowReceiver::disableWifiSleep() {
 void EspNowReceiver::refreshChannel() {
     uint8_t primary = 0;
     wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
+    const uint8_t before = _wifiChannel;
     if (esp_wifi_get_channel(&primary, &second) == ESP_OK) {
         _wifiChannel = primary;
     } else if (WiFi.status() == WL_CONNECTED) {
         _wifiChannel = static_cast<uint8_t>(WiFi.channel());
+    }
+    // Un changement de canal radio est la cause classique d'une sonde devenue
+    // muette : il doit toujours laisser une trace, avec l'etat du STA pour recouper.
+    if (before != 0 && _wifiChannel != before) {
+        LOG_WARNING("ESP-NOW: canal radio du hub " + std::to_string(before) + " -> "
+                    + std::to_string(_wifiChannel)
+                    + " (STA " + (WiFi.status() == WL_CONNECTED ? "associe" : "hors ligne")
+                    + ", rssi=" + std::to_string(WiFi.RSSI()) + ")");
     }
 }
 
@@ -195,21 +204,18 @@ void EspNowReceiver::update() {
     processQueuedPackets();
     processPairFrames();
 
-    // Le refresh de canal reste frequent (15 s) pour suivre une migration du hub ;
-    // le LOG, lui, n'est emis que s'il APPORTE une info : compteurs changes (une
-    // trame vient d'arriver ou d'etre rejetee) ou battement de coeur espace (preuve
-    // de vie + canal courant). Sans ce filtre, 20 lignes identiques tombaient entre
-    // deux envois (la sonde n'emet que toutes les 5 min).
-    static constexpr unsigned long STATUS_HEARTBEAT_MS = 300000UL; // 5 min
+    // Le refresh de canal reste frequent (15 s) pour suivre une migration du hub.
+    // Le LOG de comptage ne dit rien que [OUT] ne dise deja pour une trame valide :
+    // il n'est emis que sur trame REJETEE (bad qui monte) ou en battement de coeur
+    // lent (preuve de vie + canal radio + etat du STA + rssi).
+    static constexpr unsigned long STATUS_HEARTBEAT_MS = 1800000UL; // 30 min
     if (millis() - _lastStatusLogMs >= 15000) {
         _lastStatusLogMs = millis();
         refreshChannel();
 
-        const bool changed = (_packetsReceived != _loggedReceived)
-                          || (_packetsValid != _loggedValid)
-                          || (_packetsInvalid != _loggedInvalid);
+        const bool rejected = (_packetsInvalid != _loggedInvalid);
         const bool heartbeat = (millis() - _lastStatusHeartbeatMs >= STATUS_HEARTBEAT_MS);
-        if (changed || heartbeat) {
+        if (rejected || heartbeat) {
             _loggedReceived = _packetsReceived;
             _loggedValid = _packetsValid;
             _loggedInvalid = _packetsInvalid;
@@ -226,7 +232,9 @@ void EspNowReceiver::update() {
                      + " ok=" + std::to_string(_packetsValid)
                      + " bad=" + std::to_string(_packetsInvalid)
                      + " last_len=" + std::to_string(_lastRxLen)
-                     + " src=" + std::string(src));
+                     + " src=" + std::string(src)
+                     + " sta=" + (WiFi.status() == WL_CONNECTED ? "ok" : "hors-ligne")
+                     + " rssi=" + std::to_string(WiFi.RSSI()));
         }
     }
 }
@@ -351,12 +359,7 @@ void EspNowReceiver::processQueuedPackets() {
         if (_outdoorCallback) {
             _outdoorCallback(outdoor);
         }
-
-        LOG_INFO("ESP-NOW: packet node=" + std::to_string(packet.node_id)
-                 + " seq=" + std::to_string(packet.sequence)
-                 + " T=" + std::to_string(outdoor.temperature)
-                 + " H=" + std::to_string(outdoor.humidity)
-                 + " P=" + std::to_string(outdoor.pressure));
+        // Pas de log par trame ici : main.cpp journalise deja chaque trame ([OUT]).
     }
 }
 

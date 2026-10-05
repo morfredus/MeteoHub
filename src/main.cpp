@@ -16,6 +16,7 @@
 #include "modules/analytics_beacon.h"
 #include "modules/battery_alert.h"
 #include "modules/outdoor_quarantine.h"
+#include "modules/battery_log.h"
 #include "cold_boot_rule.h"
 #include "modules/calibration_store.h"
 #include "modules/espnow_receiver.h"
@@ -60,6 +61,35 @@ static std::string shortMac(const uint8_t* m) {
     return b;
 }
 
+// --- Surveillance du silence de la sonde associee ---------------------------
+// La sonde emet toutes les 5 min. Sans trame depuis 11 min (2 cycles + marge), le
+// hub l'ecrit dans le journal avec le contexte radio (canal, STA, rssi, compteurs)
+// pour pouvoir relire l'incident apres coup ; le retour est trace aussi, avec la
+// duree. Rien n'est emis tant que tout va bien : aucun bruit en regime normal.
+static unsigned long g_lastOutFrameMs = 0;   // dernier instant ou la sonde associee a ete entendue
+static unsigned long g_lastSilenceLogMs = 0; // dernier rappel de silence
+static bool g_silenceActive = false;
+constexpr unsigned long OUT_SILENCE_WARN_MS = 11UL * 60UL * 1000UL;
+constexpr unsigned long OUT_SILENCE_REMIND_MS = 30UL * 60UL * 1000UL;
+
+static void outSilenceWatch() {
+    if (!meteoSync.hasAssociated()) return;           // pas de sonde attendue
+    const unsigned long now = millis();
+    const unsigned long silent = now - g_lastOutFrameMs;
+    if (silent < OUT_SILENCE_WARN_MS) return;
+    if (g_silenceActive && now - g_lastSilenceLogMs < OUT_SILENCE_REMIND_MS) return;
+    g_silenceActive = true;
+    g_lastSilenceLogMs = now;
+    LOG_WARNING("[OUT] silence de la sonde " + shortMac(meteoSync.associatedMac()) + " depuis "
+                + std::to_string(silent / 60000UL) + " min : canal radio="
+                + std::to_string(espNowReceiver.getWifiChannel())
+                + " sta=" + (WiFi.status() == WL_CONNECTED ? "ok" : "hors-ligne")
+                + " rssi=" + std::to_string(WiFi.RSSI())
+                + " rx=" + std::to_string(espNowReceiver.getPacketsReceived())
+                + " ok=" + std::to_string(espNowReceiver.getPacketsValid())
+                + " bad=" + std::to_string(espNowReceiver.getPacketsInvalid()));
+}
+
 // Traduit un code esp_reset_reason() en nom lisible. Sert pour la sonde (code
 // rapporte dans le paquet v2) ET pour le hub lui-meme (log au boot). BROWNOUT/
 // POWERON apres un trou = coupure d'alimentation ; DEEPSLEEP = reveil normal de la
@@ -86,6 +116,8 @@ static const char* resetReasonName(uint8_t r) {
 
 void setup() {
     Serial.begin(115200);
+    setenv("TZ", MH_TIMEZONE, 1);   // avant tout log : horodatage en heure locale des le boot
+    tzset();
 
     // Monitoring des logs par UDP installé au plus tôt : capture dès le boot les
     // logs applicatifs ET ceux du cœur ESP (SD, capteurs, WiFi…). Les lignes sont
@@ -115,8 +147,13 @@ void setup() {
         if (total == 0) {
             return;
         }
+        // Un log par quart : 100 lignes de pourcentage noyaient l'anneau de logs.
         int percent = static_cast<int>((progress * 100U) / total);
-        LOG_DEBUG("OTA progress: " + std::to_string(percent) + "%");
+        static int lastQuarter = -1;
+        if (percent / 25 != lastQuarter) {
+            lastQuarter = percent / 25;
+            LOG_DEBUG("OTA progress: " + std::to_string(percent) + "%");
+        }
     });
     ArduinoOTA.onError([](ota_error_t error) {
         LOG_ERROR("OTA error code: " + std::to_string(static_cast<int>(error)));
@@ -227,7 +264,7 @@ void setup() {
 #if defined(ESP32_S3_OLED)
     drawBootProgress_oled(*display, 3, 5, "Sync Heure...");
 #endif
-    configTime(3600, 3600, "pool.ntp.org");
+    configTzTime(MH_TIMEZONE, "pool.ntp.org");
 
     // Boucle d'attente NTP (Max 10s)
     struct tm timeinfo;
@@ -256,6 +293,7 @@ void setup() {
     
     history.begin(&sdCard); // Injection de la dépendance SD
     outdoorQuarantine.begin(&sdCard);
+    batteryLog.begin(&sdCard);
 
     // Détection optionnelle de morfAnalytics (écoute passive du beacon LAN).
     // No-op si MORF_ECOSYSTEM_ENABLED = 0 (banc de test, voir config.h).
@@ -287,6 +325,14 @@ void setup() {
             }
             return;
         }
+
+        // Sonde associee entendue : fin d'un eventuel silence, trace du retour.
+        if (g_silenceActive) {
+            LOG_INFO("[OUT] sonde " + shortMac(outdoor.src_mac) + " de retour apres "
+                     + std::to_string((millis() - g_lastOutFrameMs) / 60000UL) + " min de silence");
+            g_silenceActive = false;
+        }
+        g_lastOutFrameMs = millis();
 
         // Carte Calibration : ne retient que la mesure COURANTE de la sonde
         // associee (une retransmission rejoue une valeur ancienne ; une trame sans
@@ -371,6 +417,13 @@ void setup() {
             // Doublon mais trame live : on rafraichit tout de meme la valeur
             // « live » (affichage/fraicheur) sans ré-archiver.
             history.refreshOutdoorLive(outdoor);
+        }
+
+        // 4 bis) Archive de la batterie : toute mesure NOUVELLE (live ou rattrapee, a
+        //    l'heure de sa mesure), jamais un doublon.
+        if (d.archive && outdoor.has_battery) {
+            batteryLog.add((time_t)d.measurementTs, outdoor.battery_voltage,
+                           outdoor.battery_percent);
         }
 
         // 5) Surveillance de l'accu : mesures LIVE et NOUVELLES seulement. Une
@@ -491,6 +544,7 @@ void loop() {
     ui.update();
     analytics.update();
     espNowReceiver.update();
+    outSilenceWatch();
     // Notification « accu à changer » : vide si morfNotify n'est pas sur le réseau
     // (ou écosystème neutralisé), auquel cas rien ne part.
     batteryAlert.update(analytics.notifyUrl());

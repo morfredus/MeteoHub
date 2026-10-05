@@ -130,6 +130,23 @@
                 Penser à cliquer sur « Enregistrer » après le calcul.</div>
         </div>
 
+        <!-- Evolution de la batterie de la sonde -->
+        <div class="card sys-card">
+            <h2>🔋 Batterie de la sonde</h2>
+            <div class="sys-row">
+                <label for="batDays">Période :</label>
+                <select id="batDays">
+                    <option value="1">24 h</option>
+                    <option value="7" selected>7 jours</option>
+                    <option value="30">30 jours</option>
+                    <option value="90">90 jours</option>
+                </select>
+                <span id="batNow" class="sys-value">-</span>
+            </div>
+            <svg id="batChart" viewBox="0 0 600 220" style="width:100%;height:auto;"></svg>
+            <div id="batHint" class="sys-hint">Tension de l'accu mesurée par la sonde (courbe), archivée sur la carte SD.</div>
+        </div>
+
         <!-- Export des données et de la configuration -->
         <div class="card sys-card">
             <h2>⬇️ Export</h2>
@@ -437,6 +454,66 @@
 
         refreshCalibration();
         setInterval(refreshCalibration, 30000);
+
+        // --- Batterie de la sonde : courbe de la tension (SVG pur, sans bibliothèque) ---
+        (function setupBattery() {
+            const sel = document.getElementById('batDays');
+            const svg = document.getElementById('batChart');
+            const now = document.getElementById('batNow');
+            const hint = document.getElementById('batHint');
+            if (!sel || !svg) return;
+            const W = 600, H = 220, L = 46, R = 12, T = 10, B = 28;
+
+            function draw(d) {
+                const pts = (d && d.data) || [];
+                if (!pts.length) {
+                    svg.innerHTML = '';
+                    now.textContent = '-';
+                    hint.textContent = 'Aucune mesure de batterie archivée sur cette période '
+                        + '(carte SD requise ; la série commence à la mise à jour 1.59.0).';
+                    return;
+                }
+                const last = pts[pts.length - 1];
+                now.textContent = last[1].toFixed(2) + ' V · ' + Math.round(last[2]) + ' %';
+                const t0 = d.from, t1 = d.to;
+                let vmin = Math.min(...pts.map(p => p[1])), vmax = Math.max(...pts.map(p => p[1]));
+                const pad = Math.max(0.05, (vmax - vmin) * 0.1);
+                vmin -= pad; vmax += pad;
+                const x = t => L + (t - t0) / (t1 - t0) * (W - L - R);
+                const y = v => T + (vmax - v) / (vmax - vmin) * (H - T - B);
+                let g = '';
+                for (let i = 0; i <= 4; i++) {
+                    const v = vmin + (vmax - vmin) * i / 4;
+                    g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v)
+                        + '" stroke="#8884" /><text x="' + (L - 4) + '" y="' + (y(v) + 4)
+                        + '" font-size="11" text-anchor="end" fill="currentColor">' + v.toFixed(2) + '</text>';
+                }
+                const fmt = (t) => {
+                    const dt = new Date(t * 1000);
+                    return (t1 - t0 <= 172800)
+                        ? dt.getHours() + 'h'
+                        : dt.getDate() + '/' + (dt.getMonth() + 1);
+                };
+                for (let i = 0; i <= 4; i++) {
+                    const t = t0 + (t1 - t0) * i / 4;
+                    g += '<text x="' + x(t) + '" y="' + (H - 8)
+                        + '" font-size="11" text-anchor="middle" fill="currentColor">' + fmt(t) + '</text>';
+                }
+                const path = pts.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join(' ');
+                svg.innerHTML = g + '<path d="' + path + '" fill="none" stroke="#4fc3f7" stroke-width="2"/>';
+                hint.textContent = pts.length + ' points (un point = ' + Math.round(d.bucket_s / 60)
+                    + ' min de mesures moyennées). Tension de l\'accu mesurée par la sonde, archivée sur la carte SD.';
+            }
+
+            function load() {
+                fetch('/api/battery?days=' + sel.value)
+                    .then(r => r.json()).then(draw)
+                    .catch(() => { hint.textContent = 'Lecture de la batterie impossible.'; });
+            }
+            sel.addEventListener('change', load);
+            load();
+            setInterval(load, 300000);
+        })();
 
         // --- Export ---
         document.getElementById('exportCsvBtn').addEventListener('click', () => {

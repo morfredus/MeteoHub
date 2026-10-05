@@ -54,19 +54,22 @@
                 .then(r => r.text())
                 .then(text => {
                     const container = document.getElementById('logContainer');
+                    // Ne recolle en bas que si on y etait deja : relire plus haut reste possible.
+                    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 40;
                     container.innerHTML = '';
                     const lines = text.split('\n');
                     lines.forEach(line => {
                         if(!line.trim()) return;
                         const div = document.createElement('div');
                         div.className = 'log-line';
-                        if(line.includes('[E]')) div.classList.add('log-E');
-                        else if(line.includes('[W]')) div.classList.add('log-W');
-                        else if(line.includes('[I]')) div.classList.add('log-I');
+                        if(line.includes('[ERROR]')) div.classList.add('log-E');
+                        else if(line.includes('[WARN]')) div.classList.add('log-W');
+                        else if(line.includes('[INFO]')) div.classList.add('log-I');
+                        else if(line.includes('[DEBUG]')) div.classList.add('log-D');
                         div.textContent = line;
                         container.appendChild(div);
                     });
-                    container.scrollTop = container.scrollHeight; // Auto scroll bottom
+                    if (atBottom) container.scrollTop = container.scrollHeight;
                 });
         }
         document.addEventListener('DOMContentLoaded', fetchLogs);
