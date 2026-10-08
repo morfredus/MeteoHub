@@ -509,7 +509,7 @@ void WebManager::_setupApi() {
         snprintf(buffer, sizeof(buffer),
             "{\"valid\":true,\"count\":%u,"
             "\"temp\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f},"
-            "\"hum\":{\"min\":%.0f,\"max\":%.0f,\"avg\":%.0f,\"first\":%.0f,\"last\":%.0f,\"delta\":%.0f},"
+            "\"hum\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f},"
             "\"pres\":{\"min\":%.1f,\"max\":%.1f,\"avg\":%.1f,\"first\":%.1f,\"last\":%.1f,\"delta\":%.1f}}",
             r.count,
             r.t_min, r.t_max, r.t_avg, r.t_first, r.t_last, r.t_last - r.t_first,
@@ -975,10 +975,10 @@ void WebManager::_setupApi() {
                 // 5e element = marques (cold_boot_rule.h), SEULEMENT si non nulles :
                 // une ligne normale reste [ts,t,h,p], lisible par tout client.
                 if (r.flags)
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f,%lu]",
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f,%lu]",
                              (unsigned long)r.ts, r.t, r.h, r.p, (unsigned long)r.flags);
                 else
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f]",
                              (unsigned long)r.ts, r.t, r.h, r.p);
                 response->print(buf);
                 COOPERATIVE_YIELD_EVERY(count, 32);
@@ -992,10 +992,10 @@ void WebManager::_setupApi() {
                 // 5e element = marques (cold_boot_rule.h), SEULEMENT si non nulles :
                 // une ligne normale reste [ts,t,h,p], lisible par tout client.
                 if (r.flags)
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f,%lu]",
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f,%lu]",
                              (unsigned long)r.ts, r.t, r.h, r.p, (unsigned long)r.flags);
                 else
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.0f,%.1f]",
+                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f]",
                              (unsigned long)r.ts, r.t, r.h, r.p);
                 response->print(buf);
                 // Rend la main régulièrement, comme le fait /api/history : sans
@@ -1075,7 +1075,7 @@ void WebManager::_setupApi() {
                     char buffer[160];
                     char tb[16], hb[16], pb[16];
                     if (pt.tvalid) snprintf(tb, sizeof(tb), "%.1f", pt.temp); else strcpy(tb, "null");
-                    if (pt.hvalid) snprintf(hb, sizeof(hb), "%.0f", pt.hum);  else strcpy(hb, "null");
+                    if (pt.hvalid) snprintf(hb, sizeof(hb), "%.1f", pt.hum);  else strcpy(hb, "null");
                     if (pt.pvalid) snprintf(pb, sizeof(pb), "%.1f", pt.pres); else strcpy(pb, "null");
                     snprintf(buffer, sizeof(buffer),
                         "{\"t\":%ld,\"temp\":%s,\"hum\":%s,\"pres\":%s}",
@@ -1140,7 +1140,7 @@ void WebManager::_setupApi() {
                 first = false;
 
                 char buffer[128];
-                snprintf(buffer, sizeof(buffer), "{\"t\":%ld,\"temp\":%.1f,\"hum\":%.0f,\"pres\":%.1f}",
+                snprintf(buffer, sizeof(buffer), "{\"t\":%ld,\"temp\":%.1f,\"hum\":%.1f,\"pres\":%.1f}",
                     bucket_end, sum_t / count, sum_h / count, sum_p / count);
                 response->print(buffer);
             }
@@ -1157,7 +1157,7 @@ void WebManager::_setupApi() {
 
                 const auto& record = full_history[i];
                 char buffer[128];
-                snprintf(buffer, sizeof(buffer), "{\"t\":%ld,\"temp\":%.1f,\"hum\":%.0f,\"pres\":%.1f}",
+                snprintf(buffer, sizeof(buffer), "{\"t\":%ld,\"temp\":%.1f,\"hum\":%.1f,\"pres\":%.1f}",
                     static_cast<long>(record.timestamp), record.t, record.h, record.p);
                 response->print(buffer);
             }

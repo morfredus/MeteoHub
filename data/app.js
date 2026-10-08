@@ -186,7 +186,7 @@ function updateStation(data) {
 
     // Héros : température/humidité extérieures effectives.
     setText('heroTemp', et.valid ? Number(et.value).toFixed(1) : '--');
-    setText('heroHum', eh.valid ? Number(eh.value).toFixed(0) : '--');
+    setText('heroHum', eh.valid ? Number(eh.value).toFixed(1) : '--');
 
     // Au boot, aucune trame OUT n'a encore été reçue : la valeur "out" éventuelle
     // vient d'un seed disque (ancienne), pas d'une mesure réelle. On la traite donc
@@ -232,7 +232,7 @@ function updateStation(data) {
     // PAS la valeur seedée depuis le disque : elle induirait en erreur.
     const outShow = outb.valid && !awaiting;
     setText('outTemp', outShow ? Number(outb.temp).toFixed(1) : '--');
-    setText('outHum', outShow ? Number(outb.hum).toFixed(0) : '--');
+    setText('outHum', outShow ? Number(outb.hum).toFixed(1) : '--');
     setText('outPres', (outShow && outb.pres > 300) ? Number(outb.pres).toFixed(0) : '--');
     const fresh = document.getElementById('outFreshness');
     if (fresh) {
@@ -288,7 +288,7 @@ function updateStation(data) {
 
     // Bloc IN (confort intérieur).
     setText('inTemp', inb.valid ? Number(inb.temp).toFixed(1) : '--');
-    setText('inHum', inb.valid ? Number(inb.hum).toFixed(0) : '--');
+    setText('inHum', inb.valid ? Number(inb.hum).toFixed(1) : '--');
 }
 
 async function fetchLive() {
@@ -344,9 +344,9 @@ function fillStatsTable(tbodyId, data) {
         </tr>
         <tr>
             <td>Humidité (%)</td>
-            <td>${data.hum.min.toFixed(0)}</td>
-            <td>${data.hum.avg.toFixed(0)}</td>
-            <td>${data.hum.max.toFixed(0)}</td>
+            <td>${data.hum.min.toFixed(1)}</td>
+            <td>${data.hum.avg.toFixed(1)}</td>
+            <td>${data.hum.max.toFixed(1)}</td>
         </tr>
         <tr>
             <td>Pression (hPa)</td>
@@ -534,7 +534,7 @@ function initHistoryPage() {
     // [clé, libellé, unité, décimales, couleur] : couleurs de morfAnalytics (thème sombre).
     const METRICS = [
         ['temp', 'Température', '°C', 1, '#e6a54e'],
-        ['hum', 'Humidité', '%', 0, '#7ee0b8'],
+        ['hum', 'Humidité', '%', 1, '#7ee0b8'],
         ['pres', 'Pression', 'hPa', 1, '#c58bf2']
     ];
     const METRIC_KEYS = METRICS.map((m) => m[0]);
@@ -1013,7 +1013,7 @@ function initHistoryPage() {
 
 const SYNTH_METRICS = [
     { key: 'temp', title: 'Température', unit: '°C', decimals: 1, eps: 0.1 },
-    { key: 'hum', title: 'Humidité', unit: '%', decimals: 0, eps: 0.5 },
+    { key: 'hum', title: 'Humidité', unit: '%', decimals: 1, eps: 0.1 },
     { key: 'pres', title: 'Pression', unit: 'hPa', decimals: 1, eps: 0.1 }
 ];
 

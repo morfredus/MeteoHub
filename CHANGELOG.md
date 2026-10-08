@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.59.1] - 2026-10-08
+
+### Changed
+
+- Humidity is now shown and served with one decimal everywhere: dashboard, history charts and tooltips,
+  statistics, trend and synthesis tables, system page, and the `/api` JSON (stats, history, long-term
+  buckets). It was rounded to a whole number. The probe sends full-precision floats and the DHT22
+  (now the probe's temperature and humidity reference) resolves 0.1 %. Stored data is unchanged.
+- The humidity trend threshold in the synthesis goes from 0.5 to 0.1. The OLED keeps whole percents.
+
 ## [1.59.0] - 2026-10-05
 
 ### Added

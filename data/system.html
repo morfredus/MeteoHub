@@ -347,7 +347,7 @@
         function fmtReading(t, h, p, seaLevel) {
             if (typeof t !== 'number') return '-';
             let s = t.toFixed(1) + ' °C';
-            if (typeof h === 'number') s += ' · ' + h.toFixed(0) + ' %';
+            if (typeof h === 'number') s += ' · ' + h.toFixed(1) + ' %';
             if (typeof p === 'number') s += ' · ' + p.toFixed(1) + ' hPa' + (seaLevel ? ' (niveau de la mer)' : ' (sur place)');
             return s;
         }
