@@ -183,10 +183,9 @@
             <h2>📡 Firmware de la sonde</h2>
             <div id="sfwState" class="ota-result info">Lecture...</div>
             <input id="sfwFile" type="file" accept=".bin" />
-            <input id="sfwVersion" type="text" placeholder="version, ex. 0.33.0" size="12" />
             <button id="sfwBtn" class="btn">Déposer sur le hub</button>
             <button id="sfwClear" class="btn">Retirer</button>
-            <div id="sfwResult" class="ota-result info">La sonde le récupère à son prochain réveil si sa version diffère.</div>
+            <div id="sfwResult" class="ota-result info">La version est lue dans le binaire. La sonde le récupère à son réveil si elle diffère.</div>
         </div>
 
         <!-- Accès aux outils système -->
@@ -607,7 +606,6 @@
             const st = document.getElementById('sfwState');
             const res = document.getElementById('sfwResult');
             const file = document.getElementById('sfwFile');
-            const ver = document.getElementById('sfwVersion');
             const say = (m, c) => { res.textContent = m; res.className = 'ota-result ' + c; };
             function refresh() {
                 fetch('/api/sensor-fw').then(r => r.json()).then(j => {
@@ -616,20 +614,15 @@
                         : 'Aucun firmware de sonde sur le hub : aucune mise à jour proposée.';
                 }).catch(() => { st.textContent = 'État indisponible'; });
             }
-            // La version se déduit du nom du fichier (ex. sonde-0.33.0.bin), modifiable.
-            file.addEventListener('change', () => {
-                const m = file.files[0] && file.files[0].name.match(/\d+\.\d+\.\d+/);
-                if (m) ver.value = m[0];
-            });
             document.getElementById('sfwBtn').addEventListener('click', () => {
-                if (!file.files[0] || !/^\d+\.\d+\.\d+$/.test(ver.value)) {
-                    say('Choisir un .bin et une version A.B.C', 'error');
+                if (!file.files[0]) {
+                    say('Choisir un .bin', 'error');
                     return;
                 }
                 const fd = new FormData();
                 fd.append('fw', file.files[0], file.files[0].name);
                 say('Envoi en cours...', 'info');
-                fetch('/api/sensor-fw/upload?version=' + encodeURIComponent(ver.value), { method: 'POST', body: fd })
+                fetch('/api/sensor-fw/upload', { method: 'POST', body: fd })
                     .then(r => r.json().then(j => ({ r, j })))
                     .then(({ r, j }) => { say(r.ok && j.ok ? '✅ Déposé' : '❌ ' + (j.message || 'échec'), r.ok && j.ok ? 'success' : 'error'); refresh(); })
                     .catch(() => say('❌ Erreur réseau', 'error'));

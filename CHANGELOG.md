@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.60.1] - 2026-10-10
+
+### Fixed
+
+- Probe firmware upload crashed the hub (reset reason PANIC): it was stored on LittleFS, which is only 384 KB on this
+  board, while a probe image is about 1 MB. It now lives on the SD card (`/sensor-fw.bin`, `/sensor-fw.meta`).
+  Upload refuses cleanly (HTTP 500 with a message) when the SD is missing.
+
+### Changed
+
+- The probe version is no longer typed: the hub reads the `MHSFW=<version>` tag embedded in the binary (probe 0.33.1+).
+  `POST /api/sensor-fw/upload` takes no `version` parameter any more.
+
 ## [1.60.0] - 2026-10-10
 
 ### Added

@@ -495,7 +495,7 @@ void setup() {
 
     // Lancement des modules principaux
     forecast.begin();
-    sensorFwStore.load();   // LittleFS est monte a ce stade
+    sensorFwStore.load();   // la carte SD est montee a ce stade
     webManager.begin(history, sdCard, forecast, sensors, analytics);
     wifi.servicesStarted(); // des maintenant, un retour du Wi-Fi relance mDNS/NTP
 

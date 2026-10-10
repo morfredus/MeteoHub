@@ -1277,11 +1277,11 @@ void WebManager::_setupApi() {
     });
 
     // --- Firmware de la SONDE (mise a jour OTA de la sonde par le hub) ---
-    // Le binaire est garde sur LittleFS ; la sonde le telecharge sur le SoftAP du hub quand
+    // Le binaire est garde sur la carte SD ; la sonde le telecharge sur le SoftAP du hub quand
     // elle declare une version differente (voir sensor_fw_store.h).
     _server.on("/sensor-fw.bin", HTTP_GET, [](AsyncWebServerRequest *request) {
         if (!sensorFwStore.present()) { request->send(404, "text/plain", "no sensor firmware"); return; }
-        request->send(LittleFS, SensorFwStore::BIN_PATH, "application/octet-stream");
+        request->send(SD, SensorFwStore::BIN_PATH, "application/octet-stream");
     });
     _server.on("/api/sensor-fw", HTTP_GET, [](AsyncWebServerRequest *request) {
         char buf[160];
@@ -1298,22 +1298,21 @@ void WebManager::_setupApi() {
         LOG_INFO("Sensor firmware removed (no more OTA offers)");
         request->send(200, "application/json", "{\"ok\":true}");
     });
-    // Televersement : POST multipart, ?version=A.B.C obligatoire (la sonde compare cette
-    // version a celle qu'elle declare ; le binaire lui-meme ne la porte pas de facon fiable).
+    // Televersement : POST multipart. La version est lue dans le binaire (balise MHSFW=).
     _server.on("/api/sensor-fw/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
         if (sensorFwStore.present()) {
             LOG_INFO(std::string("Sensor firmware stored: ") + sensorFwStore.version()
                      + " (" + std::to_string(sensorFwStore.size()) + " B)");
             request->send(200, "application/json", "{\"ok\":true}");
         } else {
-            request->send(500, "application/json",
-                          "{\"ok\":false,\"message\":\"upload failed (version A.B.C missing or flash full)\"}");
+            LOG_WARNING(std::string("Sensor firmware upload failed: ") + sensorFwStore.lastError());
+            request->send(500, "application/json", std::string("{\"ok\":false,\"message\":\"")
+                          .append(sensorFwStore.lastError()).append("\"}").c_str());
         }
-    }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-        (void)filename;
+    }, [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+        (void)request; (void)filename;
         if (index == 0) {
-            const String v = request->hasParam("version") ? request->getParam("version")->value() : String();
-            if (!sensorFwStore.beginUpload(v.c_str())) return;   // present() restera false -> 500
+            if (!_sd || !_sd->isAvailable() || !sensorFwStore.beginUpload()) return;   // present() reste false -> 500
         }
         if (!sensorFwStore.write(data, len)) { sensorFwStore.abortUpload(); return; }
         if (final) sensorFwStore.endUpload();
