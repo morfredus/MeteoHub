@@ -2,7 +2,7 @@
 
 *Read in another language: **English** (this document) · [Français](README.fr.md).*
 
-[![Version](https://img.shields.io/badge/version-1.60.2-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.61.1-blue)](CHANGELOG.md)
 
 > **Minimum supported version: 1.9.0**
 
@@ -88,4 +88,4 @@ To minimize the risk of data corruption:
 
 ### Configuration Notes
 
-`config.h` is compiled into the firmware; the web assets in `data/` are embedded at build time (`scripts/embed_web_files.py`). The effective configuration can be exported from the **System** page or via `GET /api/config/export`. Runtime settings such as NeoLED brightness are stored in NVS.
+`config.h` is compiled into the firmware; the web assets in `data/` are minified and embedded at build time (`scripts/embed_web_files.py`). The effective configuration can be exported from the **System** page or via `GET /api/config/export`. Runtime settings such as NeoLED brightness are stored in NVS.

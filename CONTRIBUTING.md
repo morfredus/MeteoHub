@@ -65,7 +65,10 @@ platformio device monitor           # console série
 
 Les assets Web sont générés dans `include/web_pages.h` par
 `scripts/embed_web_files.py`, exécuté automatiquement avant chaque compilation.
-Ne pas modifier le fichier généré : éditer les sources et recompiler.
+Les pages de `data/` y sont minifiées (`scripts/webmin.py`, sans dépendance, testé par
+`python scripts/test_webmin.py`) : on édite toujours les sources lisibles de `data/`.
+Le fichier généré n'est pas versionné et ne se modifie pas à la main. Pour déboguer le JavaScript
+dans le navigateur avec les sources lisibles : `NO_MINIFY=1 platformio run`.
 
 Les logs applicatifs et ceux du cœur ESP peuvent être diffusés en UDP pour un
 suivi sans fil (configuration dans `config.h`), ce qui évite de rester attaché

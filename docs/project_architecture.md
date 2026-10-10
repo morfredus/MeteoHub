@@ -8,7 +8,7 @@ Version minimale valide : 1.9.0
 - `src/managers/` : gestionnaires fonctionnels et orchestration (`web_manager`, `history_manager`, `sd_manager`, `wifi_manager`, `forecast_manager`, `ui_manager`)
 - `src/utils/` : utilitaires réutilisables (logs, infos système, yield coopératif)
 - `include/` : en-têtes de configuration protégés
-- `data/` : ressources de l'interface web (HTML/CSS/JS), embarquées dans le firmware au build (`scripts/embed_web_files.py` → `include/web_pages.h`)
+- `data/` : ressources de l'interface web (HTML/CSS/JS), minifiées puis embarquées dans le firmware au build (`scripts/embed_web_files.py` → `include/web_pages.h`, non versionné)
 
 ## Stockage de l'historique
 

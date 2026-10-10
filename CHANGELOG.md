@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.61.1] - 2026-10-11
+
+### Fixed
+
+- `data/graph_config.js` claimed to be "generated automatically at build time". No script produces it:
+  it is a static file edited by hand. The stale comment is replaced by an accurate one (the minifier
+  strips comments, so the embedded page is unchanged).
+
+## [1.61.0] - 2026-10-11
+
+### Changed
+
+- The web pages in `data/` are now minified at build time before being embedded: 130,541 bytes
+  down to 84,662 (35.1 %), i.e. 44,464 bytes of flash saved (88.8 % to 86.4 % used). `data/` stays
+  the readable source; `include/web_pages.h` stays generated and untracked.
+- `scripts/embed_web_files.py` only rewrites `include/web_pages.h` when its content changes (a second
+  build recompiles nothing), stops the build on error instead of printing it and carrying on with
+  missing pages, and honours `NO_MINIFY=1` to embed the readable sources when debugging.
+
+### Added
+
+- `scripts/webmin.py`: dependency-free HTML/CSS/JS minifier. It reads the source like a lexer (strings,
+  `${}` templates, regular expressions, comments), keeps a line break wherever it can matter (automatic
+  semicolon insertion), and returns the text unchanged when it cannot read it safely. `rjsmin` and
+  `rcssmin` are used instead when installed.
+- `scripts/test_webmin.py`: runs 18 tricky JavaScript snippets in Node before and after minification and
+  compares the output, plus CSS and HTML structure checks.
+
+### Notes
+
+- Checked on the real pages: every script (`.js` files and inline scripts) passes `node --check`; the
+  original and minified `index`, `system` and `ota` pages give identical displayed text and computed
+  styles in a browser.
+
 ## [1.60.2] - 2026-10-10
 
 ### Changed

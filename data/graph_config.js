@@ -1,5 +1,4 @@
-// Ce fichier est généré automatiquement lors du build.
-// Il expose les valeurs min/max des graphiques pour l'UI web.
+// Valeurs min/max des graphiques pour l'UI web (fichier statique, édité à la main).
 window.GRAPH_CONFIG = {
     temp_min: -10.0,
     temp_max: 40.0,

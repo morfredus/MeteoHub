@@ -2,7 +2,7 @@
 
 *Lire dans une autre langue : [English](README.md) · **Français** (ce document).*
 
-[![Version](https://img.shields.io/badge/version-1.60.2-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.61.1-blue)](CHANGELOG.md)
 
 > **Version minimale valide : 1.9.0**
 
@@ -55,4 +55,4 @@ Pour éviter toute corruption, assurez-vous que :
 
 ---
 
-`config.h` est compilé dans le firmware ; les ressources web de `data/` sont embarquées au build (`scripts/embed_web_files.py`). La configuration effective peut être exportée depuis la page **Système** ou via `GET /api/config/export`. Les réglages d'exécution (ex. luminosité de la NeoLED) sont conservés en NVS.
+`config.h` est compilé dans le firmware ; les ressources web de `data/` sont minifiées puis embarquées au build (`scripts/embed_web_files.py`). La configuration effective peut être exportée depuis la page **Système** ou via `GET /api/config/export`. Les réglages d'exécution (ex. luminosité de la NeoLED) sont conservés en NVS.
