@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.60.2] - 2026-10-10
+
+### Changed
+
+- The probe firmware is removed from the hub automatically as soon as a live frame reports exactly that version (the
+  update is done). The "Retirer" button stays for cancelling an offer that is still pending.
+
 ## [1.60.1] - 2026-10-10
 
 ### Fixed

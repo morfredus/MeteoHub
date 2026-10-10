@@ -367,6 +367,13 @@ void setup() {
             SyncControl reply = d.reply;
             // Mise a jour OTA de la sonde : un firmware different de celui qu'elle declare est
             // stocke ici. Le SyncControl l'annonce (drapeau), l'offre suit juste apres.
+            // Version confirmee par la sonde : le binaire n'a plus d'utilite, on l'efface (il ne
+            // sera pas reproposé a une sonde repassee a une autre version).
+            if (outdoor.frame_type == FRAME_LIVE && sensorFwStore.confirmedBy(outdoor.fw_version)) {
+                LOG_INFO("[OTA] sonde " + shortMac(outdoor.src_mac) + " confirme la version "
+                         + sensorFwStore.version() + " : firmware retire du hub");
+                sensorFwStore.clear();
+            }
             OtaOffer offer;
             const bool offerNow = outdoor.frame_type == FRAME_LIVE
                 && sensorFwStore.makeOffer(outdoor.fw_version, nodeId, offer);
