@@ -183,6 +183,13 @@ bool EspNowReceiver::sendControl(SyncControl& ctrl, const uint8_t* mac) {
     return true;
 }
 
+bool EspNowReceiver::sendOffer(OtaOffer& offer, const uint8_t* mac) {
+    if (!_initialized || mac == nullptr || !ensurePeer(mac)) return false;
+    sealOtaOffer(offer);
+    delay(20);
+    return esp_now_send(mac, reinterpret_cast<const uint8_t*>(&offer), sizeof(OtaOffer)) == ESP_OK;
+}
+
 void EspNowReceiver::update() {
     const bool wifiUp = (WiFi.status() == WL_CONNECTED);
 

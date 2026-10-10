@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.60.0] - 2026-10-10
+
+### Added
+
+- **OTA update of the probe.** System page, new "Firmware de la sonde" card: upload the probe `.bin` with its
+  version (deduced from the file name). The hub keeps it on LittleFS and serves it at `/sensor-fw.bin` on its
+  SoftAP. When a probe reports a different `fw_version`, the `SyncControl` reply is flagged
+  (`SYNC_FLAG_OTA_OFFER`) and an `OtaOffer` (version, size, MD5) is sent right after; the probe then downloads and
+  flashes the image by itself. API: `GET /api/sensor-fw`, `POST /api/sensor-fw/upload?version=A.B.C`,
+  `POST /api/sensor-fw/clear`. Remove the firmware to stop offering it.
+- `meteo_packet.h` (shared with the probe): `OtaOffer` frame (`'M','O'`). Backward compatible both ways, no
+  protocol version bump: an older probe ignores the flag and the frame.
+
 ## [1.59.1] - 2026-10-08
 
 ### Changed

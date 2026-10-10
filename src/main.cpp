@@ -20,6 +20,7 @@
 #include "cold_boot_rule.h"
 #include "modules/calibration_store.h"
 #include "modules/espnow_receiver.h"
+#include "modules/sensor_fw_store.h"
 #include "modules/meteo_sync_service.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
 #include "config.h"
@@ -42,6 +43,7 @@ HistoryManager history;
 SdManager sdCard;
 AnalyticsBeacon analytics;
 EspNowReceiver espNowReceiver;
+SensorFwStore sensorFwStore;   // firmware de la sonde servi pour son OTA
 mhsync::MeteoSyncService meteoSync; // suivi reception / dedup / horodatage / voie inverse (v3)
 
 // Annonce de presence sur le LAN (protocole morfbeacon/1). MeteoHub ECOUTAIT
@@ -363,7 +365,18 @@ void setup() {
         bool replySent = false;
         if (d.haveReply) {
             SyncControl reply = d.reply;
+            // Mise a jour OTA de la sonde : un firmware different de celui qu'elle declare est
+            // stocke ici. Le SyncControl l'annonce (drapeau), l'offre suit juste apres.
+            OtaOffer offer;
+            const bool offerNow = outdoor.frame_type == FRAME_LIVE
+                && sensorFwStore.makeOffer(outdoor.fw_version, nodeId, offer);
+            if (offerNow) reply.want_count |= SYNC_FLAG_OTA_OFFER;
             replySent = espNowReceiver.sendControl(reply, outdoor.src_mac);
+            if (offerNow && replySent) {
+                const bool sent = espNowReceiver.sendOffer(offer, outdoor.src_mac);
+                LOG_INFO("[OTA] offre " + std::string(sensorFwStore.version()) + " envoyee a la sonde "
+                         + shortMac(outdoor.src_mac) + (sent ? "" : " (ECHEC d'envoi)"));
+            }
         }
 
         // 3) Premiere mesure LIVE apres un demarrage a froid de la sonde (reset
@@ -482,6 +495,7 @@ void setup() {
 
     // Lancement des modules principaux
     forecast.begin();
+    sensorFwStore.load();   // LittleFS est monte a ce stade
     webManager.begin(history, sdCard, forecast, sensors, analytics);
     wifi.servicesStarted(); // des maintenant, un retour du Wi-Fi relance mDNS/NTP
 

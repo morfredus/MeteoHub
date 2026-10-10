@@ -43,6 +43,11 @@ public:
     // ack_seq/want_*.
     bool sendControl(SyncControl& ctrl, const uint8_t* mac);
 
+    // Offre de mise a jour OTA a la sonde `mac`, a envoyer APRES le SyncControl qui portait
+    // SYNC_FLAG_OTA_OFFER. Bloque ~20 ms (laisse l'envoi precedent se terminer : ESP-NOW n'aime
+    // pas deux esp_now_send serres), ce qui reste bien dans la fenetre d'attente de la sonde.
+    bool sendOffer(OtaOffer& offer, const uint8_t* mac);
+
     uint32_t getPacketsReceived() const { return _packetsReceived; }
     uint32_t getPacketsValid() const { return _packetsValid; }
     uint32_t getPacketsInvalid() const { return _packetsInvalid; }

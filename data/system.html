@@ -178,6 +178,17 @@
             <div id="otaResult" class="ota-result info">En attente d'un fichier...</div>
         </div>
 
+        <!-- Firmware de la sonde (OTA de la sonde par le hub) -->
+        <div class="card ota-card">
+            <h2>📡 Firmware de la sonde</h2>
+            <div id="sfwState" class="ota-result info">Lecture...</div>
+            <input id="sfwFile" type="file" accept=".bin" />
+            <input id="sfwVersion" type="text" placeholder="version, ex. 0.33.0" size="12" />
+            <button id="sfwBtn" class="btn">Déposer sur le hub</button>
+            <button id="sfwClear" class="btn">Retirer</button>
+            <div id="sfwResult" class="ota-result info">La sonde le récupère à son prochain réveil si sa version diffère.</div>
+        </div>
+
         <!-- Accès aux outils système -->
         <div class="card sys-card">
             <h2>🛠️ Outils</h2>
@@ -590,6 +601,44 @@
 
             xhr.send(formData);
         });
+
+        // --- Firmware de la sonde ---
+        (function setupSensorFw() {
+            const st = document.getElementById('sfwState');
+            const res = document.getElementById('sfwResult');
+            const file = document.getElementById('sfwFile');
+            const ver = document.getElementById('sfwVersion');
+            const say = (m, c) => { res.textContent = m; res.className = 'ota-result ' + c; };
+            function refresh() {
+                fetch('/api/sensor-fw').then(r => r.json()).then(j => {
+                    st.textContent = j.present
+                        ? 'Sur le hub : ' + j.version + ' (' + j.size + ' o, md5 ' + j.md5.slice(0, 8) + '…)'
+                        : 'Aucun firmware de sonde sur le hub : aucune mise à jour proposée.';
+                }).catch(() => { st.textContent = 'État indisponible'; });
+            }
+            // La version se déduit du nom du fichier (ex. sonde-0.33.0.bin), modifiable.
+            file.addEventListener('change', () => {
+                const m = file.files[0] && file.files[0].name.match(/\d+\.\d+\.\d+/);
+                if (m) ver.value = m[0];
+            });
+            document.getElementById('sfwBtn').addEventListener('click', () => {
+                if (!file.files[0] || !/^\d+\.\d+\.\d+$/.test(ver.value)) {
+                    say('Choisir un .bin et une version A.B.C', 'error');
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('fw', file.files[0], file.files[0].name);
+                say('Envoi en cours...', 'info');
+                fetch('/api/sensor-fw/upload?version=' + encodeURIComponent(ver.value), { method: 'POST', body: fd })
+                    .then(r => r.json().then(j => ({ r, j })))
+                    .then(({ r, j }) => { say(r.ok && j.ok ? '✅ Déposé' : '❌ ' + (j.message || 'échec'), r.ok && j.ok ? 'success' : 'error'); refresh(); })
+                    .catch(() => say('❌ Erreur réseau', 'error'));
+            });
+            document.getElementById('sfwClear').addEventListener('click', () => {
+                fetch('/api/sensor-fw/clear', { method: 'POST' }).then(() => { say('Retiré', 'info'); refresh(); });
+            });
+            refresh();
+        })();
 
         // --- Vider l'historique (action destructive, double confirmation) ---
         (function setupClearHistory() {
