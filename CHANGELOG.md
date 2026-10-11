@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.61.2] - 2026-10-12
+
+### Fixed
+
+- Feed the task watchdog while `/api/battery` reads the monthly battery CSV files on the SD
+  card. A long range (several months) ran inside the async_tcp task without yielding and could
+  trigger a `TASK_WDT` reboot.
+
 ## [1.61.1] - 2026-10-11
 
 ### Fixed

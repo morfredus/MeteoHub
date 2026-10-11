@@ -1,6 +1,7 @@
 #include "battery_log.h"
 #include "../managers/sd_manager.h"
 #include "../utils/logs.h"
+#include "../utils/cooperative_yield.h"
 #include <SD.h>
 
 BatteryLog batteryLog;
@@ -65,7 +66,12 @@ std::vector<mhbat::Point> BatteryLog::query(time_t from, time_t to, uint32_t& bu
         File f = SD.open(path, FILE_READ);
         if (f) {
             char line[64];
+            size_t lines = 0;
             while (f.available()) {
+                // Appelee depuis la tache async_tcp (/api/battery) : une plage longue relit
+                // plusieurs mois de CSV, il faut nourrir le task watchdog (sinon TASK_WDT).
+                COOPERATIVE_YIELD_EVERY(lines, 32);
+                lines++;
                 const size_t n = f.readBytesUntil('\n', line, sizeof(line) - 1);
                 line[n] = 0;
                 uint32_t ts; float v, p;
