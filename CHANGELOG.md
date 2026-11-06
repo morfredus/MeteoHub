@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.61.4] - 2026-11-06
+
+### Fixed
+
+- While the SD card is unavailable the hub no longer acknowledges probe frames. An acknowledgement makes the
+  probe delete the measurement, and with no card the archive was lost. The probe now keeps its backlog and resends
+  it once the card is back. The live display still updates.
+
 ## [1.61.3] - 2026-11-06
 
 ### Fixed

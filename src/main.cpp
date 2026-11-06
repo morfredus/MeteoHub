@@ -331,6 +331,21 @@ void setup() {
             return;
         }
 
+        // SD indisponible : on n'accuse RIEN. Un accuse fait effacer la mesure du buffer
+        // de la sonde ; si l'archive echoue, elle serait perdue (constate le 2026-11-06).
+        // Sans accuse, la sonde la garde et la renvoie quand la carte est de retour.
+        // L'affichage live reste alimente (valeur courante), sans archive ni accuse.
+        if (!sdCard.isAvailable()) {
+            if (outdoor.frame_type == FRAME_LIVE) history.refreshOutdoorLive(outdoor);
+            g_lastOutFrameMs = millis(); // la sonde est entendue : pas de faux silence
+            static unsigned long lastNoSdLog = 0;
+            if (lastNoSdLog == 0 || millis() - lastNoSdLog > 600000UL) {
+                lastNoSdLog = millis();
+                LOG_WARNING("[OUT] SD indisponible : trame non accusee (la sonde la conserve)");
+            }
+            return;
+        }
+
         // Sonde associee entendue : fin d'un eventuel silence, trace du retour.
         if (g_silenceActive) {
             LOG_INFO("[OUT] sonde " + shortMac(outdoor.src_mac) + " de retour apres "
