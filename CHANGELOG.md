@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.61.3] - 2026-11-06
+
+### Fixed
+
+- A probe silent for 11+ minutes now makes the hub re-initialise its ESP-NOW receiver (it had stayed
+  deaf for 24 h while the Wi-Fi was fine).
+- A SD card that stays "mounted" while every access fails (`/history` unreadable) is now detected
+  every minute and remounted, instead of silently dropping all history writes until the next reboot.
+
 ## [1.61.2] - 2026-10-12
 
 ### Fixed

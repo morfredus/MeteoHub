@@ -82,6 +82,9 @@ static void outSilenceWatch() {
     if (g_silenceActive && now - g_lastSilenceLogMs < OUT_SILENCE_REMIND_MS) return;
     g_silenceActive = true;
     g_lastSilenceLogMs = now;
+    // Auto-reparation : un recepteur ESP-NOW peut rester fige sans erreur visible.
+    // begin() fait deinit/init propre ; sans effet si la sonde est reellement muette.
+    espNowReceiver.begin();
     LOG_WARNING("[OUT] silence de la sonde " + shortMac(meteoSync.associatedMac()) + " depuis "
                 + std::to_string(silent / 60000UL) + " min : canal radio="
                 + std::to_string(espNowReceiver.getWifiChannel())
@@ -566,6 +569,7 @@ void loop() {
     analytics.update();
     espNowReceiver.update();
     outSilenceWatch();
+    sdCard.healthCheck();
     // Notification « accu à changer » : vide si morfNotify n'est pas sur le réseau
     // (ou écosystème neutralisé), auquel cas rien ne part.
     batteryAlert.update(analytics.notifyUrl());

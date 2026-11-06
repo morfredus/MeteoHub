@@ -221,6 +221,25 @@ bool SdManager::ensureMounted() {
     return false;
 }
 
+// Une carte marginale peut rester "montee" (cardType en cache) alors que toute E/S
+// echoue : sans cette sonde, le hub n'ecrivait plus rien jusqu'au prochain reboot.
+void SdManager::healthCheck() {
+    static unsigned long lastMs = 0;
+    const unsigned long now = millis();
+    if (!_available || now - lastMs < 60000UL) return;
+    lastMs = now;
+    bool ok;
+    {
+        std::lock_guard<std::mutex> lock(_sd_mutex);
+        ok = SD.exists("/history");
+    }
+    if (ok) return;
+    LOG_WARNING("SD: /history illisible, carte marquee absente (remontage)");
+    std::lock_guard<std::mutex> lock(_sd_mutex);
+    _available = false;
+    SD.end();
+}
+
 bool SdManager::format() {
     LOG_WARNING("=== SD Format ===");
 #if !SD_CARD_ENABLED

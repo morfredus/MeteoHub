@@ -14,6 +14,9 @@ public:
     bool format();
     bool isAvailable();
     bool ensureMounted();
+    // Sonde periodique (loop) : carte "montee" mais /history illisible = E/S en echec.
+    // Marque la SD absente pour que ensureMounted() la remonte.
+    void healthCheck();
 
 private:
     bool _available = false;
