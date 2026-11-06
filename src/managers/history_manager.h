@@ -197,7 +197,6 @@ public:
     
     // Nouvelles méthodes explicites IN/OUT
     void addIndoor(const IndoorData& data);
-    void addOutdoor(const OutdoorData& data);
 
     // --- Synchronisation fiable (v3) : archivage horodate a l'heure de MESURE --
     // addOutdoorLive : trame courante reçue en direct. Met à jour la valeur

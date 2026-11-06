@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.61.7] - 2026-11-07
+
+### Fixed
+
+- The "do not acknowledge while the SD card is unavailable" guard is compiled out in builds without an SD card
+  (`SD_CARD_ENABLED=0`), where it would have stopped every acknowledgement.
+
+## [1.61.6] - 2026-11-07
+
+### Fixed
+
+- `/api/system` no longer calls `SD.usedBytes()`. It walks the whole FAT when the card's free-space hint is
+  unusable, which takes more than 5 s on a 16 GB FAT32 card, inside the `async_tcp` task (the page footer calls
+  this route on every page): `TASK_WDT` reboot. The `sd_card.used_b` field is gone (nothing read it).
+
+### Changed
+
+- The boot log line now shows the firmware version next to the reset reason.
+
+## [1.61.5] - 2026-11-07
+
+### Fixed
+
+- `/api/logs` streams the log ring in chunks instead of copying ~30 KB into one growing RAM buffer. The Logs
+  page polls every 5 s, and that buffer could fail to allocate in the `async_tcp` task and reboot the hub.
+- "Clear logs" now really empties the RAM log ring (it used to delete a `/logs.txt` that never exists).
+
+### Removed
+
+- Unused `HistoryManager::addOutdoor` and a duplicated `/logs` page route (now a redirect).
+
 ## [1.61.4] - 2026-11-06
 
 ### Fixed

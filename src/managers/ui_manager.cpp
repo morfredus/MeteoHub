@@ -14,19 +14,11 @@ namespace {
     constexpr unsigned long UI_MESSAGE_LONG_MS = 2000;
 }
 
-// Implémentation de la méthode clearLogs
+// Vide l'anneau de logs en RAM (celui que lit /api/logs). Il n'existe pas de fichier
+// de logs persistant : l'ancien code supprimait un /logs.txt jamais cree.
 void UiManager::clearLogs() {
+    ::clearLogs();
     LOG_INFO("User requested log clear");
-    
-    // Si vos logs sont stockés dans un fichier sur LittleFS
-    if (LittleFS.exists("/logs.txt")) {
-        LittleFS.remove("/logs.txt");
-        LOG_INFO("File /logs.txt removed");
-    }
-    
-    // Si votre système de logs global (utils/logs.h) a une fonction de reset en RAM, appelez-la ici.
-    // Exemple hypothétique : resetLogBuffer(); 
-    // Pour l'instant, on se contente de supprimer le fichier persistant.
 }
 
 void UiManager::showTransientMessage(UiTransientMessageType messageType, unsigned long durationMs) {

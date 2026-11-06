@@ -34,7 +34,10 @@ std::string getSystemInfoJson(SdManager* sd) {
     if (sd && sd->isAvailable()) {
         JsonObject fs_sd = doc.createNestedObject("sd_card");
         fs_sd["total_b"] = SD.totalBytes();
-        fs_sd["used_b"] = SD.usedBytes();
+        // Pas de used_b : SD.usedBytes() fait un f_getfree, qui parcourt toute la FAT quand
+        // l'info de la carte n'est pas fiable. Sur 16 Go en FAT32 cela depasse 5 s dans la
+        // tache async_tcp (footer.js appelle /api/system a CHAQUE page) : TASK_WDT.
+        // Personne ne lit ce champ ; sur les 34 Mo de l'ancienne partition le scan etait instantane.
         fs_sd["size_mb"] = (uint32_t)(SD.cardSize() / (1024 * 1024));
     } else {
         doc["sd_card"] = "not_mounted";

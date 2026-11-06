@@ -12,6 +12,8 @@ extern SensorFwStore sensorFwStore;   // defini dans main.cpp
 #include <cstring>
 #include <Arduino.h>
 #include "utils/logs.h"
+#include <memory>
+#include <algorithm>
 #include "utils/system_info.h"
 #include "utils/cooperative_yield.h"
 #include "../third_party/morf/beacon-arduino/morfbeacon_emitter.h"
@@ -274,16 +276,31 @@ void WebManager::_setupRoutes() {
         request->redirect("/files.html?fs=sd");
     });
     _server.on("/logs", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(200, "text/html", web_logs_html);
+        request->redirect("/logs.html");
     });
     
+    // Flux par morceaux : l'anneau (300 lignes, ~30 Ko) n'est plus recopie d'un bloc
+    // en RAM. L'ancien AsyncResponseStream grossissait un tampon contigu a chaque
+    // sondage (toutes les 5 s) dans la tache async_tcp : tas fragmente = allocation
+    // en echec = reboot en ouvrant la page Logs. Ici un seul tampon de TCP a la fois.
     _server.on("/api/logs", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("text/plain");
-        int count = getLogCount();
-        for (int i = 0; i < count; i++) {
-            response->println(getLog(i).c_str());
-        }
-        request->send(response);
+        auto next = std::make_shared<int>(0);          // prochaine ligne a servir
+        auto rest = std::make_shared<std::string>();   // fin de ligne pas encore envoyee
+        request->send(request->beginChunkedResponse("text/plain",
+            [next, rest](uint8_t *buf, size_t maxLen, size_t) -> size_t {
+                size_t n = 0;
+                while (n < maxLen) {
+                    if (rest->empty()) {
+                        if (*next >= getLogCount()) break;
+                        *rest = getLog((*next)++) + '\n';
+                    }
+                    const size_t k = std::min(maxLen - n, rest->size());
+                    memcpy(buf + n, rest->data(), k);
+                    rest->erase(0, k);
+                    n += k;
+                }
+                return n; // 0 = fin de reponse
+            }));
     });
 
     _server.onNotFound([](AsyncWebServerRequest *request) {

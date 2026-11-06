@@ -2,7 +2,7 @@
 #include <LittleFS.h>
 #include <SD.h>
 #include "../utils/logs.h"
-#include "../utils/cooperative_yield.h" // INCLUSION AJOUTÉE
+#include "../utils/cooperative_yield.h"
 #include "../modules/meteo_context.h"
 #include <time.h>
 #include <inttypes.h>
@@ -286,11 +286,6 @@ static OutdoorHistoryRecord makeOutdoorRecord(const OutdoorData& data, time_t ts
     record.solar_lux = data.solar_lux;
     record.uv_index = data.uv_index;
     return record;
-}
-
-// Compat : ancien point d'entrée, traité comme une trame live datée « maintenant ».
-void HistoryManager::addOutdoor(const OutdoorData& data) {
-    addOutdoorLive(data, time(NULL));
 }
 
 void HistoryManager::addOutdoorLive(const OutdoorData& data, time_t measurementTs) {

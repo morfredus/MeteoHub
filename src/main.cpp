@@ -132,7 +132,7 @@ void setup() {
     // Raison du dernier redemarrage DU HUB : TASK_WDT/INT_WDT/PANIC = plantage
     // firmware, USB = moniteur serie qui s'est reconnecte, POWERON = alimentation,
     // SW = redemarrage volontaire (OTA, garde-fou heap).
-    LOG_INFO(std::string("Hub reset reason: ") + resetReasonName((uint8_t)esp_reset_reason()));
+    LOG_INFO(std::string("Hub v" PROJECT_VERSION " reset reason: ") + resetReasonName((uint8_t)esp_reset_reason()));
 
 #if defined(ESP32_S3_OLED)
     static OledDisplay oled;
@@ -335,6 +335,7 @@ void setup() {
         // de la sonde ; si l'archive echoue, elle serait perdue (constate le 2026-11-06).
         // Sans accuse, la sonde la garde et la renvoie quand la carte est de retour.
         // L'affichage live reste alimente (valeur courante), sans archive ni accuse.
+#if SD_CARD_ENABLED // build de test sans SD : rien a proteger, on accuse comme avant
         if (!sdCard.isAvailable()) {
             if (outdoor.frame_type == FRAME_LIVE) history.refreshOutdoorLive(outdoor);
             g_lastOutFrameMs = millis(); // la sonde est entendue : pas de faux silence
@@ -345,6 +346,7 @@ void setup() {
             }
             return;
         }
+#endif
 
         // Sonde associee entendue : fin d'un eventuel silence, trace du retour.
         if (g_silenceActive) {

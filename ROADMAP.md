@@ -27,6 +27,12 @@ lourdes, sans jamais écrire en retour.
   ESP32 dérive. Documenter ce contrat côté MeteoHub éviterait qu'une évolution
   du format binaire le casse silencieusement.
 
+- **Alerte de silence de la sonde via morfNotify.** Une panne de réception a passé
+  une journée sans être vue (2026-11-05 au 2026-11-06) : le hub n'écrivait qu'un
+  avertissement dans son journal. Envoyer une notification à morfNotify après environ
+  30 minutes de silence de la sonde associée, et une notification de retour, sur le
+  modèle de l'alerte de batterie.
+
 - **Tests des formules et du format binaire.** L'en-tête de fichier assure déjà
   une compatibilité ascendante ; un test de relecture d'un fichier de référence
   figerait cette garantie.
