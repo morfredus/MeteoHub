@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/) (the `VERSION`
 file at the repository root).
 
+## [1.61.8] - 2026-11-07
+
+### Fixed
+
+- `/api/system`: `SD.totalBytes()` also calls `f_getfree()`, so the 1.61.6 fix still allowed the FAT scan. The
+  route now uses `SD.cardSize()`.
+- The SD health check no longer unmounts a healthy card whose `/history` folder does not exist yet (new card, or
+  folder deleted from the Files page). It now only unmounts when the folder can neither be found nor created.
+
 ## [1.61.7] - 2026-11-07
 
 ### Fixed

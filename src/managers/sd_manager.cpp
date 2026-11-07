@@ -228,12 +228,11 @@ void SdManager::healthCheck() {
     const unsigned long now = millis();
     if (!_available || now - lastMs < 60000UL) return;
     lastMs = now;
-    bool ok;
-    {
-        std::lock_guard<std::mutex> lock(_sd_mutex);
-        ok = SD.exists("/history");
-    }
-    if (ok) return;
+    // Test d'E/S reelle : ensureHistoryDirectory() ne renvoie false que si le dossier est
+    // absent ET impossible a creer. Tester seulement exists() demontait une carte saine
+    // dont /history n'etait pas encore cree (carte neuve) ou venait d'etre supprime.
+    // Il prend lui-meme le mutex (non recursif) : l'appeler hors verrou.
+    if (ensureHistoryDirectory()) return;
     LOG_WARNING("SD: /history illisible, carte marquee absente (remontage)");
     std::lock_guard<std::mutex> lock(_sd_mutex);
     _available = false;

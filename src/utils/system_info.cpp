@@ -33,7 +33,8 @@ std::string getSystemInfoJson(SdManager* sd) {
 
     if (sd && sd->isAvailable()) {
         JsonObject fs_sd = doc.createNestedObject("sd_card");
-        fs_sd["total_b"] = SD.totalBytes();
+        // cardSize() et non totalBytes() : ce dernier appelle aussi f_getfree (parcours de la FAT).
+        fs_sd["total_b"] = (uint64_t)SD.cardSize();
         // Pas de used_b : SD.usedBytes() fait un f_getfree, qui parcourt toute la FAT quand
         // l'info de la carte n'est pas fiable. Sur 16 Go en FAT32 cela depasse 5 s dans la
         // tache async_tcp (footer.js appelle /api/system a CHAQUE page) : TASK_WDT.

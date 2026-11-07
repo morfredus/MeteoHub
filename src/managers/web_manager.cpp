@@ -283,6 +283,7 @@ void WebManager::_setupRoutes() {
     // en RAM. L'ancien AsyncResponseStream grossissait un tampon contigu a chaque
     // sondage (toutes les 5 s) dans la tache async_tcp : tas fragmente = allocation
     // en echec = reboot en ouvrant la page Logs. Ici un seul tampon de TCP a la fois.
+    // Limite connue : si l'anneau tourne pendant la lecture, une ligne peut etre sautee (cosmetique).
     _server.on("/api/logs", HTTP_GET, [](AsyncWebServerRequest *request) {
         auto next = std::make_shared<int>(0);          // prochaine ligne a servir
         auto rest = std::make_shared<std::string>();   // fin de ligne pas encore envoyee
