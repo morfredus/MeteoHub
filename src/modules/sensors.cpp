@@ -140,7 +140,17 @@ SensorData SensorManager::read() {
         if (_consecutiveFailures >= SENSOR_RECOVER_AFTER) recoverBus();
     }
 
+    portENTER_CRITICAL(&_cacheMux);
+    _cache = data;
+    portEXIT_CRITICAL(&_cacheMux);
     return data;
+}
+
+SensorData SensorManager::cached() const {
+    portENTER_CRITICAL(&_cacheMux);
+    const SensorData d = _cache;
+    portEXIT_CRITICAL(&_cacheMux);
+    return d;
 }
 
 //

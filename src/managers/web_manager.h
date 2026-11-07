@@ -2,6 +2,7 @@
 #define WEB_MANAGER_H
 
 #include <Arduino.h>
+#include <FS.h>
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 #include "config.h"
@@ -28,6 +29,10 @@ private:
     AnalyticsBeacon* _analytics = nullptr;
 
     bool _ota_upload_error = false;
+    bool _ota_upload_done = false;   // un firmware complet a ete recu (sinon pas de reboot)
+    // Televersement de fichier en cours (/api/files/upload) : un seul a la fois.
+    File _fsUploadFile;
+    const void* _uploadOwner = nullptr;
     unsigned long _ota_restart_at_ms = 0;
 };
 

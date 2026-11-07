@@ -123,12 +123,35 @@ void ForecastManager::update() {
     }
 }
 
+bool ForecastManager::alertSnapshot(Alert& out) const {
+    std::lock_guard<std::mutex> lock(_alertMutex);
+    out = alert;
+    return alert_active;
+}
+
 void ForecastManager::parseResponse(const std::string& payload) {
-    DynamicJsonDocument doc(8192); // Allocate enough memory for the response
-    DeserializationError error = deserializeJson(doc, payload.c_str());
+    // Filtre ArduinoJson : seules les 2 previsions utiles et les champs d'alerte sont
+    // gardes en memoire. Sans lui, 8 jours de previsions + des alertes aux descriptions
+    // longues depassaient les 8 Ko du document (analyse en echec des qu'une vigilance
+    // etait active).
+    StaticJsonDocument<512> filter;
+    JsonObject fd = filter["daily"].createNestedObject();
+    fd["temp"]["min"] = true;
+    fd["temp"]["max"] = true;
+    fd["weather"][0]["description"] = true;
+    JsonObject fa = filter["alerts"].createNestedObject();
+    fa["sender_name"] = true;
+    fa["event"] = true;
+    fa["description"] = true;
+    fa["start"] = true;
+    fa["end"] = true;
+
+    DynamicJsonDocument doc(12288);
+    DeserializationError error = deserializeJson(doc, payload.c_str(),
+                                                 DeserializationOption::Filter(filter));
 
     if (error) {
-        LOG_ERROR("JSON parse err");
+        LOG_ERROR(std::string("JSON parse err: ") + error.c_str());
         return;
     }
 
@@ -136,7 +159,7 @@ void ForecastManager::parseResponse(const std::string& payload) {
     JsonObject daily_0 = doc["daily"][0];
     today.temp_min = daily_0["temp"]["min"];
     today.temp_max = daily_0["temp"]["max"];
-    today.description = daily_0["weather"][0]["description"].as<const char*>();
+    today.description = daily_0["weather"][0]["description"] | "";
     if (!today.description.empty()) {
         today.description[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(today.description[0])));
     }
@@ -145,7 +168,7 @@ void ForecastManager::parseResponse(const std::string& payload) {
     JsonObject daily_1 = doc["daily"][1];
     tomorrow.temp_min = daily_1["temp"]["min"];
     tomorrow.temp_max = daily_1["temp"]["max"];
-    tomorrow.description = daily_1["weather"][0]["description"].as<const char*>();
+    tomorrow.description = daily_1["weather"][0]["description"] | "";
     if (!tomorrow.description.empty()) {
         tomorrow.description[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(tomorrow.description[0])));
     }
@@ -153,8 +176,6 @@ void ForecastManager::parseResponse(const std::string& payload) {
     // Alerts
     JsonArray alerts = doc["alerts"].as<JsonArray>();
     if (!alerts.isNull() && alerts.size() > 0) {
-        alert_active = true;
-
         int bestScore = -1;
         std::string bestSender;
         std::string bestEvent;
@@ -188,13 +209,17 @@ void ForecastManager::parseResponse(const std::string& payload) {
             index++;
         }
 
+        // Remplacement sous verrou : les pages web lisent alertSnapshot().
+        std::lock_guard<std::mutex> lock(_alertMutex);
         alert.sender = bestSender;
         alert.event = bestEvent;
         alert.description = bestDescription;
         alert.severity = bestSeverity;
         alert.start_unix = bestStartUnix;
         alert.end_unix = bestEndUnix;
+        alert_active = true;
     } else {
+        std::lock_guard<std::mutex> lock(_alertMutex);
         alert_active = false;
         alert.severity = 0;
         alert.start_unix = 0;

@@ -226,7 +226,7 @@ moment du réglage.
 #### Recopie de l'historique par le serveur d'analyse
 - Deux API **en lecture seule** permettent au serveur de recopier l'historique sans jamais rien modifier sur MeteoHub :
   - `GET /api/history/days` - liste des journées présentes sur la carte SD, avec pour chacune le nombre de mesures enregistrées (`{day, nrec, first_ts, last_ts}`) ; accepte `ctx=in|out` (intérieur par défaut) ;
-  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` - mesures brutes de la journée, à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]` ; accepte aussi `ctx=in|out` ;
+  - `GET /api/history/raw?day=AAAAMMJJ&index=N&limit=M` - mesures brutes de la journée, à partir de la position `N`, au format compact `[horodatage, température, humidité, pression]` ; accepte aussi `ctx=in|out` ; une humidité ou une pression que la sonde n'a pas mesurée vaut `null` (jamais 0) ;
   - `GET /api/forecast/history` - prévisions « du lendemain » archivées (une par jour cible), pour l'analyse « prévu vs observé » de morfAnalytics.
 - Une mesure est repérée par sa **position dans le fichier du jour**, et non par son horodatage. Les fichiers étant écrits en ajout seul, cette position ne change jamais, alors qu'un horodatage peut reculer lors d'un recalage d'horloge ou se répéter lors du passage à l'heure d'hiver. Le serveur d'analyse retient donc le couple (jour, position) et ne redemande que ce qui manque : aucune mesure n'est transférée deux fois.
 - Ces API ne sont utiles qu'à un serveur d'analyse. Pour un export manuel, préférer le CSV (`GET /api/history/export.csv`), directement exploitable dans un tableur.

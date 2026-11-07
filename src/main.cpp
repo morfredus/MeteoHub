@@ -377,12 +377,80 @@ void setup() {
                         + ") : suivi de synchro remis a zero");
         }
 
-        // 2) Voie inverse D'ABORD : la fenetre d'ecoute de la sonde est courte
-        //    (~300 ms). On renvoie l'accuse cumulatif + le trou a combler AVANT
-        //    l'archivage (une ecriture SD peut etre lente et ferait manquer la
-        //    fenetre). Cet accuse elague le backlog de la sonde et recale son
-        //    horloge ; la retransmission, elle, est PROACTIVE cote sonde.
+        // 2) L'accuse est envoye APRES l'archivage (etape 4) : un accuse fait effacer la
+        //    mesure du buffer de la sonde ; accuser avant d'avoir ecrit sur la carte SD
+        //    perdait la mesure si l'ecriture echouait (constate le 2026-11-06).
+        //    (Les mesures sont courtes a archiver ; la fenetre d'ecoute de la sonde,
+        //    ~300 ms, laisse la marge d'une ecriture SD normale.)
         bool replySent = false;
+
+        // 3) Premiere mesure LIVE apres un demarrage a froid de la sonde (reset
+        //    autre que la sortie de veille, wake <= 1) : apres un flash ou un
+        //    passage sur l'USB, la carte restee eveillee a chauffe ses capteurs.
+        //    Elle est ACCUSEE (etape 2, la sonde peut la retirer de son buffer
+        //    sans perte), puis jugee (cold_boot_rule.h) : conforme a la derniere
+        //    mesure archivee de moins de 10 min -> mesure normale ; sinon ->
+        //    archivee AVEC la marque « demarrage a froid » (morfAnalytics l'ecarte
+        //    et permet de la reintegrer). Quarantaine seulement en dernier
+        //    recours (fichier du jour en ancien format, pas de SD). Trames LIVE
+        //    seulement : une retransmission porte le contexte du reveil EN COURS,
+        //    pas celui de sa mesure d'origine.
+        constexpr uint8_t kResetDeepSleep = 8; // esp_reset_reason() ESP_RST_DEEPSLEEP
+        const bool coldBoot = d.isLive
+            && outdoor.reset_reason != kResetDeepSleep && outdoor.wake_count <= 1;
+
+        // 4) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
+        //    pas ré-archivé. Une trame live met a jour l'affichage ; une
+        //    retransmission n'archive que l'historique, a son heure d'origine.
+        //    `archived` = la mesure est durablement ecrite (ou n'avait rien a ecrire).
+        bool archived = true;
+        if (!outdoor.valid) {
+            // Mesure sans temperature : rien a archiver ni a afficher. Le seq
+            // reste accuse, la mesure est perdue de toute facon (capteur muet).
+        } else if (coldBoot && d.archive) {
+            OutdoorHistoryRecord last;
+            const bool havePrev = history.lastOutdoorRecord(last);
+            const mhcold::Reading prev{(int64_t)last.timestamp, last.t, last.h, last.p};
+            const mhcold::Reading cur{d.measurementTs, outdoor.temperature,
+                                      outdoor.humidity, outdoor.pressure};
+            if (mhcold::conformsToPrevious(havePrev, prev, cur)) {
+                archived = history.addOutdoorLive(outdoor, (time_t)d.measurementTs);
+                if (archived)
+                    LOG_INFO("[OUT] 1re mesure apres demarrage a froid : conforme a la "
+                             "precedente (< 10 min), archivee normalement");
+            } else if (history.addOutdoorFlagged(outdoor, (time_t)d.measurementTs,
+                                                 mhcold::kFlagColdBoot)) {
+                LOG_INFO("[OUT] 1re mesure apres demarrage a froid : non conforme, "
+                         "archivee avec la marque cold_boot (hors affichage)");
+            } else {
+                archived = outdoorQuarantine.add(outdoor, (time_t)d.measurementTs,
+                                                 "cold_boot");
+                LOG_INFO(std::string("[OUT] 1re mesure apres demarrage a froid : marque "
+                                     "impossible, quarantaine ")
+                         + (archived ? "(conservee, hors historique)" : "(ECHEC d'ecriture)"));
+            }
+        } else if (coldBoot) {
+            // Doublon d'une mesure de demarrage deja traitee : rien a faire.
+        } else if (d.archive) {
+            archived = d.isLive ? history.addOutdoorLive(outdoor, (time_t)d.measurementTs)
+                                : history.addOutdoorHistorical(outdoor, (time_t)d.measurementTs);
+        } else if (d.isLive) {
+            // Doublon mais trame live : on rafraichit tout de meme la valeur
+            // « live » (affichage/fraicheur) sans ré-archiver.
+            history.refreshOutdoorLive(outdoor);
+        }
+
+        // Archivage en echec : le seq est retire du suivi (il redevient un trou) et RIEN
+        // n'est accuse. La sonde garde la mesure et la renverra.
+        if (d.archive && !archived) {
+            meteoSync.cancelReceived(outdoor.src_mac, outdoor.sequence);
+            LOG_WARNING("[OUT] archivage en echec : seq=" + std::to_string(outdoor.sequence)
+                        + " non accuse (la sonde le renverra)");
+            return;
+        }
+
+        // 4 ter) Voie inverse, maintenant que la mesure est sure : accuse cumulatif + trou
+        //    a combler, recale l'horloge de la sonde et elague son backlog.
         if (d.haveReply) {
             SyncControl reply = d.reply;
             // Mise a jour OTA de la sonde : un firmware different de celui qu'elle declare est
@@ -404,59 +472,6 @@ void setup() {
                 LOG_INFO("[OTA] offre " + std::string(sensorFwStore.version()) + " envoyee a la sonde "
                          + shortMac(outdoor.src_mac) + (sent ? "" : " (ECHEC d'envoi)"));
             }
-        }
-
-        // 3) Premiere mesure LIVE apres un demarrage a froid de la sonde (reset
-        //    autre que la sortie de veille, wake <= 1) : apres un flash ou un
-        //    passage sur l'USB, la carte restee eveillee a chauffe ses capteurs.
-        //    Elle est ACCUSEE (etape 2, la sonde peut la retirer de son buffer
-        //    sans perte), puis jugee (cold_boot_rule.h) : conforme a la derniere
-        //    mesure archivee de moins de 10 min -> mesure normale ; sinon ->
-        //    archivee AVEC la marque « demarrage a froid » (morfAnalytics l'ecarte
-        //    et permet de la reintegrer). Quarantaine seulement en dernier
-        //    recours (fichier du jour en ancien format, pas de SD). Trames LIVE
-        //    seulement : une retransmission porte le contexte du reveil EN COURS,
-        //    pas celui de sa mesure d'origine.
-        constexpr uint8_t kResetDeepSleep = 8; // esp_reset_reason() ESP_RST_DEEPSLEEP
-        const bool coldBoot = d.isLive
-            && outdoor.reset_reason != kResetDeepSleep && outdoor.wake_count <= 1;
-
-        // 4) Archivage IDEMPOTENT : un doublon (retransmission deja connue) n'est
-        //    pas ré-archivé. Une trame live met a jour l'affichage ; une
-        //    retransmission n'archive que l'historique, a son heure d'origine.
-        if (!outdoor.valid) {
-            // Mesure sans temperature : rien a archiver ni a afficher. Le seq
-            // reste accuse, la mesure est perdue de toute facon (capteur muet).
-        } else if (coldBoot && d.archive) {
-            OutdoorHistoryRecord last;
-            const bool havePrev = history.lastOutdoorRecord(last);
-            const mhcold::Reading prev{(int64_t)last.timestamp, last.t, last.h, last.p};
-            const mhcold::Reading cur{d.measurementTs, outdoor.temperature,
-                                      outdoor.humidity, outdoor.pressure};
-            if (mhcold::conformsToPrevious(havePrev, prev, cur)) {
-                history.addOutdoorLive(outdoor, (time_t)d.measurementTs);
-                LOG_INFO("[OUT] 1re mesure apres demarrage a froid : conforme a la "
-                         "precedente (< 10 min), archivee normalement");
-            } else if (history.addOutdoorFlagged(outdoor, (time_t)d.measurementTs,
-                                                 mhcold::kFlagColdBoot)) {
-                LOG_INFO("[OUT] 1re mesure apres demarrage a froid : non conforme, "
-                         "archivee avec la marque cold_boot (hors affichage)");
-            } else {
-                const bool kept = outdoorQuarantine.add(outdoor, (time_t)d.measurementTs,
-                                                        "cold_boot");
-                LOG_INFO(std::string("[OUT] 1re mesure apres demarrage a froid : marque "
-                                     "impossible, quarantaine ")
-                         + (kept ? "(conservee, hors historique)" : "(ECHEC d'ecriture)"));
-            }
-        } else if (coldBoot) {
-            // Doublon d'une mesure de demarrage deja traitee : rien a faire.
-        } else if (d.archive) {
-            if (d.isLive) history.addOutdoorLive(outdoor, (time_t)d.measurementTs);
-            else          history.addOutdoorHistorical(outdoor, (time_t)d.measurementTs);
-        } else if (d.isLive) {
-            // Doublon mais trame live : on rafraichit tout de meme la valeur
-            // « live » (affichage/fraicheur) sans ré-archiver.
-            history.refreshOutdoorLive(outdoor);
         }
 
         // 4 bis) Archive de la batterie : toute mesure NOUVELLE (live ou rattrapee, a
@@ -566,6 +581,7 @@ void loop() {
     static unsigned long lastHistoryUpdate = 0;
     static unsigned long lastLedUpdate = 0;
     static unsigned long lastForecastArchive = 0;
+    static unsigned long lastLiveRead = 0;
 
     heapGuard();
 
@@ -581,7 +597,7 @@ void loop() {
     }
 
     forecast.update();
-    history.update();
+    history.service(); // effacement de l'historique par lots (demande web)
     ui.update();
     analytics.update();
     espNowReceiver.update();
@@ -622,7 +638,7 @@ void loop() {
     // plausible (min < max) pour ne pas archiver une trame vide.
     if (millis() - lastForecastArchive >= (30UL * 60UL * 1000UL)) {
         struct tm tinfo;
-        if (getLocalTime(&tinfo) && forecast.tomorrow.temp_max > forecast.tomorrow.temp_min) {
+        if (getLocalTime(&tinfo, 0) && forecast.tomorrow.temp_max > forecast.tomorrow.temp_min) {
             const time_t nowt = time(NULL);
             const time_t tmr = nowt + 86400;
             struct tm tt;
@@ -639,9 +655,16 @@ void loop() {
         }
     }
 
+    // Cache de la mesure IN « en direct » pour /api/live : seule loop() lit l'I2C (les
+    // pages web, dans async_tcp, lisaient le bus en meme temps que loop() et l'OLED).
+    if (millis() - lastLiveRead >= 10000UL) {
+        lastLiveRead = millis();
+        sensors.read();
+    }
+
     // Cycle de mesure intérieure : acquisition + enregistrement à l'historique,
     // à la cadence configurée (INDOOR_MEASUREMENT_INTERVAL_SECONDS). C'est le SEUL
-    // endroit qui acquiert ; l'UI, elle, lit la dernière mesure (sensors.last()).
+    // endroit qui acquiert ; l'UI, elle, lit la dernière mesure (sensors.cached()).
     if (millis() - lastHistoryUpdate >= (INDOOR_MEASUREMENT_INTERVAL_SECONDS * 1000UL)) {
         lastHistoryUpdate = millis();
         SensorData data = sensors.read();

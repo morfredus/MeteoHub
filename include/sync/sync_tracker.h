@@ -40,9 +40,35 @@ public:
         auto it = std::lower_bound(_ahead.begin(), _ahead.end(), seq);
         if (it != _ahead.end() && *it == seq) return false; // doublon
 
+        _lastMarked = seq;
+        _lastPrevAck = _ackContiguous;
         _ahead.insert(it, seq);
         coalesce();
         enforceAheadBound();
+        return true;
+    }
+
+    // Annule le DERNIER markReceived(seq) qui a renvoye true, quand la mesure n'a
+    // finalement pas pu etre ecrite (carte SD en echec) : sans cela le seq resterait
+    // « recu », accuse a la sonde, et la mesure serait perdue pour de bon. Le seq
+    // redevient un trou ; la sonde le renverra. Renvoie false si seq n'est pas le
+    // dernier marque (rien n'est alors modifie).
+    bool unmarkReceived(uint32_t seq) {
+        if (seq == 0 || seq != _lastMarked) return false;
+        auto it = std::lower_bound(_ahead.begin(), _ahead.end(), seq);
+        if (it != _ahead.end() && *it == seq) {
+            _ahead.erase(it);               // seq etait reste au-dessus d'un trou
+        } else if (seq > _lastPrevAck && seq <= _ackContiguous) {
+            // seq a comble un trou et l'accuse a avance : restituer les seq qui
+            // l'avaient suivi (ils etaient en avance), et reculer l'accuse.
+            std::vector<uint32_t> restored;
+            for (uint32_t s = seq + 1; s <= _ackContiguous; s++) restored.push_back(s);
+            _ahead.insert(_ahead.begin(), restored.begin(), restored.end());
+            _ackContiguous = _lastPrevAck;
+        } else {
+            return false;
+        }
+        _lastMarked = 0;
         return true;
     }
 
@@ -123,6 +149,8 @@ private:
     }
 
     uint32_t _ackContiguous = 0;
+    uint32_t _lastMarked = 0;   // dernier seq accepte par markReceived (annulable)
+    uint32_t _lastPrevAck = 0;  // accuse cumulatif juste avant ce markReceived
     std::vector<uint32_t> _ahead; // seq recus au-dessus du trou, tries croissants
 };
 

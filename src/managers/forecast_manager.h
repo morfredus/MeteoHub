@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <string>
  
 struct Forecast {
@@ -29,7 +30,13 @@ public:
     Alert alert;
     bool alert_active = false;
 
+    // Copie coherente de l'alerte pour les pages web (async_tcp) : parseResponse() tourne
+    // dans loop() et remplace les chaines de `alert` ; les lire directement pendant ce
+    // temps etait une lecture de memoire liberee. Renvoie alert_active.
+    bool alertSnapshot(Alert& out) const;
+
 private:
+    mutable std::mutex _alertMutex;
     unsigned long lastUpdate = 0;
     void parseResponse(const std::string& payload);
 };

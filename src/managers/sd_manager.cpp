@@ -186,6 +186,11 @@ bool SdManager::begin() {
 bool SdManager::isAvailable() {
     if (!_available) return ensureMounted();
     if (SD.cardType() == CARD_NONE) {
+        // Seule la tache proprietaire du montage (loop) demonte : SD.end() depuis
+        // async_tcp pouvait invalider des fichiers ouverts pendant une ecriture de
+        // loop(). Les autres taches voient simplement la SD comme absente, sans
+        // changer l'etat ; loop() constatera l'absence et remontera la carte.
+        if (_mount_task != nullptr && xTaskGetCurrentTaskHandle() != _mount_task) return false;
         _available = false;
         SD.end();
         return ensureMounted();

@@ -100,6 +100,15 @@ private:
     uint8_t _lastSrcMac[6]{};
     bool _haveSrcMac = false;
 
+    // Demande d'appairage a laquelle ce hub vient de repondre : une confirmation n'est
+    // acceptee que pour CETTE sonde (MAC) et CE nonce, dans la minute. Sans cela, une trame
+    // PAIR_CONFIRM forgee suffisait a changer la sonde associee (et donc a faire ignorer la
+    // vraie).
+    bool _pairPending = false;
+    uint8_t _pairMac[6]{};
+    uint32_t _pairNonce = 0;
+    unsigned long _pairMs = 0;
+
     static void enqueueRaw(const uint8_t* mac, const uint8_t* data, int len);
     static bool enqueuePair(const uint8_t* mac, const uint8_t* data, int len);
     void processQueuedPackets();

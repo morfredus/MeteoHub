@@ -28,6 +28,11 @@ struct OutdoorData {
     float humidity;
     float pressure;
     bool valid;
+    // La sonde a-t-elle reellement MESURE l'humidite / la pression (drapeaux
+    // FIELD_HUMIDITY / FIELD_PRESSURE) ? Sans cela, humidity / pressure valent 0.0
+    // (capteur muet) et ne doivent ni etre archives ni affiches comme des mesures.
+    bool has_humidity = false;
+    bool has_pressure = false;
     
     // Extensions futures (vent, pluie, UV) - préparées pour MeteoFieldFlags
     float wind_speed;

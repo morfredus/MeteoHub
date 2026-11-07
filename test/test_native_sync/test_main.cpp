@@ -136,6 +136,44 @@ void test_native_counter_restart_detected() {
     TEST_ASSERT_TRUE(gap.isCounterRestart(5));
 }
 
+// --- Archivage en echec : le seq annule redevient un trou, jamais accuse -------
+void test_native_unmark_in_order() {
+    SyncTracker t;
+    t.markReceived(1); t.markReceived(2);
+    TEST_ASSERT_TRUE(t.markReceived(3));
+    TEST_ASSERT_EQUAL_UINT32(3, t.ackContiguous());
+    TEST_ASSERT_TRUE(t.unmarkReceived(3));          // la SD a refuse l'ecriture
+    TEST_ASSERT_EQUAL_UINT32(2, t.ackContiguous()); // l'accuse ne couvre plus 3
+    TEST_ASSERT_TRUE(t.markReceived(3));            // la sonde le renvoie : nouveau
+    TEST_ASSERT_EQUAL_UINT32(3, t.ackContiguous());
+}
+
+void test_native_unmark_after_gap_fill() {
+    SyncTracker t;
+    t.markReceived(1); t.markReceived(2); t.markReceived(3);
+    t.markReceived(5); t.markReceived(6);           // 4 manque
+    TEST_ASSERT_TRUE(t.markReceived(4));            // comble : accuse saute a 6
+    TEST_ASSERT_EQUAL_UINT32(6, t.ackContiguous());
+    TEST_ASSERT_TRUE(t.unmarkReceived(4));          // ecriture de 4 en echec
+    TEST_ASSERT_EQUAL_UINT32(3, t.ackContiguous()); // 5 et 6 redeviennent « en avance »
+    TEST_ASSERT_EQUAL_UINT32(4, t.firstMissing());
+    TEST_ASSERT_EQUAL_UINT32(2, (uint32_t)t.aheadCount());
+    TEST_ASSERT_FALSE(t.markReceived(5));           // deja connu : pas ré-archive
+    TEST_ASSERT_TRUE(t.markReceived(4));
+    TEST_ASSERT_EQUAL_UINT32(6, t.ackContiguous());
+}
+
+void test_native_unmark_ahead_and_refused() {
+    SyncTracker t;
+    t.markReceived(1);
+    TEST_ASSERT_TRUE(t.markReceived(5));            // au-dessus d'un trou
+    TEST_ASSERT_TRUE(t.unmarkReceived(5));
+    TEST_ASSERT_FALSE(t.hasGap());
+    TEST_ASSERT_FALSE(t.unmarkReceived(5));         // une seule annulation par marque
+    TEST_ASSERT_FALSE(t.unmarkReceived(1));         // pas le dernier marque
+    TEST_ASSERT_EQUAL_UINT32(1, t.ackContiguous());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_native_inorder_ack_advances);
@@ -147,5 +185,8 @@ int main(int, char**) {
     RUN_TEST(test_native_anchor_refreshes);
     RUN_TEST(test_native_pairing_baseline);
     RUN_TEST(test_native_counter_restart_detected);
+    RUN_TEST(test_native_unmark_in_order);
+    RUN_TEST(test_native_unmark_after_gap_fill);
+    RUN_TEST(test_native_unmark_ahead_and_refused);
     return UNITY_END();
 }

@@ -33,6 +33,13 @@ public:
     // une lecture ne crée jamais d'entrée d'historique (l'archivage est ailleurs).
     SensorData read();
 
+    // Derniere mesure produite par read(), lisible depuis N'IMPORTE QUELLE tache.
+    // Les pages web (async_tcp) l'utilisent a la place de read() : une lecture I2C
+    // lancee depuis async_tcp tombait en meme temps que celle de loop() / de l'OLED
+    // (bus partage, course). Seule loop() acquiert ; le cache est rafraichi toutes
+    // les quelques secondes (voir main.cpp).
+    SensorData cached() const;
+
     // Calibration (décalages température / humidité, voir sensor_calibration.h).
     // Appliquée à chaque lecture, donc à l'affichage, à l'historique et à tout ce
     // qui est exposé. La persistance vit dans modules/calibration_store.
@@ -46,6 +53,8 @@ public:
 
 private:
     mhcal::Offsets _cal;
+    SensorData _cache{0.0f, 0.0f, 0.0f, false};
+    mutable portMUX_TYPE _cacheMux = portMUX_INITIALIZER_UNLOCKED;
     float _rawTemp = NAN, _rawHum = NAN, _rawPres = NAN;
 
     Adafruit_AHTX0 aht;

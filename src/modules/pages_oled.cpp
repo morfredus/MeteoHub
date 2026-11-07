@@ -84,7 +84,7 @@ std::string formatFloat(float value, int precision) {
 std::string getHeader(const std::string& title, int pageIndex, int pageCount) {
 	struct tm timeinfo;
 	char timeStr[6];
-	if (getLocalTime(&timeinfo)) {
+	if (getLocalTime(&timeinfo, 0)) {
 		strftime(timeStr, sizeof(timeStr), "%H:%M", &timeinfo);
 	} else {
 		strcpy(timeStr, "--:--");
@@ -243,6 +243,7 @@ void pageWeather_oled(DisplayInterface& d, SensorManager& sensors, ForecastManag
 	// énorme (aucune trame radio) -> traitée comme indisponible, pour ne jamais
 	// afficher du vieux comme du courant. Seuils : voir config.h.
 	float outT = 0, outH = 0, outP = 0;
+	bool outHasH = false; // humidité réellement mesurée par la sonde (sinon « -- »)
 	MeteoSourceState outState = MeteoSourceState::UNAVAILABLE;
 	bool outBatLow = false;      // pile de la sonde sous le seuil
 	uint8_t outBatPct = 0;
@@ -252,7 +253,8 @@ void pageWeather_oled(DisplayInterface& d, SensorManager& sensors, ForecastManag
 		if (live.valid && outAge <= OUTDOOR_UNAVAILABLE_MS) {
 			outT = live.temperature;
 			outH = live.humidity;
-			outP = live.pressure;
+			outHasH = live.has_humidity;
+			outP = live.has_pressure ? live.pressure : 0.0f;
 			outState = (outAge <= OUTDOOR_FRESH_MAX_MS) ? MeteoSourceState::FRESH
 			                                            : MeteoSourceState::STALE;
 		}
@@ -277,7 +279,7 @@ void pageWeather_oled(DisplayInterface& d, SensorManager& sensors, ForecastManag
 	       (outState == MeteoSourceState::STALE) ? "OUT~" : "OUT");
 	if (hasOut) {
 		d.text(COL_TEMP_X, OLED_LINE_2_Y, formatFloat(outT, 1) + "C");
-		d.text(COL_HUM_X, OLED_LINE_2_Y, formatFloat(outH, 0) + "%");
+		d.text(COL_HUM_X, OLED_LINE_2_Y, outHasH ? (formatFloat(outH, 0) + "%") : std::string("--%"));
 	} else if (outFallback) {
 		// "I" = donnée de secours issue de l'intérieur.
 		d.text(COL_TEMP_X, OLED_LINE_2_Y, std::string("I") + formatFloat(indoorData.temperature, 1) + "C");

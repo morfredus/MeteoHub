@@ -300,11 +300,24 @@ void EspNowReceiver::processPairFrames() {
             sealPairFrame(resp);
             const esp_err_t r = esp_now_send(rx.mac, reinterpret_cast<const uint8_t*>(&resp),
                                              sizeof(resp));
+            if (r == ESP_OK) {
+                _pairPending = true;
+                memcpy(_pairMac, rx.mac, 6);
+                _pairNonce = f.nonce;
+                _pairMs = millis();
+            }
             LOG_INFO(std::string("ESP-NOW: demande d'appairage de ") + src
                      + " node=" + std::to_string(f.node_id)
                      + (r == ESP_OK ? " -> reponse envoyee ch=" + std::to_string(_wifiChannel)
                                     : " -> envoi reponse KO " + std::to_string((int)r)));
         } else if (f.type == PAIR_CONFIRM) {
+            if (!_pairPending || memcmp(_pairMac, rx.mac, 6) != 0 || _pairNonce != f.nonce
+                || millis() - _pairMs > 60000UL) {
+                LOG_WARNING(std::string("ESP-NOW: confirmation d'appairage ignoree (aucune demande "
+                                        "correspondante) de ") + src);
+                continue;
+            }
+            _pairPending = false;
             LOG_INFO(std::string("ESP-NOW: sonde appairee ") + src
                      + " node=" + std::to_string(f.node_id)
                      + " reprise apres seq=" + std::to_string(f.base_seq));
@@ -427,6 +440,8 @@ OutdoorData EspNowReceiver::convertToOutdoorData(const MeteoPacket& packet) cons
     // 0 degC porte son drapeau, elle passe toujours. La temperature est le pivot :
     // une ligne d'historique sans T n'a pas de sens.
     outdoor.valid = (packet.valid_fields & FIELD_TEMPERATURE) != 0;
+    outdoor.has_humidity = (packet.valid_fields & FIELD_HUMIDITY) != 0;
+    outdoor.has_pressure = (packet.valid_fields & FIELD_PRESSURE) != 0;
 
     // Calibration APRÈS le contrôle de plausibilité, qui juge la mesure brute du
     // capteur. L'humidité n'est corrigée que si la sonde l'a réellement mesurée.

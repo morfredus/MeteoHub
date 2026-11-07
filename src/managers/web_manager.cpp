@@ -62,6 +62,7 @@ static const char METEOHUB_API_JSON[] PROGMEM =
 extern mhsync::MeteoSyncService meteoSync; // defini dans main.cpp
 extern EspNowReceiver espNowReceiver;      // defini dans main.cpp (calibration exterieure)
 #include "project_config.h"
+#include "origin_guard.h"
 #include "config.h"
 #include "web_pages.h"
 
@@ -127,14 +128,13 @@ static std::string translateAlertToFrench(const std::string& event) {
     return event;
 }
 
-static std::string buildAlertDescriptionSummaryFr(const ForecastManager* forecast) {
-    if (!forecast || !forecast->alert_active) {
+static std::string buildAlertDescriptionSummaryFr(bool active, const Alert& alert) {
+    if (!active) {
         return "";
     }
 
-    std::string level_label = getAlertLevelLabelFr(forecast->alert.severity);
-    // CONVERSION EXPLICITE ICI : String (Arduino) -> std::string
-    std::string event_cpp = std::string(forecast->alert.event.c_str());
+    std::string level_label = getAlertLevelLabelFr(alert.severity);
+    std::string event_cpp = alert.event;
     
     std::string event_fr = translateAlertToFrench(event_cpp);
     if (event_fr.empty()) {
@@ -149,8 +149,8 @@ static std::string buildAlertDescriptionSummaryFr(const ForecastManager* forecas
     return summary;
 }
 
-static std::string getAlertDescriptionFr(const ForecastManager* forecast) {
-    return buildAlertDescriptionSummaryFr(forecast);
+static std::string getAlertDescriptionFr(bool active, const Alert& alert) {
+    return buildAlertDescriptionSummaryFr(active, alert);
 }
 
 // Dégage une tendance de fond en croisant la direction de la pression sur 1h, 12h, 24h
@@ -184,6 +184,36 @@ static std::string computeGlobalTrendLabelFr(const MeteoTrend& trend) {
     if (score <= -(windows - 1)) return "Dégradation durable";
     if (score == 0) return "Tendance stable";
     return "Tendance variable";
+}
+
+// Garde anti-CSRF des ECRITURES (POST / DELETE) : refuse une requete dont l'en-tete Origin
+// (envoye par tout navigateur sur une ecriture cross-origin) ne designe pas ce hub.
+// Les clients non navigateur n'envoient pas Origin et passent (voir origin_guard.h).
+static bool isCrossOriginWrite(AsyncWebServerRequest* request) {
+    if (!request->hasHeader("Origin")) return false;
+    const std::string origin = request->header("Origin").c_str();
+    const std::string host = request->hasHeader("Host") ? request->header("Host").c_str() : "";
+    return !mhorigin::writeAllowed(origin, host);
+}
+
+// A appeler en tete d'un handler d'ecriture : repond 403 et renvoie true si refuse.
+static bool refuseCrossOrigin(AsyncWebServerRequest* request) {
+    if (!isCrossOriginWrite(request)) return false;
+    request->send(403, "application/json", "{\"error\":\"cross_origin_forbidden\"}");
+    return true;
+}
+
+// Ligne JSON compacte [ts,t,h,p] (+ marques si non nulles). Une humidite ou une pression
+// absente (NaN) est emise `null` : « nan » n'est pas du JSON valide.
+static void formatRawRow(char* buf, size_t sz, const RawRecord& r) {
+    char hb[16], pb[16];
+    if (std::isfinite(r.h)) snprintf(hb, sizeof(hb), "%.1f", r.h); else strcpy(hb, "null");
+    if (std::isfinite(r.p)) snprintf(pb, sizeof(pb), "%.1f", r.p); else strcpy(pb, "null");
+    if (r.flags)
+        snprintf(buf, sz, "[%lu,%.1f,%s,%s,%lu]", (unsigned long)r.ts, r.t, hb, pb,
+                 (unsigned long)r.flags);
+    else
+        snprintf(buf, sz, "[%lu,%.1f,%s,%s]", (unsigned long)r.ts, r.t, hb, pb);
 }
 
 WebManager::WebManager() : _server(80) {
@@ -352,12 +382,13 @@ void WebManager::_setupApi() {
         AsyncResponseStream *response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(2048);
 
-        // IN en DIRECT : le capteur intérieur est local au hub, on le lit à chaque
-        // requête (lecture I2C peu coûteuse), sans créer d'entrée d'historique.
-        // Seul l'archivage suit la cadence de mesure ; l'affichage reste temps réel.
+        // IN « en direct » : derniere lecture du capteur local (cache de loop(), <= 10 s).
+        // Seul l'archivage suit la cadence de mesure (5 min).
+        // Lecture du CACHE (rafraichi par loop() toutes les 10 s) : une lecture I2C lancee
+        // d'ici tombait en meme temps que celle de loop() et de l'OLED (bus partage).
         SensorData live_data = {0.0f, 0.0f, 0.0f, false};
         if (_sensors) {
-            live_data = _sensors->read();
+            live_data = _sensors->cached();
         }
 
         // Champs historiques (intérieur brut) : conservés tels quels pour ne pas
@@ -384,8 +415,9 @@ void WebManager::_setupApi() {
 
         JsonObject out = doc.createNestedObject("out");
         out["temp"] = outData.temperature;
-        out["hum"] = outData.humidity;
-        out["pres"] = outData.pressure;
+        // Humidite / pression absentes de la trame (capteur muet) : null, jamais 0.
+        if (outData.has_humidity) out["hum"] = outData.humidity; else out["hum"] = nullptr;
+        if (outData.has_pressure) out["pres"] = outData.pressure; else out["pres"] = nullptr;
         out["valid"] = outHas && outData.valid;
         out["age_ms"] = (double)outAge;
         out["fresh"] = (outHas && outData.valid && outAge <= OUTDOOR_FRESH_MAX_MS);
@@ -450,23 +482,24 @@ void WebManager::_setupApi() {
         };
         const bool outValid = outHas && outData.valid;
         addEff("temp", outValid, outData.temperature, live_data.valid, live_data.temperature);
-        addEff("hum",  outValid, outData.humidity,    live_data.valid, live_data.humidity);
-        addEff("pres", outValid, outData.pressure,    live_data.valid, live_data.pressure);
+        // Une grandeur non mesuree par la sonde bascule sur le repli IN (marque « fallback »).
+        addEff("hum",  outValid && outData.has_humidity, outData.humidity, live_data.valid, live_data.humidity);
+        addEff("pres", outValid && outData.has_pressure, outData.pressure, live_data.valid, live_data.pressure);
 
         if (_forecast) {
-            doc["alert_active"] = _forecast->alert_active;
-            doc["alert_severity"] = _forecast->alert.severity;
-            doc["alert_sender"] = _forecast->alert.sender.c_str();
-            doc["alert_event"] = _forecast->alert.event.c_str();
-            
-            // CONVERSION EXPLICITE : String -> std::string pour le traitement
-            std::string event_cpp(_forecast->alert.event.c_str());
-            
-            doc["alert_event_fr"] = translateAlertToFrench(event_cpp).c_str();
-            doc["alert_description_fr"] = getAlertDescriptionFr(_forecast).c_str();
-            doc["alert_level_label_fr"] = getAlertLevelLabelFr(_forecast->alert.severity);
-            doc["alert_start_unix"] = _forecast->alert.start_unix;
-            doc["alert_end_unix"] = _forecast->alert.end_unix;
+            // Instantane : loop() remplace les chaines de l'alerte pendant ce temps.
+            Alert al;
+            const bool alActive = _forecast->alertSnapshot(al);
+            doc["alert_active"] = alActive;
+            doc["alert_severity"] = al.severity;
+            doc["alert_sender"] = al.sender;
+            doc["alert_event"] = al.event;
+
+            doc["alert_event_fr"] = translateAlertToFrench(al.event);
+            doc["alert_description_fr"] = getAlertDescriptionFr(alActive, al);
+            doc["alert_level_label_fr"] = getAlertLevelLabelFr(al.severity);
+            doc["alert_start_unix"] = al.start_unix;
+            doc["alert_end_unix"] = al.end_unix;
         } else {
             doc["alert_active"] = false;
             doc["alert_severity"] = 0;
@@ -482,18 +515,18 @@ void WebManager::_setupApi() {
         DynamicJsonDocument doc(1024);
 
         if (_forecast) {
-            doc["active"] = _forecast->alert_active;
-            doc["severity"] = _forecast->alert.severity;
-            doc["sender"] = _forecast->alert.sender.c_str();
-            doc["event"] = _forecast->alert.event.c_str();
-            
-            // CONVERSION EXPLICITE
-            std::string event_cpp(_forecast->alert.event.c_str());
-            doc["event_fr"] = translateAlertToFrench(event_cpp).c_str();
-            doc["description_fr"] = getAlertDescriptionFr(_forecast).c_str();
-            doc["alert_level_label_fr"] = getAlertLevelLabelFr(_forecast->alert.severity);
-            doc["start_unix"] = _forecast->alert.start_unix;
-            doc["end_unix"] = _forecast->alert.end_unix;
+            Alert al;
+            const bool alActive = _forecast->alertSnapshot(al);
+            doc["active"] = alActive;
+            doc["severity"] = al.severity;
+            doc["sender"] = al.sender;
+            doc["event"] = al.event;
+
+            doc["event_fr"] = translateAlertToFrench(al.event);
+            doc["description_fr"] = getAlertDescriptionFr(alActive, al);
+            doc["alert_level_label_fr"] = getAlertLevelLabelFr(al.severity);
+            doc["start_unix"] = al.start_unix;
+            doc["end_unix"] = al.end_unix;
         } else {
             doc["active"] = false;
             doc["severity"] = 0;
@@ -676,6 +709,7 @@ void WebManager::_setupApi() {
     // Enregistre (ou efface) l'adresse manuelle du service d'analyse. Persistee
     // en NVS : elle survit au redemarrage, contrairement a la decouverte.
     _server.on("/api/analytics/config", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
         if (!_analytics) {
             request->send(503, "application/json", "{\"ok\":false}");
             return;
@@ -709,13 +743,16 @@ void WebManager::_setupApi() {
     // repartir sur des mesures propres. Action destructive et irreversible :
     // l'UI web demande confirmation avant d'appeler cette route (POST).
     _server.on("/api/history/clear", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
         if (!_history) {
             request->send(503, "application/json", "{\"ok\":false,\"error\":\"history indisponible\"}");
             return;
         }
-        _history->clearHistory();
-        request->send(200, "application/json",
-                      "{\"ok\":true,\"message\":\"Historique efface (IN + OUT).\"}");
+        // Suppression par lots depuis loop() (HistoryManager::service) : une suppression
+        // recursive de la carte SD dans async_tcp declenchait le watchdog de tache.
+        _history->requestClear();
+        request->send(202, "application/json",
+                      "{\"ok\":true,\"message\":\"Effacement de l'historique (IN + OUT) lance : il se termine en arriere-plan.\"}");
     });
 
     // API Forecast History : prévisions « day-ahead » archivées (étape 9, prévu vs
@@ -748,6 +785,7 @@ void WebManager::_setupApi() {
         request->send(200, "application/json", buf);
     });
     _server.on("/api/led", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
         if (!request->hasParam("brightness", true) && !request->hasParam("brightness")) {
             request->send(400, "application/json", "{\"ok\":false,\"message\":\"parametre brightness manquant\"}");
             return;
@@ -821,6 +859,7 @@ void WebManager::_setupApi() {
     // out_alt (un paramètre absent garde sa
     // valeur). Une valeur non numérique est refusée plutôt que lue comme 0.
     _server.on("/api/sensor/calibration", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
         if (!_sensors) {
             request->send(503, "application/json", "{\"ok\":false,\"message\":\"capteur indisponible\"}");
             return;
@@ -910,13 +949,21 @@ void WebManager::_setupApi() {
         const bool outdoor = request->hasParam("ctx")
             && request->getParam("ctx")->value() == "out";
 
-        AsyncResponseStream *response = request->beginResponseStream("text/csv");
+        // Reponse CHUNKED reprenable : le CSV est produit par morceaux, jour apres jour,
+        // au rythme de la socket (jamais le fichier entier en RAM, ni toute la plage dans
+        // une seule passe de la tache async_tcp). Meme principe que /api/logs.
+        auto cur = std::make_shared<HistoryManager::CsvCursor>();
+        cur->outdoor = outdoor;
+        cur->from = static_cast<time_t>(from_s);
+        cur->to = static_cast<time_t>(to_s);
+        cur->day = cur->from;
+        AsyncWebServerResponse* response = request->beginChunkedResponse("text/csv",
+            [this, cur](uint8_t* buf, size_t maxLen, size_t) -> size_t {
+                return _history->exportCsvChunk(*cur, reinterpret_cast<char*>(buf), maxLen);
+            });
         response->addHeader("Content-Disposition", outdoor
             ? "attachment; filename=\"meteohub-history-out.csv\""
             : "attachment; filename=\"meteohub-history-in.csv\"");
-        auto emit = [response](const char* line) { response->print(line); };
-        if (outdoor) _history->exportOutdoorCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s), emit);
-        else         _history->exportCsv(static_cast<time_t>(from_s), static_cast<time_t>(to_s), emit);
         request->send(response);
     });
 
@@ -992,15 +1039,10 @@ void WebManager::_setupApi() {
             [&](const RawRecord& r) {
                 if (!first) response->print(",");
                 first = false;
-                char buf[64];
+                char buf[96];
                 // 5e element = marques (cold_boot_rule.h), SEULEMENT si non nulles :
                 // une ligne normale reste [ts,t,h,p], lisible par tout client.
-                if (r.flags)
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f,%lu]",
-                             (unsigned long)r.ts, r.t, r.h, r.p, (unsigned long)r.flags);
-                else
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f]",
-                             (unsigned long)r.ts, r.t, r.h, r.p);
+                formatRawRow(buf, sizeof(buf), r);
                 response->print(buf);
                 COOPERATIVE_YIELD_EVERY(count, 32);
                 count++;
@@ -1009,15 +1051,10 @@ void WebManager::_setupApi() {
             [&](const RawRecord& r) {
                 if (!first) response->print(",");
                 first = false;
-                char buf[64];
+                char buf[96];
                 // 5e element = marques (cold_boot_rule.h), SEULEMENT si non nulles :
                 // une ligne normale reste [ts,t,h,p], lisible par tout client.
-                if (r.flags)
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f,%lu]",
-                             (unsigned long)r.ts, r.t, r.h, r.p, (unsigned long)r.flags);
-                else
-                    snprintf(buf, sizeof(buf), "[%lu,%.1f,%.1f,%.1f]",
-                             (unsigned long)r.ts, r.t, r.h, r.p);
+                formatRawRow(buf, sizeof(buf), r);
                 response->print(buf);
                 // Rend la main régulièrement, comme le fait /api/history : sans
                 // cela, la boucle monopolise la tâche réseau et le flux de
@@ -1110,6 +1147,8 @@ void WebManager::_setupApi() {
         }
 
         // Mode fenêtre glissante : ?window=<s>&interval=<s>&points=<n> (rétrocompatible)
+        // loop() pousse dans ce tampon : verrou tenu pendant toute la lecture.
+        std::lock_guard<std::mutex> ramLock(_history->ramMutex());
         const auto& full_history = _history->getRecentHistory();
         int window_s = request->hasParam("window") ? request->getParam("window")->value().toInt() : 0;
         int interval_s = request->hasParam("interval") ? request->getParam("interval")->value().toInt() : 0;
@@ -1264,6 +1303,7 @@ void WebManager::_setupApi() {
 
     // API Delete
     _server.on("/api/files/delete", HTTP_DELETE, [this, getFs](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
         String fsName = request->hasParam("fs") ? request->getParam("fs")->value() : "littlefs";
         fs::FS* pFs = nullptr;
         if (!getFs(fsName, pFs)) {
@@ -1312,12 +1352,14 @@ void WebManager::_setupApi() {
         request->send(200, "application/json", buf);
     });
     _server.on("/api/sensor-fw/clear", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
         sensorFwStore.clear();
         LOG_INFO("Sensor firmware removed (no more OTA offers)");
         request->send(200, "application/json", "{\"ok\":true}");
     });
     // Televersement : POST multipart. La version est lue dans le binaire (balise MHSFW=).
     _server.on("/api/sensor-fw/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
         if (sensorFwStore.present()) {
             LOG_INFO(std::string("Sensor firmware stored: ") + sensorFwStore.version()
                      + " (" + std::to_string(sensorFwStore.size()) + " B)");
@@ -1328,7 +1370,8 @@ void WebManager::_setupApi() {
                           .append(sensorFwStore.lastError()).append("\"}").c_str());
         }
     }, [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-        (void)request; (void)filename;
+        (void)filename;
+        if (isCrossOriginWrite(request)) return;
         if (index == 0) {
             if (!_sd || !_sd->isAvailable() || !sensorFwStore.beginUpload()) return;   // present() reste false -> 500
         }
@@ -1338,6 +1381,13 @@ void WebManager::_setupApi() {
 
     // API OTA Update
     _server.on("/api/ota/update", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (refuseCrossOrigin(request)) return;
+        // Aucun fichier recu (POST vide, mauvais champ) : ne PAS redemarrer le hub.
+        if (!_ota_upload_done && !_ota_upload_error) {
+            request->send(400, "application/json", "{\"ok\":false,\"message\":\"no firmware file\"}");
+            return;
+        }
+        _ota_upload_done = false;
         if (_ota_upload_error || Update.hasError()) {
             _ota_upload_error = false;
             request->send(500, "application/json", "{\"ok\":false,\"message\":\"OTA update failed\"}");
@@ -1354,8 +1404,10 @@ void WebManager::_setupApi() {
         // mais LOG_INFO gère souvent les deux. Pour être pur C++, on convertit.
         std::string fname_cpp(filename.c_str());
 
+        if (isCrossOriginWrite(request)) return; // la reponse 403 part du handler de requete
         if (index == 0) {
             _ota_upload_error = false;
+            _ota_upload_done = false;
             LOG_INFO("OTA upload start: " + fname_cpp);
             // Une tentative OTA precedente qui a echoue en cours de route laisse
             // l'objet Update « en cours » (_size > 0). Sans abandon explicite, tout
@@ -1389,6 +1441,7 @@ void WebManager::_setupApi() {
                     Update.printError(Serial);
                     LOG_ERROR("OTA end failed");
                 } else {
+                    _ota_upload_done = true;
                     std::string logMsg = "OTA upload end (bytes=" + std::to_string(index + len) + ")";
                     LOG_INFO(logMsg);
                 }
@@ -1398,47 +1451,65 @@ void WebManager::_setupApi() {
 
     // API Files Upload
     _server.on("/api/files/upload", HTTP_POST, [](AsyncWebServerRequest *request){
+        if (refuseCrossOrigin(request)) return;
         if (request->hasParam("error", true)) {
              request->send(500, "text/plain", "Upload failed");
         } else {
              request->send(200, "text/plain", "OK");
         }
     }, [this, getFs](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
-        static File fsUploadFile;
-        static fs::FS* pFsUpload = nullptr;
+        // Le fichier en cours vit dans le WebManager (plus de statique de fonction) et
+        // appartient a UNE requete : un second televersement simultane est ignore au lieu
+        // d'ecrire dans le fichier du premier.
+        if (isCrossOriginWrite(request)) return;
 
-        if(!index){
+        if (!index) {
+            if (_uploadOwner != nullptr && _uploadOwner != request) {
+                LOG_WARNING("Upload ignore : un autre televersement est en cours");
+                return;
+            }
             String fsName = request->hasParam("fs") ? request->getParam("fs")->value() : "littlefs";
-            
-            pFsUpload = nullptr;
+
+            fs::FS* pFsUpload = nullptr;
             if (!getFs(fsName, pFsUpload)) {
-                return; 
+                return;
             }
 
-            if(!filename.startsWith("/")) filename = "/" + filename;
+            if (!filename.startsWith("/")) filename = "/" + filename;
             if (filename.indexOf("..") != -1) return;
 
-            fsUploadFile = pFsUpload->open(filename, FILE_WRITE);
-            if (!fsUploadFile) {
+            _fsUploadFile = pFsUpload->open(filename, FILE_WRITE);
+            if (!_fsUploadFile) {
                 std::string fname_cpp(filename.c_str());
                 LOG_ERROR("Failed to open file for upload: " + fname_cpp);
+            } else {
+                _uploadOwner = request;
+                // Connexion coupee en plein transfert : refermer le fichier et liberer le verrou.
+                request->onDisconnect([this, request]() {
+                    if (_uploadOwner == request) {
+                        if (_fsUploadFile) _fsUploadFile.close();
+                        _fsUploadFile = File();
+                        _uploadOwner = nullptr;
+                    }
+                });
             }
         }
-        
-        if(fsUploadFile && len > 0){
-            size_t written = fsUploadFile.write(data, len);
+
+        if (_uploadOwner != request) return; // pas le proprietaire du fichier ouvert
+
+        if (_fsUploadFile && len > 0) {
+            size_t written = _fsUploadFile.write(data, len);
             if (written != len) {
                 LOG_ERROR("Disk full or write error");
-                fsUploadFile.close();
-                fsUploadFile = File();
+                _fsUploadFile.close();
+                _fsUploadFile = File();
             }
         }
-        
-        if(final){
-            if(fsUploadFile) {
-                fsUploadFile.close();
-                fsUploadFile = File();
-            }
+
+        if (final) {
+            if (_fsUploadFile) _fsUploadFile.close();
+            _fsUploadFile = File();
+            _uploadOwner = nullptr;
         }
     });
 }

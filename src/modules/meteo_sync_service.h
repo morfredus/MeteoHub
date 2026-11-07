@@ -145,6 +145,15 @@ public:
         }
     }
 
+    // La mesure acceptee par onPacket n'a pas pu etre archivee : retire-la du suivi
+    // (le seq redevient un trou, aucun accuse ne doit la couvrir). Sans effet si
+    // ce n'est pas le dernier seq marque pour cette sonde.
+    bool cancelReceived(const uint8_t* mac, uint32_t seq) {
+        Node& n = node(mac);
+        n.dirty = true;
+        return n.tracker.unmarkReceived(seq);
+    }
+
     uint32_t ackContiguousOf(const uint8_t* mac) { return node(mac).tracker.ackContiguous(); }
 
     // Appairage : la sonde vient de choisir CE hub. `baseSeq` = dernier seq accuse
