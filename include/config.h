@@ -44,7 +44,7 @@
 #endif
 
 #ifndef WEB_MDNS_HOSTNAME
-#define WEB_MDNS_HOSTNAME        "meteotest" // Accessible via http://meteohub.local
+#define WEB_MDNS_HOSTNAME        "meteohub" // Accessible via http://meteohub.local
 #endif
 #define WIFI_RETRY_DELAY_MS      5000
 
@@ -173,5 +173,5 @@
 // s'il est absent, le comportement nominal ne change en RIEN.
 #define ANALYTICS_BEACON_ENABLED MORF_ECOSYSTEM_ENABLED
 #define ANALYTICS_BEACON_PORT    45454          // port morfBeacon (protocole morfbeacon/1)
-#define ANALYTICS_APP_NAME       "nul" // nom d'app annoncé à détecter
+#define ANALYTICS_APP_NAME       "morfAnalytics" // nom d'app annoncé à détecter
 #define ANALYTICS_TIMEOUT_MS     60000          // au-delà (sans heartbeat), considéré hors ligne
