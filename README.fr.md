@@ -2,7 +2,7 @@
 
 *Lire dans une autre langue : [English](README.md) · **Français** (ce document).*
 
-[![Version](https://img.shields.io/badge/version-1.63.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.64.0-blue)](CHANGELOG.md)
 
 > **Version minimale valide : 1.9.0**
 
@@ -56,3 +56,12 @@ Pour éviter toute corruption, assurez-vous que :
 ---
 
 `config.h` est compilé dans le firmware ; les ressources web de `data/` sont minifiées puis embarquées au build (`scripts/embed_web_files.py`). La configuration effective peut être exportée depuis la page **Système** ou via `GET /api/config/export`. Les réglages d'exécution (ex. luminosité de la NeoLED) sont conservés en NVS.
+
+## Intégration continue
+
+Des workflows GitHub Actions vivent dans `.github/workflows/` (générés par le script morfTools
+`gen-ci-workflows.py`) :
+
+- **`ci.yml`** : à chaque pull request (et push sur `main`/`dev`), compile et lance les tests sous
+  PlatformIO (le firmware, plus les tests natifs s'il y en a). Les changements de documentation seule l'ignorent et un run périmé est annulé
+  par un commit plus récent.
